@@ -1,4 +1,4 @@
-const API_URL = window.location.origin;
+const API_URL = window.location.protocol === 'file:' ? 'http://localhost:5050' : window.location.origin;
 
 // === دالة حماية من XSS - تنظيف النصوص قبل إدراجها في HTML ===
 function escHTML(str) {

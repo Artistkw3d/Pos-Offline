@@ -106,6 +106,7 @@ function createWindow() {
 
 // أحداث التطبيق
 app.whenReady().then(() => {
+    startLocalServer();
     createWindow();
 
     app.on('activate', () => {
