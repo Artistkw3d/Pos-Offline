@@ -12433,5 +12433,199 @@ function hideSubscriptionBadge() {
 
 console.log('[Subscriptions] Loaded ✅');
 
-console.log('🎉 All Systems Loaded!');
+// ========================================
+// Sync & Admin Dashboard - المزامنة ولوحة الأدمن
+// ========================================
+
+// مزامنة يدوية (زر المزامنة)
+async function manualSync() {
+    if (!window.userPermissions?.isAdmin) {
+        alert('المزامنة متاحة فقط للأدمن');
+        return;
+    }
+    const result = await syncManager.sync();
+    await updateSyncStatsUI();
+
+    if (result.success) {
+        let msg = 'تمت المزامنة بنجاح!';
+        if (result.invoices_uploaded > 0) msg += `\nتم رفع ${result.invoices_uploaded} فاتورة`;
+        if (result.customers_uploaded > 0) msg += `\nتم رفع ${result.customers_uploaded} عميل`;
+        if (result.products_downloaded > 0) msg += `\nتم تحديث ${result.products_downloaded} منتج`;
+        alert(msg);
+    }
+}
+
+// مزامنة كاملة (إعادة تحميل كل البيانات)
+async function fullSync() {
+    if (!window.userPermissions?.isAdmin) {
+        alert('المزامنة الكاملة متاحة فقط للأدمن');
+        return;
+    }
+    if (!confirm('سيتم تحميل جميع البيانات من السيرفر. هذا قد يستغرق وقتاً. متابعة؟')) return;
+
+    const result = await syncManager.fullSync();
+    await updateSyncStatsUI();
+
+    if (result.success) {
+        alert(`تمت المزامنة الكاملة!\nالمنتجات: ${result.data_counts?.products || 0}\nالعملاء: ${result.data_counts?.customers || 0}`);
+    } else {
+        alert('فشلت المزامنة: ' + (result.error || 'خطأ غير معروف'));
+    }
+}
+
+// تحديث إحصائيات المزامنة في واجهة الأدمن
+async function updateSyncStatsUI() {
+    try {
+        const stats = await syncManager.getSyncStats();
+
+        const setVal = (id, val) => {
+            const el = document.getElementById(id);
+            if (el) el.textContent = val;
+        };
+
+        setVal('syncStatPendingInv', stats.pendingInvoices);
+        setVal('syncStatPendingCust', stats.pendingCustomers);
+        setVal('syncStatProducts', stats.localProducts);
+        setVal('syncStatCustomers', stats.localCustomers);
+        setVal('syncStatLocalInv', stats.localInvoices);
+
+        // تحديث نص آخر مزامنة
+        const syncStatusEl = document.getElementById('syncStatusText');
+        if (syncStatusEl && stats.lastSync) {
+            const d = new Date(stats.lastSync);
+            syncStatusEl.textContent = `اخر مزامنة: ${d.toLocaleDateString('ar-SA')} ${d.toLocaleTimeString('ar-SA')}`;
+        }
+
+        // تحميل سجل المزامنة
+        await loadSyncLog();
+
+        // استعادة رابط السيرفر المحفوظ
+        const serverUrlInput = document.getElementById('serverUrlInput');
+        if (serverUrlInput) {
+            const savedUrl = localStorage.getItem('pos_server_url') || API_URL;
+            serverUrlInput.value = savedUrl;
+        }
+    } catch (e) {
+        console.error('[SyncUI] Error:', e);
+    }
+}
+
+// تحميل سجل المزامنة
+async function loadSyncLog() {
+    try {
+        if (!localDB.isReady) return;
+        const logs = await localDB.getRecentSyncLogs(10);
+        const container = document.getElementById('syncLogList');
+        if (!container) return;
+
+        if (logs.length === 0) {
+            container.innerHTML = '<div style="opacity: 0.5;">لا يوجد سجلات</div>';
+            return;
+        }
+
+        container.innerHTML = logs.map(log => {
+            const d = new Date(log.timestamp);
+            const timeStr = `${d.toLocaleDateString('ar-SA')} ${d.toLocaleTimeString('ar-SA')}`;
+            let detail = '';
+            if (log.type === 'sync_complete') {
+                detail = `رفع: ${log.invoices_uploaded || 0} فاتورة, ${log.customers_uploaded || 0} عميل | تحميل: ${log.products_downloaded || 0} منتج`;
+            } else if (log.type === 'full_sync_complete') {
+                detail = `مزامنة كاملة: ${log.products || 0} منتج, ${log.customers || 0} عميل`;
+            } else if (log.type === 'sync_error') {
+                detail = `خطأ: ${log.error || 'غير معروف'}`;
+            }
+            const color = log.type === 'sync_error' ? '#ff6b6b' : '#90EE90';
+            return `<div style="padding: 4px 0; border-bottom: 1px solid rgba(255,255,255,0.05);">
+                <span style="color: ${color}; font-weight: bold;">${log.type === 'sync_error' ? 'X' : '+'}</span>
+                <span style="margin: 0 5px;">${timeStr}</span>
+                <span style="opacity: 0.7;">${detail}</span>
+            </div>`;
+        }).join('');
+    } catch (e) {
+        console.error('[SyncLog] Error:', e);
+    }
+}
+
+// عرض/إخفاء سجل المزامنة
+function toggleSyncLog() {
+    const container = document.getElementById('syncLogContainer');
+    const toggle = document.getElementById('syncLogToggle');
+    if (container && toggle) {
+        const isHidden = container.style.display === 'none';
+        container.style.display = isHidden ? 'block' : 'none';
+        toggle.textContent = isHidden ? 'إخفاء' : 'عرض';
+    }
+}
+
+// حفظ رابط السيرفر
+function saveServerUrl() {
+    const input = document.getElementById('serverUrlInput');
+    if (input && input.value.trim()) {
+        let url = input.value.trim();
+        // إزالة / من الآخر
+        if (url.endsWith('/')) url = url.slice(0, -1);
+        localStorage.setItem('pos_server_url', url);
+        alert('تم حفظ رابط السيرفر');
+    }
+}
+
+// اختبار الاتصال بالسيرفر
+async function testServerConnection() {
+    const resultEl = document.getElementById('serverTestResult');
+    const input = document.getElementById('serverUrlInput');
+    if (!resultEl || !input) return;
+
+    const url = input.value.trim() || API_URL;
+    resultEl.textContent = 'جاري الاختبار...';
+    resultEl.style.color = '#fbbf24';
+
+    try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 5000);
+        const response = await fetch(`${url}/api/sync/status`, {
+            method: 'GET',
+            signal: controller.signal,
+            cache: 'no-store'
+        });
+        clearTimeout(timeout);
+
+        if (response.ok) {
+            const data = await response.json();
+            if (data.success) {
+                resultEl.innerHTML = `<span style="color: #10b981;">متصل! السيرفر يعمل</span><br>
+                    <span style="opacity:0.7;">المنتجات: ${data.stats?.products || 0} | العملاء: ${data.stats?.customers || 0} | الفواتير: ${data.stats?.invoices || 0}</span>`;
+                return;
+            }
+        }
+        resultEl.textContent = 'السيرفر يستجيب لكن حدث خطأ';
+        resultEl.style.color = '#f59e0b';
+    } catch (e) {
+        resultEl.textContent = 'فشل الاتصال - تأكد من الرابط والشبكة';
+        resultEl.style.color = '#ef4444';
+    }
+}
+
+// تحميل لوحة الأدمن مع إحصائيات المزامنة
+const _originalLoadAdminDashboard = typeof loadAdminDashboard === 'function' ? loadAdminDashboard : null;
+if (_originalLoadAdminDashboard) {
+    const _origFn = loadAdminDashboard;
+    loadAdminDashboard = async function() {
+        await _origFn.apply(this, arguments);
+        await updateSyncStatsUI();
+    };
+} else {
+    // في حال لم تكن الدالة موجودة بعد
+    document.addEventListener('DOMContentLoaded', () => {
+        if (typeof loadAdminDashboard === 'function') {
+            const _origFn2 = loadAdminDashboard;
+            loadAdminDashboard = async function() {
+                await _origFn2.apply(this, arguments);
+                await updateSyncStatsUI();
+            };
+        }
+    });
+}
+
+console.log('[Sync UI] Loaded');
+console.log('All Systems Loaded!');
 

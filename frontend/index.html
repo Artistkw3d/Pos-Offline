@@ -1566,9 +1566,72 @@
         <!-- Admin Dashboard Tab -->
         <div class="tab-content" id="admindashboardTab" style="display: none;">
             <div style="padding: 20px;">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px;">
-                    <h2 style="margin: 0; color: #1a202c;">📊 شاشة الأدمن - مراقبة الشركة</h2>
-                    <button onclick="loadAdminDashboard()" class="btn" style="background: #667eea; padding: 10px 20px; border-radius: 8px; color: white; border: none; cursor: pointer;">🔄 تحديث البيانات</button>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; flex-wrap: wrap; gap: 10px;">
+                    <h2 style="margin: 0; color: #1a202c;">شاشة الأدمن - مراقبة الشركة</h2>
+                    <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                        <button onclick="loadAdminDashboard()" class="btn" style="background: #667eea; padding: 10px 20px; border-radius: 8px; color: white; border: none; cursor: pointer;">تحديث البيانات</button>
+                    </div>
+                </div>
+
+                <!-- قسم المزامنة - للأدمن فقط -->
+                <div id="syncSection" style="background: linear-gradient(135deg, #1e293b, #334155); border-radius: 16px; padding: 25px; margin-bottom: 25px; color: white;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 10px;">
+                        <div>
+                            <h3 style="margin: 0 0 5px; font-size: 18px;">مركز المزامنة</h3>
+                            <p id="syncStatusText" style="margin: 0; font-size: 13px; opacity: 0.8;">لم يتم المزامنة بعد</p>
+                            <p id="syncProgressText" style="margin: 4px 0 0; font-size: 12px; opacity: 0.7;"></p>
+                        </div>
+                        <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                            <button id="manualSyncBtn" onclick="manualSync()" style="background: linear-gradient(135deg, #10b981, #059669); color: white; border: none; padding: 12px 24px; border-radius: 10px; cursor: pointer; font-size: 14px; font-weight: bold; transition: all 0.3s;">مزامنة يدوية</button>
+                            <button id="fullSyncBtn" onclick="fullSync()" style="background: linear-gradient(135deg, #f59e0b, #d97706); color: white; border: none; padding: 12px 24px; border-radius: 10px; cursor: pointer; font-size: 14px; font-weight: bold;">مزامنة كاملة</button>
+                        </div>
+                    </div>
+
+                    <!-- إحصائيات المزامنة -->
+                    <div id="syncStats" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px;">
+                        <div style="background: rgba(255,255,255,0.1); padding: 15px; border-radius: 10px; text-align: center;">
+                            <div style="font-size: 24px; font-weight: bold;" id="syncStatPendingInv">0</div>
+                            <div style="font-size: 12px; opacity: 0.8;">فواتير معلقة</div>
+                        </div>
+                        <div style="background: rgba(255,255,255,0.1); padding: 15px; border-radius: 10px; text-align: center;">
+                            <div style="font-size: 24px; font-weight: bold;" id="syncStatPendingCust">0</div>
+                            <div style="font-size: 12px; opacity: 0.8;">عملاء معلقين</div>
+                        </div>
+                        <div style="background: rgba(255,255,255,0.1); padding: 15px; border-radius: 10px; text-align: center;">
+                            <div style="font-size: 24px; font-weight: bold;" id="syncStatProducts">0</div>
+                            <div style="font-size: 12px; opacity: 0.8;">منتج محلي</div>
+                        </div>
+                        <div style="background: rgba(255,255,255,0.1); padding: 15px; border-radius: 10px; text-align: center;">
+                            <div style="font-size: 24px; font-weight: bold;" id="syncStatCustomers">0</div>
+                            <div style="font-size: 12px; opacity: 0.8;">عميل محلي</div>
+                        </div>
+                        <div style="background: rgba(255,255,255,0.1); padding: 15px; border-radius: 10px; text-align: center;">
+                            <div style="font-size: 24px; font-weight: bold;" id="syncStatLocalInv">0</div>
+                            <div style="font-size: 12px; opacity: 0.8;">فاتورة محلية</div>
+                        </div>
+                    </div>
+
+                    <!-- سجل المزامنة -->
+                    <div style="margin-top: 15px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; cursor: pointer;" onclick="toggleSyncLog()">
+                            <h4 style="margin: 0; font-size: 14px; opacity: 0.9;">سجل المزامنة</h4>
+                            <span id="syncLogToggle" style="font-size: 12px; opacity: 0.7;">عرض</span>
+                        </div>
+                        <div id="syncLogContainer" style="display: none; margin-top: 10px; max-height: 200px; overflow-y: auto; background: rgba(0,0,0,0.2); border-radius: 8px; padding: 10px;">
+                            <div id="syncLogList" style="font-size: 12px; opacity: 0.8;">لا يوجد سجلات</div>
+                        </div>
+                    </div>
+
+                    <!-- إعدادات السيرفر -->
+                    <div style="margin-top: 15px; background: rgba(255,255,255,0.05); padding: 15px; border-radius: 10px;">
+                        <h4 style="margin: 0 0 10px; font-size: 14px;">اتصال السيرفر</h4>
+                        <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+                            <input type="text" id="serverUrlInput" placeholder="رابط السيرفر (مثال: https://pos.example.com)" value="" style="flex: 1; min-width: 200px; padding: 10px; border-radius: 8px; border: none; font-size: 13px; direction: ltr;">
+                            <button onclick="saveServerUrl()" style="background: #667eea; color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-size: 13px;">حفظ</button>
+                            <button onclick="testServerConnection()" style="background: #06b6d4; color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-size: 13px;">اختبار الاتصال</button>
+                        </div>
+                        <div id="serverTestResult" style="margin-top: 8px; font-size: 12px; opacity: 0.8;"></div>
+                    </div>
                 </div>
 
                 <!-- إحصائيات عامة -->
@@ -1576,7 +1639,7 @@
 
                 <!-- ملخص الفواتير لكل فرع -->
                 <div style="background: white; border-radius: 16px; box-shadow: 0 2px 12px rgba(0,0,0,0.08); padding: 25px; margin-bottom: 25px;">
-                    <h3 style="margin: 0 0 20px; color: #2d3748; font-size: 18px;">🧾 الفواتير حسب الفروع</h3>
+                    <h3 style="margin: 0 0 20px; color: #2d3748; font-size: 18px;">الفواتير حسب الفروع</h3>
                     <div id="adminDashInvoicesTable" style="overflow-x: auto;">
                         <div style="padding: 30px; text-align: center; color: #a0aec0;">جاري التحميل...</div>
                     </div>
@@ -1585,8 +1648,8 @@
                 <!-- ملخص المخزون لكل فرع -->
                 <div style="background: white; border-radius: 16px; box-shadow: 0 2px 12px rgba(0,0,0,0.08); padding: 25px;">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-                        <h3 style="margin: 0; color: #2d3748; font-size: 18px;">📦 المخزون حسب الفروع</h3>
-                        <input type="text" id="adminDashStockSearch" placeholder="🔍 ابحث عن منتج..." oninput="filterAdminDashStock()" style="padding: 8px 15px; border: 2px solid #e2e8f0; border-radius: 8px; font-size: 14px; width: 250px;">
+                        <h3 style="margin: 0; color: #2d3748; font-size: 18px;">المخزون حسب الفروع</h3>
+                        <input type="text" id="adminDashStockSearch" placeholder="ابحث عن منتج..." oninput="filterAdminDashStock()" style="padding: 8px 15px; border: 2px solid #e2e8f0; border-radius: 8px; font-size: 14px; width: 250px;">
                     </div>
                     <div id="adminDashStockTable" style="overflow-x: auto;">
                         <div style="padding: 30px; text-align: center; color: #a0aec0;">جاري التحميل...</div>
@@ -1595,7 +1658,7 @@
 
                 <!-- أداء الشفتات -->
                 <div style="background: white; border-radius: 16px; box-shadow: 0 2px 12px rgba(0,0,0,0.08); padding: 25px; margin-top: 25px;">
-                    <h3 style="margin: 0 0 20px; color: #2d3748; font-size: 18px;">🕐 أداء الشفتات</h3>
+                    <h3 style="margin: 0 0 20px; color: #2d3748; font-size: 18px;">أداء الشفتات</h3>
                     <div id="adminDashShiftPerformance" style="overflow-x: auto;">
                         <div style="padding: 30px; text-align: center; color: #a0aec0;">جاري التحميل...</div>
                     </div>

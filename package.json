@@ -1,0 +1,55 @@
+{
+  "name": "pos-offline",
+  "version": "1.0.0",
+  "description": "نظام نقاط البيع - يعمل بدون اتصال (Windows + Android)",
+  "main": "electron/main.js",
+  "scripts": {
+    "start": "python server.py",
+    "electron:dev": "electron .",
+    "electron:build": "electron-builder --win",
+    "electron:build-linux": "electron-builder --linux",
+    "cap:init": "npx cap init pos-offline com.pos.offline --web-dir frontend",
+    "cap:add-android": "npx cap add android",
+    "cap:sync": "npx cap sync",
+    "cap:open-android": "npx cap open android",
+    "cap:build-android": "npx cap sync && cd android && ./gradlew assembleRelease"
+  },
+  "build": {
+    "appId": "com.pos.offline",
+    "productName": "POS Offline",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "frontend/**/*",
+      "electron/**/*",
+      "server.py",
+      "setup_database.py",
+      "requirements.txt",
+      "database/**/*"
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "electron/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "installerLanguages": ["ar"],
+      "language": 1025
+    },
+    "linux": {
+      "target": "AppImage",
+      "category": "Office"
+    }
+  },
+  "devDependencies": {
+    "electron": "^28.0.0",
+    "electron-builder": "^24.9.1"
+  },
+  "dependencies": {
+    "@capacitor/android": "^5.7.0",
+    "@capacitor/core": "^5.7.0",
+    "@capacitor/cli": "^5.7.0"
+  }
+}

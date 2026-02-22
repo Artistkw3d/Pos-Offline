@@ -1,0 +1,13 @@
+node_modules/
+dist/
+android/
+ios/
+*.pyc
+__pycache__/
+database/tenants/
+database/backups/
+database/master.db
+.env
+*.log
+.DS_Store
+Thumbs.db
