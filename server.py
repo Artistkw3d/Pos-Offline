@@ -25,12 +25,13 @@ app = Flask(__name__, static_folder='frontend')
 CORS(app)
 
 # إعدادات قواعد البيانات
-DB_PATH = 'database/pos.db'  # قاعدة البيانات الافتراضية (للتوافق العكسي)
-MASTER_DB_PATH = 'database/master.db'
-TENANTS_DB_DIR = 'database/tenants'
+_base_db_dir = os.path.dirname(os.environ['DB_PATH']) if os.environ.get('DB_PATH') else 'database'
+DB_PATH = os.environ.get('DB_PATH', 'database/pos.db')
+MASTER_DB_PATH = os.path.join(_base_db_dir, 'master.db')
+TENANTS_DB_DIR = os.path.join(_base_db_dir, 'tenants')
 
 # إنشاء المجلدات اللازمة
-os.makedirs('database', exist_ok=True)
+os.makedirs(_base_db_dir, exist_ok=True)
 os.makedirs(TENANTS_DB_DIR, exist_ok=True)
 BACKUPS_DIR = 'database/backups'
 os.makedirs(BACKUPS_DIR, exist_ok=True)
@@ -7789,4 +7790,5 @@ if __name__ == '__main__':
     scheduler_thread = threading.Thread(target=backup_scheduler_loop, daemon=True)
     scheduler_thread.start()
 
-    app.run(host='0.0.0.0', port=5000, debug=False)
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host='0.0.0.0', port=port, debug=False)
