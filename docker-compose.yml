@@ -1,0 +1,22 @@
+services:
+  pos-system:
+    build: .
+    container_name: pos-system
+    restart: always
+    expose:
+      - "5000"
+    volumes:
+      - /root/data/pos:/app/database
+    environment:
+      - TZ=Asia/Kuwait
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - nginx-proxy
+
+networks:
+  nginx-proxy:
+    external: true

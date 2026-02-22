@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html dir="rtl">
+<head>
+<meta charset="UTF-8">
+<title>النظام المحاسبي</title>
+<style>
+body{font-family:Arial;background:#667eea;padding:20px;margin:0}
+.container{max-width:1100px;margin:0 auto;background:white;padding:25px;border-radius:12px}
+h1{color:#2d3748;margin:0 0 10px;text-align:center}
+.btn{background:#e53e3e;color:white;border:none;padding:12px 24px;border-radius:8px;cursor:pointer;font-size:16px;font-weight:bold}
+.tabs{display:flex;gap:8px;margin:20px 0;justify-content:center}
+.tab{padding:12px 20px;background:#e2e8f0;border:none;border-radius:8px;cursor:pointer;font-weight:bold}
+.tab.active{background:#667eea;color:white}
+.section{display:none}
+.section.active{display:block}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:15px;margin:15px 0}
+.card{border:2px solid #cbd5e0;padding:15px;border-radius:8px;background:#f7fafc}
+.card h3{margin:0 0 12px;font-size:18px}
+label{display:block;font-weight:600;margin:8px 0 4px;font-size:14px}
+input{width:100%;padding:10px;border:2px solid #cbd5e0;border-radius:6px;font-size:15px}
+.total{margin-top:15px;padding-top:12px;border-top:2px solid #4a5568;display:flex;justify-content:space-between;font-size:18px;font-weight:bold}
+table{width:100%;border-collapse:collapse}
+td{padding:12px;border-bottom:1px solid #e2e8f0}
+.blue{color:#3182ce}
+.green{color:#38a169}
+.red{color:#e53e3e}
+
+@media print{
+.no-print{display:none}
+#settings_modal{display:none !important}
+.section{display:none}
+.section.active{display:block;page-break-inside:avoid}
+body{background:white;padding:5px;margin:0}
+.container{padding:10px;max-width:100%}
+h1{font-size:20px;margin:0 0 5px}
+h2{font-size:16px;margin:5px 0}
+h3{font-size:14px;margin:0 0 6px}
+h4{font-size:13px;margin:0 0 5px}
+.card{padding:8px;margin-bottom:5px}
+.grid{gap:8px;margin:8px 0}
+label{font-size:12px;margin:4px 0 2px}
+input{padding:4px;font-size:12px}
+td{padding:6px;font-size:12px}
+.total{margin-top:8px;padding-top:6px;font-size:14px}
+#s4 .card{padding:8px}
+#s4 .grid{margin:8px 0}
+#s4 table{margin:5px 0}
+#s4 table tr td{padding:5px}
+#s5 .grid{margin-bottom:8px}
+#s5 h4{margin-bottom:3px}
+#s5 table{margin:0}
+#s5 table tr td{padding:5px}
+#s5 table tr:last-child td{padding:8px}
+#s5 > div:last-child{border-width:3px}
+#s5 > div:last-child > div:first-child{padding:8px;font-size:16px}
+#s5 > div:last-child > .grid{margin:0}
+#s5 > div:last-child > .grid > div{padding:8px}
+#status{padding:8px;font-size:13px}
+#distribution_status{padding:8px;font-size:13px}
+#company_logo{max-height:50px !important}
+}
+</style>
+</head>
+<body>
+
+<div class="container">
+<div style="background: #fff3cd; padding: 15px; border-radius: 8px; margin-bottom: 20px; text-align: center; border: 2px solid #ffc107;"><strong>📊 ملاحظة:</strong> البيانات المالية تشمل جميع الفروع</div>
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+<div style="display:flex;align-items:center;gap:15px">
+<img id="company_logo" src="" alt="" style="max-height:60px;max-width:100px;display:none">
+<div>
+<h1 id="company_title">النظام المحاسبي 🇰🇼</h1>
+<p style="color:#718096;margin:5px 0">القوائم المالية المترابطة</p>
+</div>
+</div>
+<div style="display:flex;gap:8px">
+<button class="btn no-print" onclick="showSettings()" style="background:#667eea">⚙️ الإعدادات</button>
+<button class="btn no-print" onclick="window.print()">طباعة PDF</button>
+</div>
+</div>
+
+<!-- نافذة الإعدادات -->
+<div id="settings_modal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:1000;padding:20px">
+<div style="background:white;max-width:600px;margin:50px auto;padding:25px;border-radius:12px;max-height:80vh;overflow-y:auto">
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+<h2 style="margin:0;color:#2d3748">⚙️ إعدادات النظام</h2>
+<button onclick="closeSettings()" style="background:#e53e3e;color:white;border:none;padding:8px 16px;border-radius:6px;cursor:pointer;font-weight:bold">✕ إغلاق</button>
+</div>
+<div class="card">
+<h3>معلومات الشركة</h3>
+<label>عنوان النظام</label>
+<input type="text" id="title_input" placeholder="النظام المحاسبي 🇰🇼" style="margin-bottom:15px">
+<label>شعار الشركة (Logo)</label>
+<input type="file" id="logo_input" accept="image/*" onchange="loadLogo(this)" style="margin-bottom:10px">
+<div id="logo_preview" style="margin-top:10px;text-align:center;display:none">
+<img id="preview_img" style="max-width:200px;max-height:100px;border:2px solid #cbd5e0;border-radius:8px;padding:5px">
+<div style="margin-top:8px">
+<button onclick="removeLogo()" style="background:#e53e3e;color:white;border:none;padding:6px 12px;border-radius:6px;cursor:pointer;font-size:13px">🗑️ حذف الشعار</button>
+</div>
+</div>
+</div>
+<div style="margin-top:20px;text-align:center">
+<button onclick="saveSettings()" style="background:#38a169;color:white;border:none;padding:12px 30px;border-radius:8px;cursor:pointer;font-weight:bold;font-size:16px">💾 حفظ الإعدادات</button>
+</div>
+</div>
+</div>
+
+<div style="background:#667eea;color:white;padding:15px;border-radius:8px;text-align:center;margin-bottom:20px">
+<div style="font-size:14px">صافي الربح</div>
+<div style="font-size:24px;font-weight:bold" id="profit">0 د.ك</div>
+</div>
+
+<div class="tabs no-print">
+<button class="tab active" onclick="showTab(1)">١. المخزون</button>
+<button class="tab" onclick="showTab(2)">٢. بيان الدخل</button>
+<button class="tab" onclick="showTab(3)">٣. الملكية</button>
+<button class="tab" onclick="showTab(4)">٤. توزيع الأرباح</button>
+<button class="tab" onclick="showTab(5)">٥. الميزانية</button>
+</div>
+
+<div id="s1" class="section active">
+<h2 class="blue" style="text-align:center">١. المخزون والتكاليف</h2>
+<div class="grid">
+<div class="card">
+<h3>المخزون</h3>
+<label>مخزون أول المدة</label><input type="number" id="i1" value="50000" oninput="calc()">
+<label>المشتريات</label><input type="number" id="i2" value="200000" oninput="calc()">
+<label>مخزون آخر المدة</label><input type="number" id="i3" value="60000" oninput="calc()">
+<div class="total"><span>تكلفة البضاعة</span><span class="blue" id="cogs">0</span></div>
+</div>
+<div class="card">
+<h3>الإيرادات</h3>
+<label>إيرادات المبيعات</label><input type="number" id="r1" value="450000" oninput="calc()">
+<label>إيرادات أخرى</label><input type="number" id="r2" value="5000" oninput="calc()">
+<div class="total"><span>إجمالي الإيرادات</span><span class="green" id="rev">0</span></div>
+</div>
+</div>
+<div class="card">
+<h3>المصروفات</h3>
+<div class="grid">
+<div><label>الرواتب</label><input type="number" id="e1" value="80000" oninput="calc()"></div>
+<div><label>الإيجارات</label><input type="number" id="e2" value="24000" oninput="calc()"></div>
+<div><label>الكهرباء</label><input type="number" id="e3" value="12000" oninput="calc()"></div>
+<div><label>التسويق</label><input type="number" id="e4" value="15000" oninput="calc()"></div>
+<div><label>الإهلاك</label><input type="number" id="e5" value="10000" oninput="calc()"></div>
+<div><label>أخرى</label><input type="number" id="e6" value="8000" oninput="calc()"></div>
+</div>
+<div class="total"><span>إجمالي المصروفات</span><span class="red" id="exp">0</span></div>
+</div>
+</div>
+
+<div id="s2" class="section">
+<h2 class="green" style="text-align:center">٢. بيان الدخل</h2>
+<div style="max-width:600px;margin:0 auto;border:3px solid #38a169;border-radius:8px;overflow:hidden">
+<div style="background:#38a169;color:white;padding:15px;text-align:center;font-size:20px;font-weight:bold">قائمة الدخل</div>
+<table>
+<tr style="background:#c6f6d5"><td><b>الإيرادات</b></td><td style="text-align:left"><b id="t1">0</b></td></tr>
+<tr style="background:#fed7d7"><td><b>تكلفة البضاعة</b></td><td style="text-align:left"><b id="t2">0</b></td></tr>
+<tr style="background:#bee3f8"><td><b>مجمل الربح</b></td><td style="text-align:left"><b id="t3">0</b></td></tr>
+<tr style="background:#fed7d7"><td><b>المصروفات</b></td><td style="text-align:left"><b id="t4">0</b></td></tr>
+<tr style="background:#38a169;color:white"><td style="padding:18px"><b>صافي الربح</b></td><td style="text-align:left;padding:18px"><b id="t5">0</b></td></tr>
+</table>
+</div>
+</div>
+
+<div id="s3" class="section">
+<h2 style="color:#805ad5;text-align:center">٣. التغير في الملكية</h2>
+<div class="grid">
+<div class="card">
+<h3>البيانات</h3>
+<label>رأس المال أول المدة</label><input type="number" id="q1" value="300000" oninput="calc()">
+<label>إضافات</label><input type="number" id="q2" value="50000" oninput="calc()">
+<label>المسحوبات</label><input type="number" id="q3" value="20000" oninput="calc()">
+</div>
+<div class="card">
+<h3>الحركة</h3>
+<table style="margin:0">
+<tr><td>رأس المال أول</td><td style="text-align:left"><b id="q4">0</b></td></tr>
+<tr><td>إضافات</td><td style="text-align:left;color:#38a169"><b id="q5">0</b></td></tr>
+<tr><td>صافي الربح</td><td style="text-align:left"><b id="q6">0</b></td></tr>
+<tr><td>المسحوبات</td><td style="text-align:left;color:#e53e3e"><b id="q7">0</b></td></tr>
+<tr style="background:#805ad5;color:white"><td style="padding:15px"><b>رأس المال آخر</b></td><td style="text-align:left;padding:15px"><b id="q8">0</b></td></tr>
+</table>
+</div>
+</div>
+</div>
+
+<div id="s4" class="section">
+<h2 style="color:#f59e0b;text-align:center">٤. توزيع الأرباح على الشركاء</h2>
+<div style="max-width:700px;margin:0 auto">
+<div class="card">
+<h3>بيانات الشركاء</h3>
+<div class="grid">
+<div>
+<label>عدد الشركاء</label>
+<input type="number" id="p_count" value="3" min="1" max="10" oninput="updatePartners()">
+</div>
+<div>
+<label>صافي الربح المتاح للتوزيع</label>
+<input type="number" id="p_profit" readonly style="background:#f7fafc;color:#2d3748;font-weight:bold">
+</div>
+</div>
+</div>
+
+<div id="partners_container" style="margin-top:15px">
+</div>
+
+<div style="border:3px solid #f59e0b;border-radius:8px;overflow:hidden;margin-top:15px">
+<div style="background:#f59e0b;color:white;padding:12px;text-align:center;font-size:18px;font-weight:bold">ملخص توزيع الأرباح</div>
+<table id="partners_summary">
+</table>
+<div style="background:#fef3c7;padding:12px;display:flex;justify-content:space-between;font-weight:bold;border-top:3px solid #f59e0b">
+<span>إجمالي الأرباح الموزعة</span>
+<span id="total_distributed">0 د.ك</span>
+</div>
+<div id="distribution_status" style="background:#38a169;color:white;padding:12px;text-align:center;font-weight:bold">متوازن ✓</div>
+</div>
+</div>
+</div>
+
+<div id="s5" class="section">
+<h2 style="color:#dd6b20;text-align:center">٥. المركز المالي</h2>
+<div class="grid" style="margin-bottom:15px">
+<div class="card">
+<h3>الأصول</h3>
+<label>النقد</label><input type="number" id="a1" value="120000" oninput="calc()">
+<label>الذمم المدينة</label><input type="number" id="a2" value="85000" oninput="calc()">
+<label>الأصول الثابتة</label><input type="number" id="a3" value="250000" oninput="calc()">
+<label>مجمع الإهلاك</label><input type="number" id="a4" value="50000" oninput="calc()">
+</div>
+<div class="card">
+<h3>الالتزامات</h3>
+<label>الموردون</label><input type="number" id="l1" value="45000" oninput="calc()">
+<label>قروض قصيرة</label><input type="number" id="l2" value="30000" oninput="calc()">
+<label>قروض طويلة</label><input type="number" id="l3" value="100000" oninput="calc()">
+</div>
+</div>
+<div style="border:4px solid #dd6b20;border-radius:8px;overflow:hidden">
+<div style="background:#dd6b20;color:white;padding:15px;text-align:center;font-size:20px;font-weight:bold">الميزانية</div>
+<div class="grid">
+<div style="padding:15px">
+<h4>الأصول</h4>
+<table style="margin:0">
+<tr><td>النقد</td><td style="text-align:left"><b id="b1">0</b></td></tr>
+<tr><td>الذمم المدينة</td><td style="text-align:left"><b id="b2">0</b></td></tr>
+<tr><td>المخزون</td><td style="text-align:left"><b id="b3">0</b></td></tr>
+<tr style="background:#fef5e7"><td><b>الأصول المتداولة</b></td><td style="text-align:left"><b id="b4">0</b></td></tr>
+<tr><td>الأصول الثابتة</td><td style="text-align:left"><b id="b5">0</b></td></tr>
+<tr><td>مجمع الإهلاك</td><td style="text-align:left;color:#e53e3e"><b id="b6">0</b></td></tr>
+<tr style="background:#fef5e7"><td><b>صافي الثابتة</b></td><td style="text-align:left"><b id="b7">0</b></td></tr>
+<tr style="background:#dd6b20;color:white"><td style="padding:15px"><b>إجمالي الأصول</b></td><td style="text-align:left;padding:15px"><b id="b8">0</b></td></tr>
+</table>
+</div>
+<div style="padding:15px;border-right:4px solid #dd6b20">
+<h4>الخصوم والملكية</h4>
+<table style="margin:0">
+<tr><td>الموردون</td><td style="text-align:left"><b id="b9">0</b></td></tr>
+<tr><td>قروض قصيرة</td><td style="text-align:left"><b id="b10">0</b></td></tr>
+<tr style="background:#fef5e7"><td><b>الالتزامات المتداولة</b></td><td style="text-align:left"><b id="b11">0</b></td></tr>
+<tr><td>قروض طويلة</td><td style="text-align:left"><b id="b12">0</b></td></tr>
+<tr style="background:#fef5e7"><td><b>إجمالي الالتزامات</b></td><td style="text-align:left"><b id="b13">0</b></td></tr>
+<tr><td style="color:#38a169"><b>حقوق الملكية</b></td><td style="text-align:left;color:#38a169"><b id="b14">0</b></td></tr>
+<tr style="background:#dd6b20;color:white"><td style="padding:15px"><b>الخصوم + الملكية</b></td><td style="text-align:left;padding:15px"><b id="b15">0</b></td></tr>
+</table>
+</div>
+</div>
+<div id="status" style="background:#38a169;color:white;padding:15px;text-align:center;font-weight:bold">متوازنة</div>
+</div>
+</div>
+
+</div>
+
+<script>
+function v(id){return parseFloat(document.getElementById(id).value)||0;}
+function t(id,val){var el=document.getElementById(id);if(el){el.textContent=val.toLocaleString('ar')+' د.ك';}}
+function calc(){
+var i1=v('i1');var i2=v('i2');var i3=v('i3');var r1=v('r1');var r2=v('r2');
+var e1=v('e1');var e2=v('e2');var e3=v('e3');var e4=v('e4');var e5=v('e5');var e6=v('e6');
+var q1=v('q1');var q2=v('q2');var q3=v('q3');
+var a1=v('a1');var a2=v('a2');var a3=v('a3');var a4=v('a4');
+var l1=v('l1');var l2=v('l2');var l3=v('l3');
+var cogs=i1+i2-i3;var rev=r1+r2;var gross=rev-cogs;var exp=e1+e2+e3+e4+e5+e6;var net=gross-exp;
+var eq=q1+q2+net-q3;
+var ca=a1+a2+i3;var nf=a3-a4;var ta=ca+nf;
+var cl=l1+l2;var tl=cl+l3;var te=tl+eq;
+t('cogs',cogs);t('rev',rev);t('exp',exp);
+t('t1',rev);t('t2',cogs);t('t3',gross);t('t4',exp);t('t5',net);
+t('q4',q1);t('q5',q2);t('q6',net);t('q7',q3);t('q8',eq);
+t('b1',a1);t('b2',a2);t('b3',i3);t('b4',ca);t('b5',a3);t('b6',a4);t('b7',nf);t('b8',ta);
+t('b9',l1);t('b10',l2);t('b11',cl);t('b12',l3);t('b13',tl);t('b14',eq);t('b15',te);
+t('profit',net);
+var st=document.getElementById('status');
+if(Math.abs(ta-te)<1){st.textContent='✅ متوازنة';st.style.background='#38a169';}
+else{st.textContent='⚠️ غير متوازنة';st.style.background='#e53e3e';}
+updateDistribution();
+}
+function showTab(n){
+for(var i=1;i<=5;i++){
+var s=document.getElementById('s'+i);
+if(s){s.classList.remove('active');}
+}
+var tabs=document.querySelectorAll('.tab');
+tabs.forEach(function(tab){tab.classList.remove('active');});
+var as=document.getElementById('s'+n);
+if(as){as.classList.add('active');}
+if(tabs[n-1]){tabs[n-1].classList.add('active');}
+}
+window.onload=function(){
+loadSavedSettings();
+calc();
+updatePartners();
+};
+
+// تحميل الإعدادات المحفوظة
+function loadSavedSettings() {
+var savedTitle = localStorage.getItem('company_title');
+var savedLogo = localStorage.getItem('company_logo');
+
+if(savedTitle) {
+document.getElementById('company_title').textContent = savedTitle;
+document.getElementById('title_input').value = savedTitle;
+}
+if(savedLogo) {
+var logoImg = document.getElementById('company_logo');
+logoImg.src = savedLogo;
+logoImg.style.display = 'block';
+}
+}
+
+// إظهار نافذة الإعدادات
+function showSettings() {
+document.getElementById('settings_modal').style.display = 'block';
+var currentTitle = document.getElementById('company_title').textContent;
+document.getElementById('title_input').value = currentTitle;
+}
+
+// إغلاق نافذة الإعدادات
+function closeSettings() {
+document.getElementById('settings_modal').style.display = 'none';
+}
+
+// تحميل الشعار
+function loadLogo(input) {
+if (input.files && input.files[0]) {
+var reader = new FileReader();
+reader.onload = function(e) {
+var previewImg = document.getElementById('preview_img');
+previewImg.src = e.target.result;
+document.getElementById('logo_preview').style.display = 'block';
+};
+reader.readAsDataURL(input.files[0]);
+}
+}
+
+// حذف الشعار
+function removeLogo() {
+document.getElementById('logo_input').value = '';
+document.getElementById('logo_preview').style.display = 'none';
+document.getElementById('company_logo').style.display = 'none';
+document.getElementById('company_logo').src = '';
+localStorage.removeItem('company_logo');
+}
+
+// حفظ الإعدادات
+function saveSettings() {
+var title = document.getElementById('title_input').value;
+var previewImg = document.getElementById('preview_img');
+
+// حفظ العنوان
+if(title) {
+document.getElementById('company_title').textContent = title;
+localStorage.setItem('company_title', title);
+}
+
+// حفظ الشعار
+if(previewImg.src && previewImg.src !== window.location.href) {
+document.getElementById('company_logo').src = previewImg.src;
+document.getElementById('company_logo').style.display = 'block';
+localStorage.setItem('company_logo', previewImg.src);
+}
+
+alert('✅ تم حفظ الإعدادات بنجاح!');
+closeSettings();
+}
+
+var partners = [];
+
+function updatePartners() {
+var count = parseInt(document.getElementById('p_count').value) || 1;
+if(count < 1) count = 1;
+if(count > 10) count = 10;
+document.getElementById('p_count').value = count;
+
+var container = document.getElementById('partners_container');
+container.innerHTML = '';
+
+for(var i = 0; i < count; i++) {
+var existing = partners[i] || {name: 'شريك ' + (i+1), percentage: Math.floor(100/count)};
+partners[i] = existing;
+
+var card = document.createElement('div');
+card.className = 'card';
+card.innerHTML = `
+<div class="grid">
+<div>
+<label>اسم الشريك ${i+1}</label>
+<input type="text" id="p_name_${i}" value="${existing.name}" oninput="updateDistribution()">
+</div>
+<div>
+<label>نسبة الربح (%)</label>
+<input type="number" id="p_percent_${i}" value="${existing.percentage}" min="0" max="100" oninput="updateDistribution()">
+</div>
+</div>
+`;
+container.appendChild(card);
+}
+
+partners = partners.slice(0, count);
+updateDistribution();
+}
+
+function updateDistribution() {
+var count = parseInt(document.getElementById('p_count').value) || 1;
+
+// حفظ بيانات الشركاء
+for(var i = 0; i < count; i++) {
+var nameEl = document.getElementById('p_name_' + i);
+var percentEl = document.getElementById('p_percent_' + i);
+if(nameEl && percentEl) {
+partners[i] = {
+name: nameEl.value,
+percentage: parseFloat(percentEl.value) || 0
+};
+}
+}
+
+// حساب صافي الربح
+var i1=v('i1');var i2=v('i2');var i3=v('i3');var r1=v('r1');var r2=v('r2');
+var e1=v('e1');var e2=v('e2');var e3=v('e3');var e4=v('e4');var e5=v('e5');var e6=v('e6');
+var cogs=i1+i2-i3;var rev=r1+r2;var gross=rev-cogs;var exp=e1+e2+e3+e4+e5+e6;var net=gross-exp;
+
+var profitEl = document.getElementById('p_profit');
+if(profitEl) {
+profitEl.value = net.toLocaleString('ar') + ' د.ك';
+}
+
+// إنشاء جدول التوزيع
+var table = document.getElementById('partners_summary');
+table.innerHTML = '';
+
+var totalPercent = 0;
+var totalAmount = 0;
+
+for(var i = 0; i < partners.length; i++) {
+var p = partners[i];
+var amount = (net * p.percentage / 100);
+totalPercent += p.percentage;
+totalAmount += amount;
+
+var row = document.createElement('tr');
+row.style.background = i % 2 === 0 ? '#fef3c7' : 'white';
+row.innerHTML = `
+<td><b>${p.name}</b></td>
+<td style="text-align:center">${p.percentage.toFixed(1)}%</td>
+<td style="text-align:left;color:#38a169"><b>${amount.toLocaleString('ar', {minimumFractionDigits: 2, maximumFractionDigits: 2})} د.ك</b></td>
+`;
+table.appendChild(row);
+}
+
+// إجمالي التوزيع
+var totalEl = document.getElementById('total_distributed');
+if(totalEl) {
+totalEl.textContent = totalAmount.toLocaleString('ar', {minimumFractionDigits: 2, maximumFractionDigits: 2}) + ' د.ك';
+}
+
+// حالة التوزيع
+var statusEl = document.getElementById('distribution_status');
+if(statusEl) {
+if(Math.abs(totalPercent - 100) < 0.1 && Math.abs(totalAmount - net) < 1) {
+statusEl.textContent = '✅ التوزيع متوازن (' + totalPercent.toFixed(1) + '%)';
+statusEl.style.background = '#38a169';
+} else {
+statusEl.textContent = '⚠️ مجموع النسب = ' + totalPercent.toFixed(1) + '% (يجب أن يكون 100%)';
+statusEl.style.background = '#e53e3e';
+}
+}
+}
+
+</script>
+</body>
+</html>
