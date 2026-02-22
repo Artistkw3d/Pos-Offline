@@ -7442,6 +7442,328 @@ def get_subscription_redemptions(subscription_id):
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+# ===== Sync API - للتزامن بين التطبيق المحلي والسيرفر =====
+
+@app.route('/api/sync/upload', methods=['POST'])
+def sync_upload():
+    """رفع البيانات المحلية (فواتير، عملاء) إلى السيرفر"""
+    try:
+        data = request.json
+        conn = get_db()
+        cursor = conn.cursor()
+        results = {'invoices_synced': 0, 'customers_synced': 0, 'errors': []}
+
+        # 1. مزامنة العملاء الجدد
+        for customer in data.get('customers', []):
+            try:
+                # تحقق من عدم وجود العميل بنفس الهاتف
+                if customer.get('phone'):
+                    cursor.execute('SELECT id FROM customers WHERE phone = ?', (customer['phone'],))
+                    existing = cursor.fetchone()
+                    if existing:
+                        results['customers_synced'] += 1
+                        continue
+                cursor.execute('''
+                    INSERT INTO customers (name, phone, email, address, notes)
+                    VALUES (?, ?, ?, ?, ?)
+                ''', (
+                    customer.get('name', ''),
+                    customer.get('phone', ''),
+                    customer.get('email', ''),
+                    customer.get('address', ''),
+                    customer.get('notes', '')
+                ))
+                results['customers_synced'] += 1
+            except Exception as e:
+                results['errors'].append(f"Customer {customer.get('name','')}: {str(e)}")
+
+        # 2. مزامنة الفواتير
+        for invoice in data.get('invoices', []):
+            try:
+                # تحقق من عدم وجود الفاتورة
+                inv_num = invoice.get('invoice_number', '')
+                if inv_num:
+                    cursor.execute('SELECT id FROM invoices WHERE invoice_number = ?', (inv_num,))
+                    if cursor.fetchone():
+                        results['invoices_synced'] += 1
+                        continue
+
+                branch_id = invoice.get('branch_id', 1)
+                cursor.execute('SELECT name FROM branches WHERE id = ?', (branch_id,))
+                branch = cursor.fetchone()
+                branch_name = branch['name'] if branch else ''
+
+                shift_id = invoice.get('shift_id')
+                shift_name = ''
+                if shift_id:
+                    cursor.execute('SELECT name FROM shifts WHERE id = ?', (shift_id,))
+                    s = cursor.fetchone()
+                    shift_name = s['name'] if s else ''
+
+                cursor.execute('''
+                    INSERT INTO invoices
+                    (invoice_number, customer_id, customer_name, customer_phone, customer_address,
+                     subtotal, discount, total, payment_method, employee_name, notes,
+                     transaction_number, branch_id, branch_name, delivery_fee,
+                     coupon_discount, coupon_code, loyalty_discount,
+                     loyalty_points_earned, loyalty_points_redeemed,
+                     table_id, table_name, shift_id, shift_name, created_at)
+                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                ''', (
+                    inv_num,
+                    invoice.get('customer_id'),
+                    invoice.get('customer_name', ''),
+                    invoice.get('customer_phone', ''),
+                    invoice.get('customer_address', ''),
+                    invoice.get('subtotal', 0),
+                    invoice.get('discount', 0),
+                    invoice.get('total', 0),
+                    invoice.get('payment_method', 'cash'),
+                    invoice.get('employee_name', ''),
+                    invoice.get('notes', ''),
+                    invoice.get('transaction_number', ''),
+                    branch_id,
+                    branch_name,
+                    invoice.get('delivery_fee', 0),
+                    invoice.get('coupon_discount', 0),
+                    invoice.get('coupon_code', ''),
+                    invoice.get('loyalty_discount', 0),
+                    invoice.get('loyalty_points_earned', 0),
+                    invoice.get('loyalty_points_redeemed', 0),
+                    invoice.get('table_id'),
+                    invoice.get('table_name', ''),
+                    shift_id,
+                    shift_name,
+                    invoice.get('created_at', datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
+                ))
+                new_invoice_id = cursor.lastrowid
+
+                # إدراج عناصر الفاتورة
+                for item in invoice.get('items', []):
+                    branch_stock_id = item.get('branch_stock_id') or item.get('product_id')
+                    cursor.execute('''
+                        INSERT INTO invoice_items
+                        (invoice_id, product_id, product_name, quantity, price, total, branch_stock_id, variant_id, variant_name)
+                        VALUES (?,?,?,?,?,?,?,?,?)
+                    ''', (
+                        new_invoice_id,
+                        item.get('product_id'),
+                        item.get('product_name'),
+                        item.get('quantity'),
+                        item.get('price'),
+                        item.get('total'),
+                        branch_stock_id,
+                        item.get('variant_id'),
+                        item.get('variant_name')
+                    ))
+                    # تحديث المخزون
+                    if branch_stock_id:
+                        cursor.execute('''
+                            UPDATE branch_stock SET stock = stock - ?, updated_at = CURRENT_TIMESTAMP
+                            WHERE id = ?
+                        ''', (item.get('quantity', 0), branch_stock_id))
+
+                # حفظ عمليات الدفع
+                payments = invoice.get('payments', [])
+                if payments:
+                    cursor.execute('''
+                        UPDATE invoices SET payment_details = ? WHERE id = ?
+                    ''', (json.dumps(payments, ensure_ascii=False), new_invoice_id))
+
+                results['invoices_synced'] += 1
+            except Exception as e:
+                results['errors'].append(f"Invoice {invoice.get('invoice_number','')}: {str(e)}")
+
+        conn.commit()
+        conn.close()
+        return jsonify({
+            'success': True,
+            'results': results,
+            'synced_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/sync/download', methods=['GET'])
+def sync_download():
+    """تحميل كل البيانات من السيرفر للتطبيق المحلي"""
+    try:
+        conn = get_db()
+        cursor = conn.cursor()
+        branch_id = request.args.get('branch_id', 1, type=int)
+        since = request.args.get('since', '')  # ISO timestamp للتحديث التدريجي
+
+        result = {}
+
+        # 1. المنتجات (من branch_stock)
+        if since:
+            cursor.execute('''
+                SELECT bs.*, i.name as product_name, i.barcode, i.category, i.image,
+                       i.description, i.unit
+                FROM branch_stock bs
+                JOIN inventory i ON bs.inventory_id = i.id
+                WHERE bs.branch_id = ? AND (bs.updated_at > ? OR i.updated_at > ?)
+            ''', (branch_id, since, since))
+        else:
+            cursor.execute('''
+                SELECT bs.*, i.name as product_name, i.barcode, i.category, i.image,
+                       i.description, i.unit
+                FROM branch_stock bs
+                JOIN inventory i ON bs.inventory_id = i.id
+                WHERE bs.branch_id = ?
+            ''', (branch_id,))
+        products = [dict(row) for row in cursor.fetchall()]
+
+        # fallback: إذا لم يكن هناك branch_stock، نستخدم products مباشرة
+        if not products and not since:
+            cursor.execute('SELECT * FROM products')
+            products = [dict(row) for row in cursor.fetchall()]
+
+        result['products'] = products
+
+        # 2. العملاء
+        if since:
+            cursor.execute('SELECT * FROM customers WHERE updated_at > ?', (since,))
+        else:
+            cursor.execute('SELECT * FROM customers')
+        result['customers'] = [dict(row) for row in cursor.fetchall()]
+
+        # 3. الإعدادات
+        cursor.execute('SELECT * FROM settings')
+        settings = {}
+        for row in cursor.fetchall():
+            settings[row['key']] = row['value']
+        result['settings'] = settings
+
+        # 4. الفروع
+        cursor.execute('SELECT * FROM branches')
+        result['branches'] = [dict(row) for row in cursor.fetchall()]
+
+        # 5. الفئات (من المنتجات)
+        cursor.execute('SELECT DISTINCT category FROM products WHERE category IS NOT NULL AND category != ""')
+        result['categories'] = [row['category'] for row in cursor.fetchall()]
+
+        # 6. الكوبونات النشطة
+        cursor.execute('SELECT * FROM coupons WHERE is_active = 1')
+        result['coupons'] = [dict(row) for row in cursor.fetchall()]
+
+        conn.close()
+        return jsonify({
+            'success': True,
+            'data': result,
+            'synced_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/sync/status', methods=['GET'])
+def sync_status():
+    """حالة السيرفر والبيانات المتاحة للتزامن"""
+    try:
+        conn = get_db()
+        cursor = conn.cursor()
+
+        cursor.execute('SELECT COUNT(*) as cnt FROM products')
+        products_count = cursor.fetchone()['cnt']
+
+        cursor.execute('SELECT COUNT(*) as cnt FROM customers')
+        customers_count = cursor.fetchone()['cnt']
+
+        cursor.execute('SELECT COUNT(*) as cnt FROM invoices')
+        invoices_count = cursor.fetchone()['cnt']
+
+        # آخر فاتورة
+        cursor.execute('SELECT MAX(created_at) as last_invoice FROM invoices')
+        row = cursor.fetchone()
+        last_invoice = row['last_invoice'] if row else None
+
+        conn.close()
+        return jsonify({
+            'success': True,
+            'server_time': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+            'stats': {
+                'products': products_count,
+                'customers': customers_count,
+                'invoices': invoices_count,
+                'last_invoice': last_invoice
+            }
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/sync/full-download', methods=['GET'])
+def sync_full_download():
+    """تحميل كامل لجميع بيانات المتجر (للتثبيت الأولي أو إعادة التزامن الكامل)"""
+    try:
+        conn = get_db()
+        cursor = conn.cursor()
+        branch_id = request.args.get('branch_id', 1, type=int)
+        result = {}
+
+        # المنتجات
+        cursor.execute('''
+            SELECT bs.id, bs.inventory_id, bs.stock, bs.price, bs.cost,
+                   i.name as product_name, i.barcode, i.category, i.image, i.unit
+            FROM branch_stock bs
+            JOIN inventory i ON bs.inventory_id = i.id
+            WHERE bs.branch_id = ?
+        ''', (branch_id,))
+        products = [dict(row) for row in cursor.fetchall()]
+        if not products:
+            cursor.execute('SELECT * FROM products')
+            products = [dict(row) for row in cursor.fetchall()]
+        result['products'] = products
+
+        # العملاء
+        cursor.execute('SELECT * FROM customers')
+        result['customers'] = [dict(row) for row in cursor.fetchall()]
+
+        # الإعدادات
+        cursor.execute('SELECT * FROM settings')
+        settings = {}
+        for row in cursor.fetchall():
+            settings[row['key']] = row['value']
+        result['settings'] = settings
+
+        # الفروع
+        try:
+            cursor.execute('SELECT * FROM branches')
+            result['branches'] = [dict(row) for row in cursor.fetchall()]
+        except:
+            result['branches'] = []
+
+        # الفئات
+        cursor.execute('SELECT DISTINCT category FROM products WHERE category IS NOT NULL AND category != ""')
+        result['categories'] = [row['category'] for row in cursor.fetchall()]
+
+        # الكوبونات
+        try:
+            cursor.execute('SELECT * FROM coupons WHERE is_active = 1')
+            result['coupons'] = [dict(row) for row in cursor.fetchall()]
+        except:
+            result['coupons'] = []
+
+        # المتغيرات (variants)
+        try:
+            cursor.execute('SELECT * FROM product_variants')
+            result['variants'] = [dict(row) for row in cursor.fetchall()]
+        except:
+            result['variants'] = []
+
+        conn.close()
+        return jsonify({
+            'success': True,
+            'data': result,
+            'synced_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+            'full_sync': True
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 @app.route('/api/version', methods=['GET'])
 def get_version():
     """جلب تاريخ آخر تحديث"""

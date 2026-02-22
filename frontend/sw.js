@@ -1,11 +1,11 @@
 // ========================================
-// 📱 Service Worker - PWA
+// Service Worker - PWA + Offline Support
 // ========================================
 
-const CACHE_NAME = 'pos-cache-v48';
-const STATIC_CACHE = 'pos-static-v37';
+const CACHE_NAME = 'pos-cache-v50';
+const STATIC_CACHE = 'pos-static-v40';
 
-// الملفات الأساسية (بدون manifest - لا يسبب فشل التثبيت)
+// الملفات الأساسية
 const STATIC_ASSETS = [
     '/',
     '/index.html',
@@ -13,12 +13,13 @@ const STATIC_ASSETS = [
     '/style.css',
     '/products-search.js',
     '/localdb.js',
-    '/sync-manager.js'
+    '/sync-manager.js',
+    '/manifest.json'
 ];
 
-// التثبيت - كل ملف على حدة حتى لا يفشل الكل بسبب ملف واحد
+// التثبيت
 self.addEventListener('install', (event) => {
-    console.log('[SW] Installing v33...');
+    console.log('[SW] Installing v40...');
     event.waitUntil(
         caches.open(STATIC_CACHE).then(cache => {
             return Promise.allSettled(
@@ -32,9 +33,9 @@ self.addEventListener('install', (event) => {
     );
 });
 
-// التفعيل - حذف جميع الكاشات القديمة
+// التفعيل - حذف الكاشات القديمة
 self.addEventListener('activate', (event) => {
-    console.log('[SW] Activating v33...');
+    console.log('[SW] Activating v40...');
     event.waitUntil(
         caches.keys().then(keys => {
             return Promise.all(
@@ -54,15 +55,21 @@ self.addEventListener('fetch', (event) => {
     const { request } = event;
     const url = new URL(request.url);
 
-    // طلبات فحص الاتصال (ping) - شبكة فقط بدون كاش أبداً
+    // طلبات فحص الاتصال - شبكة فقط
     if (url.searchParams.has('_ping')) {
         event.respondWith(fetch(request));
         return;
     }
 
-    // API Requests - Network First (GET only for caching)
+    // Sync API - شبكة فقط (لا تكاش)
+    if (url.pathname.startsWith('/api/sync/')) {
+        event.respondWith(fetch(request));
+        return;
+    }
+
+    // API Requests - Network First
     if (url.pathname.startsWith('/api/')) {
-        // POST/PUT/DELETE - فقط شبكة بدون كاش
+        // POST/PUT/DELETE - شبكة فقط
         if (request.method !== 'GET') {
             event.respondWith(fetch(request));
             return;
@@ -84,7 +91,7 @@ self.addEventListener('fetch', (event) => {
                 })
         );
     }
-    // ملفات JS/CSS/HTML - Network First ثم Cache (لضمان التحديثات)
+    // ملفات JS/CSS/HTML - Network First ثم Cache
     else if (url.pathname.endsWith('.js') || url.pathname.endsWith('.css') || url.pathname.endsWith('.html') || url.pathname === '/') {
         event.respondWith(
             fetch(request)
@@ -102,7 +109,7 @@ self.addEventListener('fetch', (event) => {
                 })
         );
     }
-    // باقي الملفات (صور وغيرها) - Cache First
+    // باقي الملفات - Cache First
     else {
         event.respondWith(
             caches.match(request)
@@ -111,4 +118,4 @@ self.addEventListener('fetch', (event) => {
     }
 });
 
-console.log('[SW] Service Worker loaded v33');
+console.log('[SW] Service Worker loaded v40');

@@ -1,6 +1,6 @@
-# My-Pos - نظام نقاط البيع المتكامل
+# POS Offline - نظام نقاط البيع المتكامل
 
-نظام نقاط بيع احترافي متعدد المستأجرين، يدعم العمل بدون اتصال، مصمم بالكامل باللغة العربية (RTL).
+نظام نقاط بيع احترافي متعدد المستأجرين، يدعم العمل بدون اتصال كتطبيق Windows و Android مع تزامن يدوي مع السيرفر. مصمم بالكامل باللغة العربية (RTL).
 
 ---
 
@@ -11,8 +11,40 @@
 | Backend | Python 3.11 / Flask 3.0 |
 | Database | SQLite (قاعدة رئيسية + قاعدة لكل مستأجر) |
 | Frontend | Vanilla JavaScript ES6+ / HTML5 / CSS3 |
-| PWA | Service Worker v30 / IndexedDB v3 |
+| PWA | Service Worker v40 / IndexedDB v5 |
+| Desktop | Electron (Windows) |
+| Mobile | Capacitor (Android) |
+| Sync | REST API مع تزامن يدوي |
 | Deploy | Docker / Nginx Proxy Manager |
+
+---
+
+## التشغيل كتطبيق Desktop (Windows)
+
+```bash
+npm install
+npm run electron:dev        # تشغيل تطوير
+npm run electron:build      # بناء ملف exe
+```
+
+## التشغيل كتطبيق Android
+
+```bash
+npm install
+npx cap add android
+npx cap sync
+npx cap open android        # فتح في Android Studio
+```
+
+## نظام المزامنة
+
+- **مزامنة يدوية**: الأدمن يضغط زر "مزامنة يدوية" من شاشة الأدمن
+- **مزامنة كاملة**: إعادة تحميل جميع البيانات من السيرفر
+- **API المزامنة**:
+  - `POST /api/sync/upload` - رفع فواتير وعملاء
+  - `GET /api/sync/download` - تحميل بيانات محدثة
+  - `GET /api/sync/full-download` - تحميل كامل
+  - `GET /api/sync/status` - حالة السيرفر
 
 ---
 

@@ -8,18 +8,55 @@ console.log('[Customers Fix] Loading...');
 // متغير عام للعملاء في dropdown
 let allCustomersDropdown = [];
 
-// ===== 1. تحميل العملاء في dropdown =====
+// ===== 1. تحميل العملاء في dropdown (مع دعم offline) =====
 async function loadCustomersDropdown() {
     try {
-        const response = await fetch(`${API_URL}/api/customers`);
-        const data = await response.json();
-        
-        if (data.success) {
-            allCustomersDropdown = data.customers || [];
-            updateCustomerSelect();
+        const isOnline = typeof _realOnlineStatus !== 'undefined' ? _realOnlineStatus : navigator.onLine;
+
+        if (isOnline) {
+            const response = await fetch(`${API_URL}/api/customers`);
+            const data = await response.json();
+
+            if (data.success) {
+                allCustomersDropdown = data.customers || [];
+                // حفظ نسخة محلية
+                if (localDB.isReady && allCustomersDropdown.length > 0) {
+                    try {
+                        await localDB.clear('customers');
+                        await localDB.saveAll('customers', allCustomersDropdown);
+                    } catch (e) {
+                        console.warn('[Customers] Local save error:', e);
+                    }
+                }
+                updateCustomerSelect();
+                return;
+            }
+        }
+
+        // Offline: جلب من قاعدة البيانات المحلية
+        if (localDB.isReady) {
+            const localCustomers = await localDB.getAll('customers');
+            if (localCustomers.length > 0) {
+                allCustomersDropdown = localCustomers;
+                updateCustomerSelect();
+                console.log(`[Customers] Loaded ${localCustomers.length} from local DB`);
+                return;
+            }
         }
     } catch (error) {
-        console.error('[Customers] خطأ في تحميل العملاء:', error);
+        console.error('[Customers] Error:', error);
+        // محاولة تحميل من المحلي
+        try {
+            if (localDB.isReady) {
+                const localCustomers = await localDB.getAll('customers');
+                if (localCustomers.length > 0) {
+                    allCustomersDropdown = localCustomers;
+                    updateCustomerSelect();
+                }
+            }
+        } catch (e) {
+            console.error('[Customers] Offline fallback error:', e);
+        }
     }
 }
 
