@@ -93,7 +93,6 @@ jobs:
           echo "Checking HTML files..."
           for f in frontend/*.html; do
             if [ -f "$f" ]; then
-              # تحقق من وجود الوسوم الأساسية
               if grep -q '<html' "$f" && grep -q '</html>' "$f"; then
                 echo "  OK: $f"
               else
@@ -167,19 +166,17 @@ jobs:
         run: |
           docker run -d --name pos-test -p 5000:5000 pos-offline:test
           sleep 5
-          # اختبار أن الحاوية تعمل
           curl -f http://localhost:5000/api/version || (docker logs pos-test && exit 1)
           curl -f http://localhost:5000/api/sync/status || (docker logs pos-test && exit 1)
           echo "Docker container is healthy!"
           docker stop pos-test
           docker rm pos-test
 
-  # ===== بناء Electron (Windows) =====
-  build-electron:
-    name: Build Electron (Windows)
+  # ===== فحص Electron =====
+  validate-electron:
+    name: Validate Electron Config
     runs-on: ubuntu-latest
     needs: [test-server, lint-frontend]
-    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
 
     steps:
       - name: Checkout
@@ -189,10 +186,9 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'npm'
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
 
       - name: Validate Electron config
         run: |
@@ -209,7 +205,7 @@ jobs:
           console.log('Product Name:', pkg.build.productName);
           "
 
-  # ===== التحقق من Capacitor (Android) =====
+  # ===== التحقق من Capacitor =====
   validate-capacitor:
     name: Validate Capacitor Config
     runs-on: ubuntu-latest
