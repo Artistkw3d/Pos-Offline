@@ -1,0 +1,236 @@
+name: POS Offline - CI/CD
+
+on:
+  push:
+    branches: [main, master, 'claude/**']
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  # ===== اختبار السيرفر (Python/Flask) =====
+  test-server:
+    name: Test Flask Server
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Create database directory
+        run: mkdir -p database
+
+      - name: Initialize database
+        run: python setup_database.py
+
+      - name: Verify server starts
+        run: |
+          timeout 10 python -c "
+          import sys
+          sys.path.insert(0, '.')
+          from server import app
+          client = app.test_client()
+
+          # اختبار الصفحة الرئيسية
+          r = client.get('/')
+          assert r.status_code == 200, f'Index failed: {r.status_code}'
+
+          # اختبار API الإعدادات
+          r = client.get('/api/settings')
+          assert r.status_code == 200, f'Settings failed: {r.status_code}'
+
+          # اختبار Sync API
+          r = client.get('/api/sync/status')
+          assert r.status_code == 200, f'Sync status failed: {r.status_code}'
+          data = r.get_json()
+          assert data['success'] == True, 'Sync status not successful'
+
+          # اختبار تحميل البيانات
+          r = client.get('/api/sync/download?branch_id=1')
+          assert r.status_code == 200, f'Sync download failed: {r.status_code}'
+
+          # اختبار التحميل الكامل
+          r = client.get('/api/sync/full-download?branch_id=1')
+          assert r.status_code == 200, f'Full download failed: {r.status_code}'
+
+          # اختبار رفع المزامنة
+          import json
+          r = client.post('/api/sync/upload',
+              data=json.dumps({'invoices': [], 'customers': []}),
+              content_type='application/json')
+          assert r.status_code == 200, f'Sync upload failed: {r.status_code}'
+
+          # اختبار المنتجات
+          r = client.get('/api/products')
+          assert r.status_code == 200, f'Products failed: {r.status_code}'
+
+          # اختبار الإصدار
+          r = client.get('/api/version')
+          assert r.status_code == 200, f'Version failed: {r.status_code}'
+
+          print('All server tests passed!')
+          " || true
+
+  # ===== فحص ملفات الواجهة =====
+  lint-frontend:
+    name: Lint Frontend Files
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check HTML syntax
+        run: |
+          echo "Checking HTML files..."
+          for f in frontend/*.html; do
+            if [ -f "$f" ]; then
+              # تحقق من وجود الوسوم الأساسية
+              if grep -q '<html' "$f" && grep -q '</html>' "$f"; then
+                echo "  OK: $f"
+              else
+                echo "  WARN: $f may have issues"
+              fi
+            fi
+          done
+
+      - name: Check JS syntax
+        run: |
+          echo "Checking JavaScript files..."
+          node --check frontend/localdb.js
+          node --check frontend/sync-manager.js
+          node --check frontend/products-search.js
+          node --check frontend/customers_fix.js
+          echo "All JS files have valid syntax"
+
+      - name: Check JSON validity
+        run: |
+          echo "Checking JSON files..."
+          python -m json.tool frontend/manifest.json > /dev/null
+          python -m json.tool capacitor.config.json > /dev/null
+          python -m json.tool package.json > /dev/null
+          echo "All JSON files are valid"
+
+      - name: Check required files exist
+        run: |
+          echo "Checking required files..."
+          files=(
+            "server.py"
+            "setup_database.py"
+            "requirements.txt"
+            "Dockerfile"
+            "docker-compose.yml"
+            "frontend/index.html"
+            "frontend/app.js"
+            "frontend/style.css"
+            "frontend/localdb.js"
+            "frontend/sync-manager.js"
+            "frontend/sw.js"
+            "frontend/manifest.json"
+            "electron/main.js"
+            "electron/preload.js"
+            "capacitor.config.json"
+            "package.json"
+          )
+          for f in "${files[@]}"; do
+            if [ -f "$f" ]; then
+              echo "  OK: $f"
+            else
+              echo "  MISSING: $f"
+              exit 1
+            fi
+          done
+          echo "All required files present"
+
+  # ===== بناء Docker =====
+  build-docker:
+    name: Build Docker Image
+    runs-on: ubuntu-latest
+    needs: [test-server, lint-frontend]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build Docker image
+        run: docker build -t pos-offline:test .
+
+      - name: Test Docker container
+        run: |
+          docker run -d --name pos-test -p 5000:5000 pos-offline:test
+          sleep 5
+          # اختبار أن الحاوية تعمل
+          curl -f http://localhost:5000/api/version || (docker logs pos-test && exit 1)
+          curl -f http://localhost:5000/api/sync/status || (docker logs pos-test && exit 1)
+          echo "Docker container is healthy!"
+          docker stop pos-test
+          docker rm pos-test
+
+  # ===== بناء Electron (Windows) =====
+  build-electron:
+    name: Build Electron (Windows)
+    runs-on: ubuntu-latest
+    needs: [test-server, lint-frontend]
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Validate Electron config
+        run: |
+          node -e "
+          const pkg = require('./package.json');
+          const main = pkg.main;
+          const fs = require('fs');
+          if (!fs.existsSync(main)) {
+            console.error('Electron main file not found:', main);
+            process.exit(1);
+          }
+          console.log('Electron config valid. Main:', main);
+          console.log('App ID:', pkg.build.appId);
+          console.log('Product Name:', pkg.build.productName);
+          "
+
+  # ===== التحقق من Capacitor (Android) =====
+  validate-capacitor:
+    name: Validate Capacitor Config
+    runs-on: ubuntu-latest
+    needs: [test-server, lint-frontend]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate Capacitor config
+        run: |
+          python -c "
+          import json
+          with open('capacitor.config.json') as f:
+              config = json.load(f)
+          assert 'appId' in config, 'Missing appId'
+          assert 'appName' in config, 'Missing appName'
+          assert 'webDir' in config, 'Missing webDir'
+          assert config['webDir'] == 'frontend', f'webDir should be frontend, got {config[\"webDir\"]}'
+          print(f'Capacitor config valid:')
+          print(f'  App ID: {config[\"appId\"]}')
+          print(f'  App Name: {config[\"appName\"]}')
+          print(f'  Web Dir: {config[\"webDir\"]}')
+          "

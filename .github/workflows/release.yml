@@ -1,0 +1,110 @@
+name: POS Offline - Release Build
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  # ===== بناء Electron لـ Windows =====
+  build-windows:
+    name: Build Windows App
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build Electron (Windows)
+        run: npm run electron:build
+
+      - name: Upload Windows artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: POS-Offline-Windows
+          path: dist/*.exe
+          retention-days: 30
+
+  # ===== بناء Docker Image =====
+  build-docker-release:
+    name: Build Docker Release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build Docker image
+        run: |
+          TAG=${GITHUB_REF#refs/tags/}
+          docker build -t pos-offline:$TAG .
+          docker build -t pos-offline:latest .
+
+      - name: Save Docker image
+        run: |
+          TAG=${GITHUB_REF#refs/tags/}
+          docker save pos-offline:$TAG | gzip > pos-offline-$TAG.tar.gz
+
+      - name: Upload Docker artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: POS-Offline-Docker
+          path: pos-offline-*.tar.gz
+          retention-days: 30
+
+  # ===== إنشاء Release =====
+  create-release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    needs: [build-windows, build-docker-release]
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download Windows artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: POS-Offline-Windows
+          path: artifacts/windows
+
+      - name: Download Docker artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: POS-Offline-Docker
+          path: artifacts/docker
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "POS Offline ${{ github.ref_name }}"
+          body: |
+            ## POS Offline - نظام نقاط البيع
+
+            ### التحميلات:
+            - **Windows**: ملف `.exe` للتثبيت المباشر
+            - **Docker**: صورة Docker جاهزة للتشغيل
+            - **Android**: استخدم Capacitor مع Android Studio
+
+            ### طريقة التشغيل:
+            ```bash
+            # Docker
+            docker load < pos-offline-${{ github.ref_name }}.tar.gz
+            docker run -d -p 5000:5000 pos-offline:${{ github.ref_name }}
+            ```
+          files: |
+            artifacts/windows/*
+            artifacts/docker/*
+          draft: false
+          prerelease: false
