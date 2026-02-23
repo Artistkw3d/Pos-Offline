@@ -111,10 +111,8 @@ def init_master_db():
 init_master_db()
 
 def migrate_database(db_path=None):
-    """ترقية قاعدة البيانات - إضافة أعمدة وجداول جديدة"""
+    """ترقية قاعدة البيانات - إنشاء الجداول الأساسية وإضافة أعمدة وجداول جديدة"""
     target_path = db_path or DB_PATH
-    if not os.path.exists(target_path):
-        return
     conn = sqlite3.connect(target_path)
     cursor = conn.cursor()
 
@@ -141,6 +139,274 @@ def migrate_database(db_path=None):
             print(f"[Migration] {table}.{column}: {e}")
 
     try:
+        # === إنشاء الجداول الأساسية إن لم تكن موجودة ===
+        cursor.executescript('''
+            CREATE TABLE IF NOT EXISTS users (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username TEXT UNIQUE NOT NULL,
+                password TEXT NOT NULL,
+                full_name TEXT NOT NULL,
+                role TEXT DEFAULT 'employee',
+                invoice_prefix TEXT DEFAULT 'INV',
+                is_active INTEGER DEFAULT 1,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                permissions TEXT,
+                can_add_products INTEGER DEFAULT 0,
+                can_edit_products INTEGER DEFAULT 0,
+                can_delete_products INTEGER DEFAULT 0,
+                can_view_invoices INTEGER DEFAULT 1,
+                can_delete_invoices INTEGER DEFAULT 0,
+                can_view_reports INTEGER DEFAULT 0,
+                can_view_accounting INTEGER DEFAULT 0,
+                can_manage_users INTEGER DEFAULT 0,
+                can_access_settings INTEGER DEFAULT 0,
+                branch_id INTEGER DEFAULT 1,
+                can_view_inventory INTEGER DEFAULT 0,
+                can_add_inventory INTEGER DEFAULT 0,
+                can_edit_inventory INTEGER DEFAULT 0,
+                can_delete_inventory INTEGER DEFAULT 0,
+                can_view_products INTEGER DEFAULT 1,
+                can_view_customers INTEGER DEFAULT 1,
+                can_add_customer INTEGER DEFAULT 1,
+                can_edit_customer INTEGER DEFAULT 0,
+                can_delete_customer INTEGER DEFAULT 0,
+                can_view_returns INTEGER DEFAULT 0,
+                can_view_expenses INTEGER DEFAULT 0,
+                can_view_suppliers INTEGER DEFAULT 0,
+                can_view_coupons INTEGER DEFAULT 0,
+                can_view_tables INTEGER DEFAULT 0,
+                can_view_attendance INTEGER DEFAULT 0,
+                can_view_advanced_reports INTEGER DEFAULT 0,
+                can_view_system_logs INTEGER DEFAULT 0,
+                can_view_dcf INTEGER DEFAULT 0,
+                can_cancel_invoices INTEGER DEFAULT 0,
+                can_view_branches INTEGER DEFAULT 0,
+                can_view_cross_branch_stock INTEGER DEFAULT 0,
+                can_view_xbrl INTEGER DEFAULT 0,
+                last_login TIMESTAMP,
+                shift_id INTEGER,
+                can_edit_completed_invoices INTEGER DEFAULT 0,
+                can_create_transfer INTEGER DEFAULT 0,
+                can_approve_transfer INTEGER DEFAULT 0,
+                can_deliver_transfer INTEGER DEFAULT 0,
+                can_view_transfers INTEGER DEFAULT 0,
+                can_view_subscriptions INTEGER DEFAULT 0,
+                can_manage_subscriptions INTEGER DEFAULT 0
+            );
+
+            CREATE TABLE IF NOT EXISTS branches (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                location TEXT,
+                phone TEXT,
+                is_active INTEGER DEFAULT 1,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                branch_number TEXT
+            );
+
+            CREATE TABLE IF NOT EXISTS products (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                barcode TEXT,
+                price REAL DEFAULT 0,
+                cost REAL DEFAULT 0,
+                stock INTEGER DEFAULT 0,
+                category TEXT,
+                image TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                image_data TEXT,
+                branch_id INTEGER DEFAULT 1,
+                is_master INTEGER DEFAULT 0,
+                master_product_id INTEGER,
+                inventory_id INTEGER
+            );
+
+            CREATE TABLE IF NOT EXISTS inventory (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                barcode TEXT,
+                category TEXT,
+                price REAL DEFAULT 0,
+                cost REAL DEFAULT 0,
+                image_data TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS branch_stock (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                inventory_id INTEGER,
+                branch_id INTEGER,
+                variant_id INTEGER,
+                stock INTEGER DEFAULT 0,
+                notes TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                sales_count INTEGER DEFAULT 0
+            );
+
+            CREATE TABLE IF NOT EXISTS invoices (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                invoice_number TEXT,
+                customer_id INTEGER,
+                customer_name TEXT,
+                customer_phone TEXT,
+                subtotal REAL DEFAULT 0,
+                discount REAL DEFAULT 0,
+                total REAL DEFAULT 0,
+                payment_method TEXT,
+                employee_name TEXT,
+                notes TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                transaction_number TEXT,
+                delivery_fee REAL DEFAULT 0,
+                discount_type TEXT,
+                branch_id INTEGER,
+                branch_name TEXT,
+                customer_address TEXT,
+                order_status TEXT DEFAULT 'قيد التنفيذ',
+                coupon_discount REAL DEFAULT 0,
+                coupon_code TEXT,
+                loyalty_discount REAL DEFAULT 0,
+                loyalty_points_earned INTEGER DEFAULT 0,
+                loyalty_points_redeemed INTEGER DEFAULT 0,
+                table_id INTEGER,
+                table_name TEXT,
+                cancelled INTEGER DEFAULT 0,
+                cancel_reason TEXT,
+                cancelled_at TIMESTAMP,
+                stock_returned INTEGER DEFAULT 0,
+                shift_id INTEGER,
+                shift_name TEXT,
+                edited_at TIMESTAMP,
+                edited_by TEXT,
+                edit_count INTEGER DEFAULT 0
+            );
+
+            CREATE TABLE IF NOT EXISTS invoice_items (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                invoice_id INTEGER,
+                product_id INTEGER,
+                product_name TEXT,
+                quantity INTEGER,
+                price REAL,
+                total REAL,
+                branch_stock_id INTEGER,
+                variant_id INTEGER,
+                variant_name TEXT
+            );
+
+            CREATE TABLE IF NOT EXISTS customers (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                phone TEXT,
+                email TEXT,
+                address TEXT,
+                notes TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                loyalty_points INTEGER DEFAULT 0
+            );
+
+            CREATE TABLE IF NOT EXISTS categories (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS settings (
+                key TEXT PRIMARY KEY,
+                value TEXT,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS expenses (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                expense_type TEXT,
+                amount REAL,
+                description TEXT,
+                expense_date DATE,
+                branch_id INTEGER,
+                created_by INTEGER,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS returns (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                invoice_id INTEGER,
+                invoice_number TEXT,
+                product_id INTEGER,
+                product_name TEXT,
+                quantity INTEGER,
+                price REAL,
+                total REAL,
+                reason TEXT,
+                employee_name TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS system_logs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                action_type TEXT,
+                description TEXT,
+                user_id INTEGER,
+                user_name TEXT,
+                branch_id INTEGER,
+                target_id INTEGER,
+                details TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS attendance_log (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER,
+                user_name TEXT,
+                branch_id INTEGER,
+                check_in TIMESTAMP,
+                check_out TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS damaged_items (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                inventory_id INTEGER,
+                branch_id INTEGER,
+                quantity INTEGER,
+                reason TEXT,
+                reported_by INTEGER,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS damaged_stock (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                inventory_id INTEGER,
+                branch_id INTEGER,
+                quantity INTEGER,
+                reason TEXT,
+                user_id INTEGER,
+                user_name TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        ''')
+
+        # إضافة فرع افتراضي إن لم يكن موجوداً
+        cursor.execute("INSERT OR IGNORE INTO branches (id, name, location, is_active) VALUES (1, 'الفرع الرئيسي', '', 1)")
+
+        # إضافة إعدادات افتراضية إن لم تكن موجودة
+        default_settings = [
+            ('store_name', 'متجر العطور والبخور'),
+            ('store_phone', ''),
+            ('store_address', ''),
+            ('tax_enabled', 'false'),
+            ('tax_rate', '0'),
+            ('currency', 'KD'),
+            ('invoice_prefix', 'INV'),
+            ('next_invoice_number', '1'),
+        ]
+        for key, value in default_settings:
+            cursor.execute("INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)", (key, value))
+        conn.commit()
+
         # === جداول جديدة ===
         safe_exec('''CREATE TABLE IF NOT EXISTS suppliers (
             id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, phone TEXT,
