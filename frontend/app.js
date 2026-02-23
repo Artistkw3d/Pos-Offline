@@ -12788,67 +12788,109 @@ async function testSyncServer() {
     resultEl.style.display = 'block';
     resultEl.style.background = '#fffff0';
     resultEl.style.color = '#d69e2e';
-    resultEl.textContent = 'جاري اختبار الاتصال...';
+    resultEl.innerHTML = 'جاري فحص السيرفر... <span class="sync-spinner"></span>';
 
-    try {
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 5000);
-        const response = await fetch(`${serverUrl}/api/sync/status`, {
-            method: 'GET',
-            signal: controller.signal,
-            cache: 'no-store'
-        });
-        clearTimeout(timeout);
+    // فحص عدة endpoints لمعرفة وش شغال على السيرفر
+    const endpoints = [
+        { path: '/api/sync/status', name: 'حالة التزامن' },
+        { path: '/api/settings', name: 'الإعدادات' },
+        { path: '/api/products', name: 'المنتجات' },
+    ];
 
-        const statusCode = response.status;
-        let responseText = '';
-        let data = null;
+    const results = [];
 
+    for (const ep of endpoints) {
         try {
-            responseText = await response.text();
-            data = JSON.parse(responseText);
-        } catch (parseErr) {
-            // الرد مو JSON
-        }
+            const ctrl = new AbortController();
+            const t = setTimeout(() => ctrl.abort(), 5000);
+            const resp = await fetch(`${serverUrl}${ep.path}`, {
+                method: 'GET', signal: ctrl.signal, cache: 'no-store'
+            });
+            clearTimeout(t);
 
-        if (response.ok && data && data.success) {
-            resultEl.style.background = '#f0fff4';
-            resultEl.style.color = '#22543d';
-            resultEl.innerHTML = `<strong>متصل بنجاح!</strong> السيرفر يعمل<br>
-                <span style="font-size: 12px; opacity: 0.8;">المنتجات: ${data.stats?.products || 0} | العملاء: ${data.stats?.customers || 0} | الفواتير: ${data.stats?.invoices || 0}</span>`;
-            return;
-        }
+            let data = null;
+            try {
+                const text = await resp.text();
+                data = JSON.parse(text);
+            } catch (e) { /* not JSON */ }
 
-        // عرض تفاصيل الخطأ
+            results.push({
+                ...ep,
+                status: resp.status,
+                ok: resp.ok,
+                isJson: !!data,
+                success: data?.success,
+                data: data
+            });
+        } catch (e) {
+            results.push({
+                ...ep,
+                status: 0,
+                ok: false,
+                error: e.name === 'AbortError' ? 'timeout' : e.message
+            });
+        }
+    }
+
+    // تحليل النتائج
+    const working = results.filter(r => r.ok && r.isJson && r.success);
+    const responding = results.filter(r => r.status > 0);
+
+    if (working.length > 0) {
+        // نجاح - في endpoint شغال
+        const syncStatus = results.find(r => r.path === '/api/sync/status' && r.success);
+        resultEl.style.background = '#f0fff4';
+        resultEl.style.color = '#22543d';
+        let html = `<strong>متصل بنجاح!</strong> السيرفر يعمل<br>`;
+        if (syncStatus?.data?.stats) {
+            const s = syncStatus.data.stats;
+            html += `<span style="font-size: 12px; opacity: 0.8;">المنتجات: ${s.products || 0} | العملاء: ${s.customers || 0} | الفواتير: ${s.invoices || 0}</span><br>`;
+        }
+        html += `<div style="font-size: 11px; margin-top: 6px; opacity: 0.7;">`;
+        for (const r of results) {
+            const icon = r.success ? '&#10004;' : (r.ok ? '&#9888;' : '&#10008;');
+            const color = r.success ? '#22543d' : (r.ok ? '#92400e' : '#e53e3e');
+            html += `<span style="color:${color};">${icon}</span> ${r.name} (${r.path}) → ${r.status || r.error}<br>`;
+        }
+        html += `</div>`;
+        resultEl.innerHTML = html;
+    } else if (responding.length > 0) {
+        // السيرفر يستجيب لكن الـ endpoints ما تشتغل
         resultEl.style.background = '#fffff0';
         resultEl.style.color = '#92400e';
-        let errorDetail = `<strong>السيرفر يستجيب (HTTP ${statusCode})</strong><br>`;
-        if (data && data.error) {
-            errorDetail += `<span style="font-size: 12px;">الخطأ: ${escHTML(data.error)}</span><br>`;
-        } else if (!data) {
-            errorDetail += `<span style="font-size: 12px;">الرد ليس JSON صالح</span><br>`;
-            if (responseText.length < 200) {
-                errorDetail += `<code style="font-size: 11px; background: rgba(0,0,0,0.05); padding: 2px 4px; border-radius: 3px;">${escHTML(responseText.substring(0, 150))}</code><br>`;
-            }
-        } else if (data && !data.success) {
-            errorDetail += `<span style="font-size: 12px;">السيرفر رجع success: false</span><br>`;
+        let html = `<strong>السيرفر يستجيب لكن الـ API غير متاح</strong><br>`;
+        html += `<div style="font-size: 12px; margin-top: 8px; background: rgba(0,0,0,0.03); padding: 10px; border-radius: 6px; direction: ltr; text-align: left; font-family: monospace;">`;
+        for (const r of results) {
+            const icon = r.ok ? '&#9888;' : '&#10008;';
+            const color = r.ok ? '#d69e2e' : '#e53e3e';
+            let detail = `HTTP ${r.status}`;
+            if (r.error) detail = r.error;
+            else if (r.data?.error) detail += ` - ${r.data.error}`;
+            else if (!r.isJson) detail += ' (not JSON)';
+            html += `<span style="color:${color};">${icon}</span> ${r.path} → ${escHTML(detail)}<br>`;
         }
-        if (!response.ok) {
-            errorDetail += `<span style="font-size: 11px; opacity: 0.7;">HTTP Status: ${statusCode} ${response.statusText}</span>`;
-        }
-        resultEl.innerHTML = errorDetail;
-    } catch (e) {
+        html += `</div>`;
+        html += `<div style="font-size: 12px; margin-top: 8px; padding: 8px; background: #f7f7f7; border-radius: 6px;">`;
+        html += `<strong>أسباب محتملة:</strong><br>`;
+        html += `• السيرفر يشغل كود مختلف (مو نفس server.py)<br>`;
+        html += `• الـ API على مسار فرعي (مثلاً <span style="direction:ltr;unicode-bidi:embed;">${escHTML(serverUrl)}/pos/api/...</span>)<br>`;
+        html += `• السيرفر يحتاج إعداد قاعدة بيانات أو تهيئة أولية<br>`;
+        html += `</div>`;
+        resultEl.innerHTML = html;
+    } else {
+        // ما في أي استجابة
         resultEl.style.background = '#fff5f5';
         resultEl.style.color = '#e53e3e';
-        let errMsg = 'فشل الاتصال';
-        if (e.name === 'AbortError') {
-            errMsg += ' - انتهت مهلة الاتصال (5 ثواني)';
-        } else if (e.message.includes('Failed to fetch') || e.message.includes('NetworkError')) {
-            errMsg += ' - تأكد من العنوان والشبكة (قد يكون CORS أو السيرفر مغلق)';
+        const firstErr = results[0]?.error || 'غير معروف';
+        let errMsg = `<strong>فشل الاتصال بالسيرفر</strong><br>`;
+        if (firstErr === 'timeout') {
+            errMsg += `<span style="font-size: 12px;">انتهت المهلة (5 ثواني) - السيرفر بطيء أو مغلق</span>`;
+        } else if (firstErr.includes('Failed to fetch') || firstErr.includes('NetworkError')) {
+            errMsg += `<span style="font-size: 12px;">خطأ شبكة - تأكد من:<br>• العنوان صحيح<br>• السيرفر شغال<br>• CORS مفعل على السيرفر<br>• الشبكة متصلة</span>`;
         } else {
-            errMsg += ` - ${e.message}`;
+            errMsg += `<span style="font-size: 12px;">${escHTML(firstErr)}</span>`;
         }
-        resultEl.textContent = errMsg;
+        resultEl.innerHTML = errMsg;
     }
 }
 
