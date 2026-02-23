@@ -26,6 +26,7 @@
       "frontend/**/*",
       "electron/**/*",
       "database/**/*",
+      "routes/**/*",
       "node_modules/**/*"
     ],
     "win": {
