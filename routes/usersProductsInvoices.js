@@ -517,6 +517,68 @@ module.exports = function (app, helpers) {
     }
   });
 
+  // ===== GET /api/branches =====
+  app.get('/api/branches', (req, res) => {
+    try {
+      const db = getDb(req);
+      const branches = db.prepare('SELECT * FROM branches WHERE is_active = 1 ORDER BY name').all();
+      return res.json({ success: true, branches });
+    } catch (e) {
+      return res.status(500).json({ success: false, error: e.message });
+    }
+  });
+
+  // ===== POST /api/branches =====
+  app.post('/api/branches', (req, res) => {
+    try {
+      const data = req.body;
+      const db = getDb(req);
+      const result = db.prepare('INSERT INTO branches (name, location, phone) VALUES (?, ?, ?)').run(
+        data.name, data.location || '', data.phone || ''
+      );
+      return res.json({ success: true, id: result.lastInsertRowid });
+    } catch (e) {
+      if (e.message && e.message.includes('UNIQUE')) {
+        return res.status(400).json({ success: false, error: 'اسم الفرع موجود مسبقاً' });
+      }
+      return res.status(500).json({ success: false, error: e.message });
+    }
+  });
+
+  // ===== PUT /api/branches/:branch_id =====
+  app.put('/api/branches/:branch_id', (req, res) => {
+    try {
+      const data = req.body;
+      const db = getDb(req);
+      const updates = [];
+      const params = [];
+
+      if ('name' in data) { updates.push('name = ?'); params.push(data.name); }
+      if ('location' in data) { updates.push('location = ?'); params.push(data.location); }
+      if ('phone' in data) { updates.push('phone = ?'); params.push(data.phone); }
+      if ('is_active' in data) { updates.push('is_active = ?'); params.push(data.is_active); }
+
+      if (updates.length) {
+        params.push(req.params.branch_id);
+        db.prepare(`UPDATE branches SET ${updates.join(', ')} WHERE id = ?`).run(...params);
+      }
+      return res.json({ success: true });
+    } catch (e) {
+      return res.status(500).json({ success: false, error: e.message });
+    }
+  });
+
+  // ===== DELETE /api/branches/:branch_id =====
+  app.delete('/api/branches/:branch_id', (req, res) => {
+    try {
+      const db = getDb(req);
+      db.prepare('UPDATE branches SET is_active = 0 WHERE id = ?').run(req.params.branch_id);
+      return res.json({ success: true });
+    } catch (e) {
+      return res.status(500).json({ success: false, error: e.message });
+    }
+  });
+
   // ===== GET /api/products/search =====
   app.get('/api/products/search', (req, res) => {
     try {
