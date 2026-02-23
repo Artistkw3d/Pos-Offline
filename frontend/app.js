@@ -12791,10 +12791,11 @@ async function testSyncServer() {
     resultEl.innerHTML = 'جاري فحص السيرفر... <span class="sync-spinner"></span>';
 
     // فحص عدة endpoints لمعرفة وش شغال على السيرفر
+    // نختبر endpoints العادية (لأن السيرفر البعيد قد لا يدعم /api/sync/*)
     const endpoints = [
-        { path: '/api/sync/status', name: 'حالة التزامن' },
-        { path: '/api/settings', name: 'الإعدادات' },
+        { path: '/api/settings', name: 'الإعدادات', primary: true },
         { path: '/api/products', name: 'المنتجات' },
+        { path: '/api/customers', name: 'العملاء' },
     ];
 
     const results = [];
@@ -12838,13 +12839,16 @@ async function testSyncServer() {
 
     if (working.length > 0) {
         // نجاح - في endpoint شغال
-        const syncStatus = results.find(r => r.path === '/api/sync/status' && r.success);
         resultEl.style.background = '#f0fff4';
         resultEl.style.color = '#22543d';
-        let html = `<strong>متصل بنجاح!</strong> السيرفر يعمل<br>`;
-        if (syncStatus?.data?.stats) {
-            const s = syncStatus.data.stats;
-            html += `<span style="font-size: 12px; opacity: 0.8;">المنتجات: ${s.products || 0} | العملاء: ${s.customers || 0} | الفواتير: ${s.invoices || 0}</span><br>`;
+        let html = `<strong>متصل بنجاح!</strong> السيرفر يعمل (${working.length}/${endpoints.length} endpoints)<br>`;
+        // عرض عدد المنتجات والعملاء إذا متاح
+        const productsEp = results.find(r => r.path === '/api/products' && r.success);
+        const customersEp = results.find(r => r.path === '/api/customers' && r.success);
+        if (productsEp?.data || customersEp?.data) {
+            const pCount = productsEp?.data?.products?.length || productsEp?.data?.total || '?';
+            const cCount = customersEp?.data?.customers?.length || customersEp?.data?.total || '?';
+            html += `<span style="font-size: 12px; opacity: 0.8;">المنتجات: ${pCount} | العملاء: ${cCount}</span><br>`;
         }
         html += `<div style="font-size: 11px; margin-top: 6px; opacity: 0.7;">`;
         for (const r of results) {

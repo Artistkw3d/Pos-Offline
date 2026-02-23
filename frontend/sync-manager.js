@@ -74,7 +74,8 @@ class SyncManager {
             try {
                 const ctrl = new AbortController();
                 const t = setTimeout(() => ctrl.abort(), 5000);
-                const resp = await fetch(`${this.getApiUrl()}/api/sync/status`, { signal: ctrl.signal, cache: 'no-store' });
+                // نستخدم /api/settings للفحص لأن السيرفر البعيد ما فيه /api/sync/status
+                const resp = await fetch(`${this.getApiUrl()}/api/settings?_ping=1`, { signal: ctrl.signal, cache: 'no-store' });
                 clearTimeout(t);
                 if (!resp.ok) throw new Error('Server not reachable');
             } catch (e) {
@@ -184,62 +185,84 @@ class SyncManager {
             // 1. رفع أي بيانات معلقة أولاً
             await this.uploadPendingData();
 
-            // 2. تحميل كل البيانات
-            const branchId = (typeof currentUser !== 'undefined' && currentUser?.branch_id) ? currentUser.branch_id : 1;
-            const response = await fetch(`${this.getApiUrl()}/api/sync/full-download?branch_id=${branchId}`);
-            if (!response.ok) throw new Error(`Server error: ${response.status}`);
+            let productCount = 0;
+            let customerCount = 0;
 
-            const result = await response.json();
-            if (!result.success) throw new Error(result.error || 'Download failed');
+            if (this.isServerMode()) {
+                // وضع السيرفر البعيد: نحمل من CRUD endpoints العادية
+                console.log('[Sync] Full sync via standard API endpoints');
 
-            const data = result.data;
+                // تحميل المنتجات
+                productCount = await this.downloadProducts();
+                // تحميل العملاء
+                customerCount = await this.downloadCustomers();
+                // تحميل الإعدادات
+                await this.downloadSettings();
 
-            // مسح وإعادة حفظ كل البيانات
-            if (data.products) {
-                await localDB.clear('products');
-                await localDB.saveAll('products', data.products);
-            }
-            if (data.customers) {
-                await localDB.clear('customers');
-                await localDB.saveAll('customers', data.customers);
-            }
-            if (data.settings) {
-                await localDB.clear('settings');
-                for (const [key, value] of Object.entries(data.settings)) {
-                    await localDB.save('settings', { key, value });
+            } else {
+                // الوضع المحلي: نستخدم /api/sync/full-download
+                const branchId = (typeof currentUser !== 'undefined' && currentUser?.branch_id) ? currentUser.branch_id : 1;
+                const response = await fetch(`${this.getApiUrl()}/api/sync/full-download?branch_id=${branchId}`);
+                if (!response.ok) throw new Error(`Server error: ${response.status}`);
+
+                const result = await response.json();
+                if (!result.success) throw new Error(result.error || 'Download failed');
+
+                const data = result.data;
+
+                if (data.products) {
+                    await localDB.clear('products');
+                    await localDB.saveAll('products', data.products);
+                    productCount = data.products.length;
+                }
+                if (data.customers) {
+                    await localDB.clear('customers');
+                    await localDB.saveAll('customers', data.customers);
+                    customerCount = data.customers.length;
+                }
+                if (data.settings) {
+                    await localDB.clear('settings');
+                    for (const [key, value] of Object.entries(data.settings)) {
+                        await localDB.save('settings', { key, value });
+                    }
+                }
+                if (data.categories) {
+                    await localDB.clear('categories');
+                    for (const cat of data.categories) {
+                        await localDB.save('categories', { name: cat });
+                    }
+                }
+                if (data.coupons) {
+                    await localDB.clear('coupons');
+                    await localDB.saveAll('coupons', data.coupons);
                 }
             }
-            if (data.categories) {
-                await localDB.clear('categories');
-                for (const cat of data.categories) {
-                    await localDB.save('categories', { name: cat });
+
+            // تحديث العرض
+            if (typeof allProducts !== 'undefined' && productCount > 0) {
+                const products = await localDB.getAll('products');
+                if (products.length) {
+                    allProducts = products;
+                    if (typeof displayProducts === 'function') displayProducts(allProducts);
                 }
-            }
-            if (data.coupons) {
-                await localDB.clear('coupons');
-                await localDB.saveAll('coupons', data.coupons);
             }
 
             this.lastSync = new Date();
-            await localDB.setLastSync(this.lastSync.toISOString());
-            localStorage.setItem('pos_last_sync', this.lastSync.toISOString());
-            await localDB.addSyncLog({
-                type: 'full_sync_complete',
-                products: data.products?.length || 0,
-                customers: data.customers?.length || 0
-            });
-
-            // تحديث العرض
-            if (typeof allProducts !== 'undefined' && data.products) {
-                allProducts = data.products;
-                if (typeof displayProducts === 'function') displayProducts(allProducts);
+            if (localDB.isReady) {
+                await localDB.setLastSync(this.lastSync.toISOString());
+                await localDB.addSyncLog({
+                    type: 'full_sync_complete',
+                    products: productCount,
+                    customers: customerCount
+                });
             }
+            localStorage.setItem('pos_last_sync', this.lastSync.toISOString());
 
             this.showStatus('تمت المزامنة الكاملة', 'success');
             this.updateSyncUI('idle');
             return { success: true, data_counts: {
-                products: data.products?.length || 0,
-                customers: data.customers?.length || 0
+                products: productCount,
+                customers: customerCount
             }};
 
         } catch (error) {
@@ -264,13 +287,69 @@ class SyncManager {
                 return result;
             }
 
-            // تجهيز البيانات للرفع
+            const apiUrl = this.getApiUrl();
+
+            // في وضع السيرفر البعيد: نستخدم CRUD endpoints العادية
+            // لأن السيرفر البعيد ما فيه /api/sync/upload
+            if (this.isServerMode()) {
+                // رفع العملاء أولاً (لأن الفواتير قد تحتاج customer_id)
+                for (const cust of pendingCustomers) {
+                    try {
+                        const resp = await fetch(`${apiUrl}/api/customers`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(cust)
+                        });
+                        if (resp.ok) {
+                            const r = await resp.json();
+                            if (r.success) {
+                                await localDB.delete('pending_customers', cust.id);
+                                result.customers++;
+                            }
+                        }
+                    } catch (e) {
+                        console.error('[Sync] Customer upload error:', e);
+                        result.errors.push(`عميل ${cust.name || cust.id}: ${e.message}`);
+                    }
+                }
+
+                // رفع الفواتير واحدة واحدة
+                for (const inv of pendingInvoices) {
+                    try {
+                        const invoiceData = inv.data || inv;
+                        const resp = await fetch(`${apiUrl}/api/invoices`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(invoiceData)
+                        });
+                        if (resp.ok) {
+                            const r = await resp.json();
+                            if (r.success) {
+                                await localDB.delete('pending_invoices', inv.local_id);
+                                if (inv.data?.id) await localDB.delete('local_invoices', inv.data.id);
+                                result.invoices++;
+                            }
+                        } else {
+                            console.error(`[Sync] Invoice upload HTTP ${resp.status}`);
+                            result.errors.push(`فاتورة ${inv.local_id}: HTTP ${resp.status}`);
+                        }
+                    } catch (e) {
+                        console.error('[Sync] Invoice upload error:', e);
+                        result.errors.push(`فاتورة ${inv.local_id}: ${e.message}`);
+                    }
+                }
+
+                console.log(`[Sync] Remote upload: ${result.invoices} invoices, ${result.customers} customers`);
+                return result;
+            }
+
+            // الوضع المحلي: نستخدم /api/sync/upload (batch)
             const uploadData = {
                 invoices: pendingInvoices.map(inv => inv.data || inv),
                 customers: pendingCustomers
             };
 
-            const response = await fetch(`${this.getApiUrl()}/api/sync/upload`, {
+            const response = await fetch(`${apiUrl}/api/sync/upload`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(uploadData)
@@ -281,12 +360,10 @@ class SyncManager {
             const uploadResult = await response.json();
 
             if (uploadResult.success) {
-                // حذف الفواتير المعلقة التي تم رفعها
                 for (const inv of pendingInvoices) {
                     await localDB.delete('pending_invoices', inv.local_id);
                     if (inv.data?.id) await localDB.delete('local_invoices', inv.data.id);
                 }
-                // حذف العملاء المعلقين
                 for (const cust of pendingCustomers) {
                     await localDB.delete('pending_customers', cust.id);
                 }
