@@ -22,5 +22,5 @@ RUN mkdir -p /app/database/backups
 # فتح المنفذ 5000
 EXPOSE 5000
 
-# تشغيل الخادم
-CMD ["python", "server.py"]
+# تهيئة قاعدة البيانات ثم تشغيل الخادم
+CMD ["sh", "-c", "python setup_database.py && python server.py"]
