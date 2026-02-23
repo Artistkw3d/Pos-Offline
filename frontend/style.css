@@ -199,6 +199,31 @@ body {
     user-select: none;
 }
 
+.emergency-logout-btn {
+    background: rgba(255, 165, 0, 0.9);
+    padding: 8px 10px;
+    border-radius: 8px;
+    cursor: pointer;
+    border: 2px solid #ff8c00;
+    color: white;
+    font-size: 14px;
+    transition: background 0.3s, transform 0.1s;
+    display: none;
+}
+
+.emergency-logout-btn:hover {
+    background: rgba(255, 140, 0, 1);
+    transform: scale(1.05);
+}
+
+.emergency-logout-btn:active {
+    transform: scale(0.95);
+}
+
+.emergency-logout-btn.visible {
+    display: inline-block;
+}
+
 .tab-content {
     display: none;
 }
@@ -946,5 +971,10 @@ body.mobile-mode .user-info {
 
 body.mobile-mode .logout-btn {
     padding: 6px 12px;
+    font-size: 12px;
+}
+
+body.mobile-mode .emergency-logout-btn {
+    padding: 6px 8px;
     font-size: 12px;
 }

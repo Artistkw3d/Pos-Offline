@@ -475,6 +475,7 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
 // === حماية زر الخروج من الأوفلاين - ممنوع نهائياً ===
 function updateLogoutButton() {
     const btn = document.getElementById('logoutBtn');
+    const emergencyBtn = document.getElementById('emergencyLogoutBtn');
     if (!btn) return;
     const isOnline = _realOnlineStatus && navigator.onLine;
     if (isOnline) {
@@ -486,6 +487,8 @@ function updateLogoutButton() {
         btn.style.textDecoration = '';
         btn.removeAttribute('aria-disabled');
         btn.title = '';
+        // إخفاء زر الطوارئ عند الاتصال
+        if (emergencyBtn) emergencyBtn.classList.remove('visible');
     } else {
         btn.disabled = true;
         btn.classList.add('offline-locked');
@@ -496,6 +499,8 @@ function updateLogoutButton() {
         btn.setAttribute('aria-disabled', 'true');
         btn.title = 'ممنوع - لا يمكن تسجيل الخروج بدون اتصال';
         btn.blur();
+        // إظهار زر الطوارئ عند عدم الاتصال
+        if (emergencyBtn) emergencyBtn.classList.add('visible');
     }
 }
 window.addEventListener('online', () => { checkRealConnection().then(updateLogoutButton); });
@@ -504,10 +509,12 @@ setInterval(updateLogoutButton, 3000);
 document.addEventListener('DOMContentLoaded', () => { checkRealConnection().then(updateLogoutButton); });
 setTimeout(() => { checkRealConnection().then(updateLogoutButton); }, 500);
 
-// اعتراض أي نقرة على زر الخروج في وضع أوفلاين - خط دفاع إضافي
+// اعتراض أي نقرة على زر الخروج في وضع أوفلاين - خط دفاع إضافي (ما عدا زر الطوارئ)
 document.addEventListener('click', function(e) {
     const isOnline = _realOnlineStatus && navigator.onLine;
     if (!isOnline) {
+        const isEmergency = e.target.closest('#emergencyLogoutBtn, .emergency-logout-btn');
+        if (isEmergency) return; // السماح لزر الطوارئ بالعمل دائماً
         const btn = e.target.closest('#logoutBtn, .logout-btn');
         if (btn) {
             e.preventDefault();
@@ -6721,6 +6728,70 @@ console.log('[Loyalty System] Loaded ✅');
 
 // التحقق من الاتصال
 console.log('[Logout Protection] Loaded ✅');
+
+// === زر خروج طوارئ - يعمل حتى بدون اتصال ===
+async function emergencyLogout() {
+    const confirmed = confirm('⚠️ خروج طوارئ!\n\nهذا الخروج بدون اتصال بالسيرفر.\nبيانات الحضور والانصراف ممكن ما تتسجل.\n\nمتأكد تبي تطلع؟');
+    if (!confirmed) return;
+
+    // إيقاف فاحص قفل الشفت
+    if (typeof stopShiftLockChecker === 'function') {
+        try { stopShiftLockChecker(); } catch(e) {}
+    }
+
+    // محاولة تسجيل الخروج على السيرفر (لو متصل)
+    if (currentUser) {
+        try {
+            await logAction('logout', 'خروج طوارئ (أوفلاين)', null);
+        } catch (e) {}
+        try {
+            const controller = new AbortController();
+            const timeout = setTimeout(() => controller.abort(), 2000);
+            await fetch(`${API_URL}/api/attendance/check-out`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ user_id: currentUser.id }),
+                signal: controller.signal
+            });
+            clearTimeout(timeout);
+        } catch (e) {}
+    }
+
+    // مسح كل البيانات
+    currentUser = null;
+    cart = [];
+    allProducts = [];
+    allInvoices = [];
+
+    // مسح localStorage
+    try {
+        const keys = Object.keys(localStorage);
+        keys.forEach(key => {
+            if (key.startsWith('pos_cart_')) {
+                localStorage.removeItem(key);
+            }
+        });
+        localStorage.removeItem('pos_current_user');
+        localStorage.removeItem('pos_tenant_slug');
+        currentTenantSlug = '';
+    } catch (e) {}
+
+    // إعادة تعيين الواجهة
+    try {
+        document.getElementById('cartItems').innerHTML = '<div class="empty-cart"><div class="empty-cart-icon">🛒</div><p>السلة فارغة</p></div>';
+        document.getElementById('subtotal').textContent = '0.000 د.ك';
+        document.getElementById('total').textContent = '0.000 د.ك';
+        document.getElementById('mainContainer').style.display = 'none';
+        document.getElementById('loginOverlay').classList.remove('hidden');
+        document.getElementById('loginForm').reset();
+    } catch (e) {}
+
+    // إعادة تحميل الصفحة
+    setTimeout(() => {
+        window.location.reload();
+    }, 100);
+}
+console.log('[Emergency Logout] Loaded ✅');
 
 
 // ===============================================
