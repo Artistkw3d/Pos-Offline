@@ -8,7 +8,7 @@
 
 | الطبقة | التقنية |
 |--------|---------|
-| Backend | Python 3.11 / Flask 3.0 |
+| Backend | Node.js / Express 4.18 |
 | Database | SQLite (قاعدة رئيسية + قاعدة لكل مستأجر) |
 | Frontend | Vanilla JavaScript ES6+ / HTML5 / CSS3 |
 | PWA | Service Worker v40 / IndexedDB v5 |
@@ -238,23 +238,32 @@ npx cap open android        # فتح في Android Studio
 ## هيكل المشروع
 
 ```
-My-Pos/
+Pos-Offline/
+├── package.json           # إعدادات المشروع و electron-builder
 ├── Dockerfile
 ├── docker-compose.yml
-├── requirements.txt
-├── server.py              # ~3,700 سطر - Flask Backend
+├── electron/
+│   ├── main.js            # نقطة دخول Electron
+│   └── server.js          # Node.js/Express Backend
+├── routes/
+│   ├── usersProductsInvoices.js
+│   ├── tablesCouponsBackups.js
+│   ├── stockTransfersSubscriptionsSync.js
+│   └── adminDashboardXbrlShifts.js
 ├── frontend/
-│   ├── index.html         # ~1,800 سطر - الواجهة الرئيسية
-│   ├── app.js             # ~8,400 سطر - المنطق الرئيسي
-│   ├── style.css          # ~880 سطر - التصميم
+│   ├── index.html         # الواجهة الرئيسية
+│   ├── app.js             # المنطق الرئيسي
+│   ├── style.css          # التصميم
 │   ├── products-search.js # بحث المنتجات المتقدم
-│   ├── localdb.js         # IndexedDB wrapper (v3)
+│   ├── localdb.js         # IndexedDB wrapper
 │   ├── sync-manager.js    # إدارة المزامنة
-│   ├── sw.js              # Service Worker (v30)
+│   ├── sw.js              # Service Worker
 │   └── manifest.json      # PWA manifest
 ├── database/
 │   └── pos.db             # قاعدة البيانات الرئيسية
-└── static/                # الملفات الثابتة (صور)
+└── .github/workflows/
+    ├── ci.yml             # فحص تلقائي عند كل push
+    └── release.yml        # بناء ريليس عند دفع tag
 ```
 
 ---
@@ -291,6 +300,39 @@ python server.py
 2. سجل الدخول: admin / admin
 3. للـ Super Admin: admin+superadmin# / admin
 ```
+
+---
+
+## إنشاء ريليس جديد (Release)
+
+عند الانتهاء من التعديلات ودمجها في `main`، نفّذ الأوامر التالية لإنشاء ريليس:
+
+```bash
+# 1. اسحب آخر تحديثات
+git fetch origin
+
+# 2. روح على main
+git checkout main
+
+# 3. حدّث main
+git pull origin main
+
+# 4. ادمج فرع التطوير
+git merge origin/claude/pos-offline-mobile-3QbTW
+
+# 5. أنشئ tag للريليس (غيّر رقم النسخة حسب الحاجة)
+git tag v1.0.3
+
+# 6. ادفع main مع الـ tag
+git push origin main --tags
+```
+
+> بعد دفع الـ tag، GitHub Actions يشتغل تلقائياً ويسوي:
+> 1. بناء ملف `.exe` لـ Windows
+> 2. بناء Docker image
+> 3. إنشاء GitHub Release مع رفع الملفات
+>
+> تابع التقدم من تبويب **Actions** في صفحة الريبو على GitHub.
 
 ---
 
