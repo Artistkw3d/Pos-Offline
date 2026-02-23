@@ -268,6 +268,7 @@
             <div class="header-right">
                 <span class="user-info" id="userInfo"></span>
                 <button class="logout-btn" id="logoutBtn" onclick="if(!navigator.onLine || typeof _htmlOnlineStatus!=='undefined'&&!_htmlOnlineStatus || typeof _realOnlineStatus!=='undefined'&&!_realOnlineStatus){return false;}logout()">خروج</button>
+                <button class="emergency-logout-btn" id="emergencyLogoutBtn" onclick="emergencyLogout()" title="خروج طوارئ - يعمل بدون اتصال">⚠️</button>
             </div>
         </div>
 
@@ -3200,6 +3201,7 @@
 
     function _lockLogout(lock) {
         const btn = document.getElementById('logoutBtn');
+        const emergencyBtn = document.getElementById('emergencyLogoutBtn');
         if (!btn) return;
         if (lock) {
             btn.disabled = true;
@@ -3210,6 +3212,7 @@
             btn.style.textDecoration = 'line-through';
             btn.setAttribute('aria-disabled', 'true');
             btn.title = 'ممنوع - لا يمكن تسجيل الخروج بدون اتصال';
+            if (emergencyBtn) emergencyBtn.classList.add('visible');
         } else {
             btn.disabled = false;
             btn.classList.remove('offline-locked');
@@ -3219,6 +3222,7 @@
             btn.style.textDecoration = '';
             btn.removeAttribute('aria-disabled');
             btn.title = '';
+            if (emergencyBtn) emergencyBtn.classList.remove('visible');
         }
     }
 
@@ -3242,11 +3246,12 @@
     document.addEventListener('DOMContentLoaded', _checkReal);
     setTimeout(_checkReal, 1000);
 
-    // اعتراض أي نقرة على زر الخروج في وضع أوفلاين
+    // اعتراض أي نقرة على زر الخروج في وضع أوفلاين (ما عدا زر الطوارئ)
     document.addEventListener('click', function(e) {
         if (!_htmlOnlineStatus || !navigator.onLine) {
             const btn = e.target.closest('#logoutBtn, .logout-btn');
-            if (btn) { e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation(); return false; }
+            const isEmergency = e.target.closest('#emergencyLogoutBtn, .emergency-logout-btn');
+            if (btn && !isEmergency) { e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation(); return false; }
         }
     }, true);
     </script>
