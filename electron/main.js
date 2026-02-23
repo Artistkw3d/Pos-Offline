@@ -1,18 +1,18 @@
 const { app, BrowserWindow, Menu, ipcMain, dialog } = require('electron');
 const path = require('path');
-const { spawn } = require('child_process');
+const fs = require('fs');
 
 let mainWindow;
-let serverProcess = null;
+let server = null;
 const SERVER_PORT = 5050;
 
-// تشغيل سيرفر Flask المحلي
+// تشغيل سيرفر Node.js المحلي
 function startLocalServer() {
-    const serverScript = path.join(__dirname, '..', 'server.py');
     const dbDir = path.join(app.getPath('userData'), 'database');
+    const frontendDir = path.join(__dirname, '..', 'frontend');
+    const backupsDir = path.join(dbDir, 'backups');
 
     // إنشاء مجلد قاعدة البيانات
-    const fs = require('fs');
     if (!fs.existsSync(dbDir)) {
         fs.mkdirSync(dbDir, { recursive: true });
     }
@@ -24,29 +24,20 @@ function startLocalServer() {
         fs.copyFileSync(srcDb, dbPath);
     }
 
-    const env = {
-        ...process.env,
-        DB_PATH: dbPath,
-        PORT: SERVER_PORT.toString()
-    };
-
-    serverProcess = spawn('python', [serverScript], {
-        env: env,
-        cwd: path.join(__dirname, '..'),
-        stdio: ['pipe', 'pipe', 'pipe']
-    });
-
-    serverProcess.stdout.on('data', (data) => {
-        console.log(`[Server] ${data}`);
-    });
-
-    serverProcess.stderr.on('data', (data) => {
-        console.error(`[Server] ${data}`);
-    });
-
-    serverProcess.on('close', (code) => {
-        console.log(`[Server] Process exited with code ${code}`);
-    });
+    // تشغيل السيرفر المدمج (Node.js بدلاً من Python)
+    try {
+        const { startServer } = require('./server');
+        server = startServer({
+            port: SERVER_PORT,
+            dbDir: dbDir,
+            frontendDir: frontendDir,
+            backupsDir: backupsDir
+        });
+        console.log(`[Server] Node.js server started on port ${SERVER_PORT}`);
+    } catch (err) {
+        console.error('[Server] Failed to start:', err);
+        dialog.showErrorBox('خطأ في تشغيل السيرفر', err.message);
+    }
 }
 
 // إنشاء النافذة الرئيسية
@@ -118,9 +109,9 @@ app.whenReady().then(() => {
 
 app.on('window-all-closed', () => {
     // إيقاف السيرفر
-    if (serverProcess) {
-        serverProcess.kill();
-        serverProcess = null;
+    if (server) {
+        server.close();
+        server = null;
     }
     if (process.platform !== 'darwin') {
         app.quit();
@@ -128,8 +119,8 @@ app.on('window-all-closed', () => {
 });
 
 app.on('before-quit', () => {
-    if (serverProcess) {
-        serverProcess.kill();
-        serverProcess = null;
+    if (server) {
+        server.close();
+        server = null;
     }
 });
