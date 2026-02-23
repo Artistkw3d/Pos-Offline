@@ -12601,18 +12601,42 @@ async function testServerConnection() {
         });
         clearTimeout(timeout);
 
-        if (response.ok) {
-            const data = await response.json();
-            if (data.success) {
-                resultEl.innerHTML = `<span style="color: #10b981;">متصل! السيرفر يعمل</span><br>
-                    <span style="opacity:0.7;">المنتجات: ${data.stats?.products || 0} | العملاء: ${data.stats?.customers || 0} | الفواتير: ${data.stats?.invoices || 0}</span>`;
-                return;
-            }
+        const statusCode = response.status;
+        let responseText = '';
+        let data = null;
+
+        try {
+            responseText = await response.text();
+            data = JSON.parse(responseText);
+        } catch (parseErr) {
+            // الرد مو JSON
         }
-        resultEl.textContent = 'السيرفر يستجيب لكن حدث خطأ';
+
+        if (response.ok && data && data.success) {
+            resultEl.innerHTML = `<span style="color: #10b981;">متصل! السيرفر يعمل</span><br>
+                <span style="opacity:0.7;">المنتجات: ${data.stats?.products || 0} | العملاء: ${data.stats?.customers || 0} | الفواتير: ${data.stats?.invoices || 0}</span>`;
+            return;
+        }
+
+        // تفاصيل الخطأ
+        let errInfo = `HTTP ${statusCode}`;
+        if (data && data.error) {
+            errInfo += ` | ${data.error}`;
+        } else if (!data && responseText) {
+            errInfo += ` | رد غير JSON: ${responseText.substring(0, 100)}`;
+        }
+        resultEl.innerHTML = `<span style="color: #f59e0b;">السيرفر يستجيب لكن حدث خطأ</span><br><span style="font-size: 11px; opacity: 0.8;">${escHTML(errInfo)}</span>`;
         resultEl.style.color = '#f59e0b';
     } catch (e) {
-        resultEl.textContent = 'فشل الاتصال - تأكد من الرابط والشبكة';
+        let errMsg = 'فشل الاتصال';
+        if (e.name === 'AbortError') {
+            errMsg += ' - انتهت المهلة (5 ثواني)';
+        } else if (e.message.includes('Failed to fetch')) {
+            errMsg += ' - تأكد من الرابط والشبكة (CORS أو سيرفر مغلق)';
+        } else {
+            errMsg += ` - ${e.message}`;
+        }
+        resultEl.textContent = errMsg;
         resultEl.style.color = '#ef4444';
     }
 }
@@ -12776,23 +12800,55 @@ async function testSyncServer() {
         });
         clearTimeout(timeout);
 
-        if (response.ok) {
-            const data = await response.json();
-            if (data.success) {
-                resultEl.style.background = '#f0fff4';
-                resultEl.style.color = '#22543d';
-                resultEl.innerHTML = `<strong>متصل بنجاح!</strong> السيرفر يعمل<br>
-                    <span style="font-size: 12px; opacity: 0.8;">المنتجات: ${data.stats?.products || 0} | العملاء: ${data.stats?.customers || 0} | الفواتير: ${data.stats?.invoices || 0}</span>`;
-                return;
-            }
+        const statusCode = response.status;
+        let responseText = '';
+        let data = null;
+
+        try {
+            responseText = await response.text();
+            data = JSON.parse(responseText);
+        } catch (parseErr) {
+            // الرد مو JSON
         }
+
+        if (response.ok && data && data.success) {
+            resultEl.style.background = '#f0fff4';
+            resultEl.style.color = '#22543d';
+            resultEl.innerHTML = `<strong>متصل بنجاح!</strong> السيرفر يعمل<br>
+                <span style="font-size: 12px; opacity: 0.8;">المنتجات: ${data.stats?.products || 0} | العملاء: ${data.stats?.customers || 0} | الفواتير: ${data.stats?.invoices || 0}</span>`;
+            return;
+        }
+
+        // عرض تفاصيل الخطأ
         resultEl.style.background = '#fffff0';
-        resultEl.style.color = '#d69e2e';
-        resultEl.textContent = 'السيرفر يستجيب لكن حدث خطأ في البيانات';
+        resultEl.style.color = '#92400e';
+        let errorDetail = `<strong>السيرفر يستجيب (HTTP ${statusCode})</strong><br>`;
+        if (data && data.error) {
+            errorDetail += `<span style="font-size: 12px;">الخطأ: ${escHTML(data.error)}</span><br>`;
+        } else if (!data) {
+            errorDetail += `<span style="font-size: 12px;">الرد ليس JSON صالح</span><br>`;
+            if (responseText.length < 200) {
+                errorDetail += `<code style="font-size: 11px; background: rgba(0,0,0,0.05); padding: 2px 4px; border-radius: 3px;">${escHTML(responseText.substring(0, 150))}</code><br>`;
+            }
+        } else if (data && !data.success) {
+            errorDetail += `<span style="font-size: 12px;">السيرفر رجع success: false</span><br>`;
+        }
+        if (!response.ok) {
+            errorDetail += `<span style="font-size: 11px; opacity: 0.7;">HTTP Status: ${statusCode} ${response.statusText}</span>`;
+        }
+        resultEl.innerHTML = errorDetail;
     } catch (e) {
         resultEl.style.background = '#fff5f5';
         resultEl.style.color = '#e53e3e';
-        resultEl.textContent = 'فشل الاتصال - تأكد من العنوان والشبكة';
+        let errMsg = 'فشل الاتصال';
+        if (e.name === 'AbortError') {
+            errMsg += ' - انتهت مهلة الاتصال (5 ثواني)';
+        } else if (e.message.includes('Failed to fetch') || e.message.includes('NetworkError')) {
+            errMsg += ' - تأكد من العنوان والشبكة (قد يكون CORS أو السيرفر مغلق)';
+        } else {
+            errMsg += ` - ${e.message}`;
+        }
+        resultEl.textContent = errMsg;
     }
 }
 
