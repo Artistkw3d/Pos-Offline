@@ -9,6 +9,29 @@ class SyncManager {
         this.lastSync = null;
         this.autoSyncInterval = null;
         this.syncProgress = { total: 0, done: 0, step: '' };
+        this.serverUrl = null; // عنوان السيرفر البعيد (null = محلي)
+        this._loadSyncMode();
+    }
+
+    // تحميل وضع التزامن من localStorage
+    _loadSyncMode() {
+        const mode = localStorage.getItem('pos_sync_mode') || 'local';
+        if (mode === 'server') {
+            this.serverUrl = localStorage.getItem('pos_sync_server_url') || null;
+        } else {
+            this.serverUrl = null;
+        }
+    }
+
+    // جلب عنوان API حسب الوضع الحالي
+    getApiUrl() {
+        if (this.serverUrl) return this.serverUrl;
+        return typeof API_URL !== 'undefined' ? API_URL : '';
+    }
+
+    // هل الوضع سيرفر؟
+    isServerMode() {
+        return !!this.serverUrl;
     }
 
     // بدء المزامنة التلقائية
@@ -37,15 +60,36 @@ class SyncManager {
             return { success: false, reason: 'already_syncing' };
         }
 
+        // إعادة تحميل وضع التزامن
+        this._loadSyncMode();
+
         const isOnline = typeof _realOnlineStatus !== 'undefined' ? _realOnlineStatus : navigator.onLine;
         if (!isOnline) {
             console.log('[Sync] Offline - skipped');
             return { success: false, reason: 'offline' };
         }
 
+        // في وضع السيرفر، تحقق من الاتصال بالسيرفر البعيد
+        if (this.isServerMode()) {
+            try {
+                const ctrl = new AbortController();
+                const t = setTimeout(() => ctrl.abort(), 5000);
+                const resp = await fetch(`${this.getApiUrl()}/api/sync/status`, { signal: ctrl.signal, cache: 'no-store' });
+                clearTimeout(t);
+                if (!resp.ok) throw new Error('Server not reachable');
+            } catch (e) {
+                console.log('[Sync] Remote server unreachable - skipped');
+                this.showStatus('السيرفر غير متاح', 'error');
+                return { success: false, reason: 'server_unreachable' };
+            }
+        }
+
         this.isSyncing = true;
         this.syncProgress = { total: 4, done: 0, step: '' };
-        this.showStatus('جاري المزامنة...', 'info');
+        const targetUrl = this.getApiUrl();
+        const modeLabel = this.isServerMode() ? `سيرفر: ${targetUrl}` : 'محلي';
+        console.log(`[Sync] Starting sync (${modeLabel})`);
+        this.showStatus(this.isServerMode() ? 'جاري المزامنة مع السيرفر...' : 'جاري المزامنة...', 'info');
         this.updateSyncUI('syncing');
 
         const syncResult = {
@@ -126,6 +170,9 @@ class SyncManager {
     async fullSync() {
         if (this.isSyncing) return { success: false, reason: 'already_syncing' };
 
+        // إعادة تحميل وضع التزامن
+        this._loadSyncMode();
+
         const isOnline = typeof _realOnlineStatus !== 'undefined' ? _realOnlineStatus : navigator.onLine;
         if (!isOnline) return { success: false, reason: 'offline' };
 
@@ -139,7 +186,7 @@ class SyncManager {
 
             // 2. تحميل كل البيانات
             const branchId = (typeof currentUser !== 'undefined' && currentUser?.branch_id) ? currentUser.branch_id : 1;
-            const response = await fetch(`${API_URL}/api/sync/full-download?branch_id=${branchId}`);
+            const response = await fetch(`${this.getApiUrl()}/api/sync/full-download?branch_id=${branchId}`);
             if (!response.ok) throw new Error(`Server error: ${response.status}`);
 
             const result = await response.json();
@@ -223,7 +270,7 @@ class SyncManager {
                 customers: pendingCustomers
             };
 
-            const response = await fetch(`${API_URL}/api/sync/upload`, {
+            const response = await fetch(`${this.getApiUrl()}/api/sync/upload`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(uploadData)
@@ -273,7 +320,7 @@ class SyncManager {
 
             for (const invoice of pending) {
                 try {
-                    const response = await fetch(`${API_URL}/api/invoices`, {
+                    const response = await fetch(`${this.getApiUrl()}/api/invoices`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify(invoice.data)
@@ -310,7 +357,7 @@ class SyncManager {
 
             for (const customer of pending) {
                 try {
-                    const response = await fetch(`${API_URL}/api/customers`, {
+                    const response = await fetch(`${this.getApiUrl()}/api/customers`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify(customer)
@@ -333,7 +380,7 @@ class SyncManager {
     async downloadProducts() {
         try {
             const branchId = (typeof currentUser !== 'undefined' && currentUser?.branch_id) ? currentUser.branch_id : 1;
-            const response = await fetch(`${API_URL}/api/products?branch_id=${branchId}`);
+            const response = await fetch(`${this.getApiUrl()}/api/products?branch_id=${branchId}`);
             if (!response.ok) return 0;
 
             const data = await response.json();
@@ -361,7 +408,7 @@ class SyncManager {
     // تحميل العملاء
     async downloadCustomers() {
         try {
-            const response = await fetch(`${API_URL}/api/customers`);
+            const response = await fetch(`${this.getApiUrl()}/api/customers`);
             if (!response.ok) return 0;
 
             const data = await response.json();
@@ -380,7 +427,7 @@ class SyncManager {
     // تحميل الإعدادات
     async downloadSettings() {
         try {
-            const response = await fetch(`${API_URL}/api/settings`);
+            const response = await fetch(`${this.getApiUrl()}/api/settings`);
             if (!response.ok) return;
 
             const data = await response.json();

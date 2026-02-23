@@ -1365,6 +1365,48 @@
                     <button onclick="saveSettings()" class="btn">حفظ</button>
                 </div>
 
+                <!-- إعدادات وضع التزامن -->
+                <div style="max-width: 600px; margin-top: 30px;">
+                    <h3 style="color: #0ea5e9; margin-bottom: 15px;">🔄 إعدادات التزامن</h3>
+                    <div style="background: #f0f4ff; padding: 20px; border-radius: 12px; border: 2px solid #667eea;">
+                        <div class="form-group">
+                            <label>وضع التشغيل:</label>
+                            <select id="syncModeSelect" onchange="onSyncModeChange()" style="padding: 10px; border: 2px solid #cbd5e0; border-radius: 6px; width: 100%;">
+                                <option value="local">محلي بالكامل - بدون سيرفر خارجي</option>
+                                <option value="server">تزامن مع سيرفر خارجي</option>
+                            </select>
+                            <p style="font-size: 12px; color: #666; margin-top: 5px;">المحلي: كل البيانات تبقى في جهازك فقط | السيرفر: تزامن البيانات مع سيرفر مركزي</p>
+                        </div>
+
+                        <!-- إعدادات السيرفر - تظهر فقط عند اختيار وضع السيرفر -->
+                        <div id="serverSyncSettings" style="display: none; margin-top: 15px; padding-top: 15px; border-top: 2px solid #e2e8f0;">
+                            <div class="form-group">
+                                <label>عنوان السيرفر:</label>
+                                <select id="syncServerPreset" onchange="onSyncServerPresetChange()" style="padding: 10px; border: 2px solid #cbd5e0; border-radius: 6px; width: 100%;">
+                                    <option value="">-- اختر سيرفر --</option>
+                                    <option value="https://pos.example.com">pos.example.com (رئيسي)</option>
+                                    <option value="custom">إدخال عنوان مخصص...</option>
+                                </select>
+                            </div>
+                            <div id="customServerUrlGroup" class="form-group" style="display: none;">
+                                <label>عنوان مخصص:</label>
+                                <input type="url" id="syncCustomServerUrl" placeholder="https://my-server.com" style="padding: 10px; border: 2px solid #cbd5e0; border-radius: 6px; width: 100%; direction: ltr; text-align: left;">
+                                <p style="font-size: 12px; color: #666; margin-top: 5px;">أدخل العنوان الكامل مع https://</p>
+                            </div>
+                            <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-top: 10px;">
+                                <button onclick="saveSyncModeSettings()" class="btn" style="background: #667eea;">💾 حفظ إعدادات التزامن</button>
+                                <button onclick="testSyncServer()" class="btn" style="background: #06b6d4;">🔌 اختبار الاتصال</button>
+                            </div>
+                            <div id="syncServerTestResult" style="margin-top: 10px; padding: 10px; border-radius: 8px; display: none;"></div>
+                        </div>
+
+                        <!-- حالة الوضع الحالي -->
+                        <div id="syncModeStatus" style="margin-top: 15px; padding: 12px; border-radius: 8px; background: #e6fffa; border: 1px solid #81e6d9;">
+                            <span id="syncModeStatusText" style="font-size: 13px; color: #2d3748;">الوضع الحالي: محلي بالكامل</span>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- إعدادات تنبيه المخزون المنخفض -->
                 <div style="max-width: 600px; margin-top: 30px;">
                     <h3 style="color: #e53e3e; margin-bottom: 15px;">📦 إعدادات تنبيه المخزون</h3>
@@ -1622,14 +1664,16 @@
                         </div>
                     </div>
 
-                    <!-- إعدادات السيرفر -->
+                    <!-- وضع التزامن الحالي -->
                     <div style="margin-top: 15px; background: rgba(255,255,255,0.05); padding: 15px; border-radius: 10px;">
-                        <h4 style="margin: 0 0 10px; font-size: 14px;">اتصال السيرفر</h4>
+                        <h4 style="margin: 0 0 10px; font-size: 14px;">وضع التزامن</h4>
+                        <div id="adminSyncModeInfo" style="font-size: 13px; opacity: 0.9; margin-bottom: 10px;">محلي بالكامل</div>
                         <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
                             <input type="text" id="serverUrlInput" placeholder="رابط السيرفر (مثال: https://pos.example.com)" value="" style="flex: 1; min-width: 200px; padding: 10px; border-radius: 8px; border: none; font-size: 13px; direction: ltr;">
                             <button onclick="saveServerUrl()" style="background: #667eea; color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-size: 13px;">حفظ</button>
                             <button onclick="testServerConnection()" style="background: #06b6d4; color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-size: 13px;">اختبار الاتصال</button>
                         </div>
+                        <p style="font-size: 11px; opacity: 0.6; margin-top: 8px;">لتغيير وضع التزامن (محلي/سيرفر) اذهب إلى الإعدادات</p>
                         <div id="serverTestResult" style="margin-top: 8px; font-size: 12px; opacity: 0.8;"></div>
                     </div>
                 </div>

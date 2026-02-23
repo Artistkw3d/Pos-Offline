@@ -12505,6 +12505,18 @@ async function updateSyncStatsUI() {
             const savedUrl = localStorage.getItem('pos_server_url') || API_URL;
             serverUrlInput.value = savedUrl;
         }
+
+        // عرض وضع التزامن الحالي في لوحة الأدمن
+        const adminSyncInfo = document.getElementById('adminSyncModeInfo');
+        if (adminSyncInfo) {
+            const mode = getSyncMode();
+            const serverUrl = getSyncServerUrl();
+            if (mode === 'server' && serverUrl) {
+                adminSyncInfo.innerHTML = `<span style="color: #63b3ed;">تزامن مع سيرفر:</span> <span style="direction: ltr; unicode-bidi: embed;">${escHTML(serverUrl)}</span>`;
+            } else {
+                adminSyncInfo.innerHTML = '<span style="color: #81e6d9;">محلي بالكامل</span> - لا يوجد تزامن مع سيرفر خارجي';
+            }
+        }
     } catch (e) {
         console.error('[SyncUI] Error:', e);
     }
@@ -12603,6 +12615,219 @@ async function testServerConnection() {
         resultEl.textContent = 'فشل الاتصال - تأكد من الرابط والشبكة';
         resultEl.style.color = '#ef4444';
     }
+}
+
+// ========================================
+// إعدادات وضع التزامن (محلي / سيرفر)
+// ========================================
+
+// جلب وضع التزامن الحالي
+function getSyncMode() {
+    return localStorage.getItem('pos_sync_mode') || 'local';
+}
+
+// جلب عنوان السيرفر البعيد
+function getSyncServerUrl() {
+    return localStorage.getItem('pos_sync_server_url') || '';
+}
+
+// جلب عنوان API حسب وضع التزامن
+function getEffectiveSyncUrl() {
+    if (getSyncMode() === 'server') {
+        const serverUrl = getSyncServerUrl();
+        if (serverUrl) return serverUrl;
+    }
+    return API_URL;
+}
+
+// تحميل إعدادات التزامن عند فتح الإعدادات
+function loadSyncModeSettings() {
+    const mode = getSyncMode();
+    const serverUrl = getSyncServerUrl();
+
+    const modeSelect = document.getElementById('syncModeSelect');
+    if (modeSelect) modeSelect.value = mode;
+
+    // إظهار/إخفاء إعدادات السيرفر
+    const serverSettings = document.getElementById('serverSyncSettings');
+    if (serverSettings) serverSettings.style.display = mode === 'server' ? 'block' : 'none';
+
+    // تعبئة عنوان السيرفر
+    const presetSelect = document.getElementById('syncServerPreset');
+    const customInput = document.getElementById('syncCustomServerUrl');
+    const customGroup = document.getElementById('customServerUrlGroup');
+
+    if (presetSelect && serverUrl) {
+        // تحقق هل العنوان من القائمة الجاهزة
+        const options = Array.from(presetSelect.options).map(o => o.value);
+        if (options.includes(serverUrl)) {
+            presetSelect.value = serverUrl;
+            if (customGroup) customGroup.style.display = 'none';
+        } else if (serverUrl) {
+            presetSelect.value = 'custom';
+            if (customGroup) customGroup.style.display = 'block';
+            if (customInput) customInput.value = serverUrl;
+        }
+    }
+
+    // تحديث حالة الوضع
+    updateSyncModeStatus();
+}
+
+// عند تغيير وضع التزامن
+function onSyncModeChange() {
+    const mode = document.getElementById('syncModeSelect')?.value || 'local';
+    const serverSettings = document.getElementById('serverSyncSettings');
+    if (serverSettings) serverSettings.style.display = mode === 'server' ? 'block' : 'none';
+
+    if (mode === 'local') {
+        // حفظ فوري للوضع المحلي
+        localStorage.setItem('pos_sync_mode', 'local');
+        updateSyncModeStatus();
+        // إيقاف المزامنة التلقائية مع السيرفر
+        if (typeof syncManager !== 'undefined') {
+            syncManager.serverUrl = null;
+        }
+    }
+}
+
+// عند تغيير السيرفر من القائمة
+function onSyncServerPresetChange() {
+    const preset = document.getElementById('syncServerPreset')?.value;
+    const customGroup = document.getElementById('customServerUrlGroup');
+    if (customGroup) {
+        customGroup.style.display = preset === 'custom' ? 'block' : 'none';
+    }
+}
+
+// حفظ إعدادات التزامن
+function saveSyncModeSettings() {
+    const mode = document.getElementById('syncModeSelect')?.value || 'local';
+    localStorage.setItem('pos_sync_mode', mode);
+
+    if (mode === 'server') {
+        const preset = document.getElementById('syncServerPreset')?.value;
+        let serverUrl = '';
+
+        if (preset === 'custom') {
+            serverUrl = document.getElementById('syncCustomServerUrl')?.value?.trim() || '';
+        } else {
+            serverUrl = preset || '';
+        }
+
+        // تنظيف العنوان
+        if (serverUrl.endsWith('/')) serverUrl = serverUrl.slice(0, -1);
+
+        if (!serverUrl) {
+            alert('الرجاء إدخال عنوان السيرفر');
+            return;
+        }
+
+        localStorage.setItem('pos_sync_server_url', serverUrl);
+        // تحديث عنوان السيرفر القديم أيضاً للتوافق
+        localStorage.setItem('pos_server_url', serverUrl);
+
+        // تحديث SyncManager
+        if (typeof syncManager !== 'undefined') {
+            syncManager.serverUrl = serverUrl;
+        }
+    }
+
+    updateSyncModeStatus();
+    alert('تم حفظ إعدادات التزامن');
+}
+
+// اختبار الاتصال بسيرفر التزامن
+async function testSyncServer() {
+    const resultEl = document.getElementById('syncServerTestResult');
+    if (!resultEl) return;
+
+    const preset = document.getElementById('syncServerPreset')?.value;
+    let serverUrl = '';
+
+    if (preset === 'custom') {
+        serverUrl = document.getElementById('syncCustomServerUrl')?.value?.trim() || '';
+    } else {
+        serverUrl = preset || '';
+    }
+
+    if (!serverUrl) {
+        resultEl.style.display = 'block';
+        resultEl.style.background = '#fff5f5';
+        resultEl.style.color = '#e53e3e';
+        resultEl.textContent = 'الرجاء اختيار أو إدخال عنوان السيرفر أولاً';
+        return;
+    }
+
+    if (serverUrl.endsWith('/')) serverUrl = serverUrl.slice(0, -1);
+
+    resultEl.style.display = 'block';
+    resultEl.style.background = '#fffff0';
+    resultEl.style.color = '#d69e2e';
+    resultEl.textContent = 'جاري اختبار الاتصال...';
+
+    try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 5000);
+        const response = await fetch(`${serverUrl}/api/sync/status`, {
+            method: 'GET',
+            signal: controller.signal,
+            cache: 'no-store'
+        });
+        clearTimeout(timeout);
+
+        if (response.ok) {
+            const data = await response.json();
+            if (data.success) {
+                resultEl.style.background = '#f0fff4';
+                resultEl.style.color = '#22543d';
+                resultEl.innerHTML = `<strong>متصل بنجاح!</strong> السيرفر يعمل<br>
+                    <span style="font-size: 12px; opacity: 0.8;">المنتجات: ${data.stats?.products || 0} | العملاء: ${data.stats?.customers || 0} | الفواتير: ${data.stats?.invoices || 0}</span>`;
+                return;
+            }
+        }
+        resultEl.style.background = '#fffff0';
+        resultEl.style.color = '#d69e2e';
+        resultEl.textContent = 'السيرفر يستجيب لكن حدث خطأ في البيانات';
+    } catch (e) {
+        resultEl.style.background = '#fff5f5';
+        resultEl.style.color = '#e53e3e';
+        resultEl.textContent = 'فشل الاتصال - تأكد من العنوان والشبكة';
+    }
+}
+
+// تحديث عرض حالة وضع التزامن
+function updateSyncModeStatus() {
+    const statusEl = document.getElementById('syncModeStatusText');
+    const statusContainer = document.getElementById('syncModeStatus');
+    if (!statusEl || !statusContainer) return;
+
+    const mode = getSyncMode();
+    const serverUrl = getSyncServerUrl();
+
+    if (mode === 'server' && serverUrl) {
+        statusContainer.style.background = '#ebf8ff';
+        statusContainer.style.borderColor = '#63b3ed';
+        statusEl.innerHTML = `<strong>الوضع الحالي:</strong> تزامن مع سيرفر<br><span style="font-size: 12px; direction: ltr; unicode-bidi: embed;">${escHTML(serverUrl)}</span>`;
+    } else if (mode === 'server') {
+        statusContainer.style.background = '#fffff0';
+        statusContainer.style.borderColor = '#ecc94b';
+        statusEl.innerHTML = '<strong>الوضع الحالي:</strong> سيرفر (لم يتم تحديد العنوان بعد)';
+    } else {
+        statusContainer.style.background = '#e6fffa';
+        statusContainer.style.borderColor = '#81e6d9';
+        statusEl.innerHTML = '<strong>الوضع الحالي:</strong> محلي بالكامل';
+    }
+}
+
+// تحميل إعدادات التزامن عند فتح صفحة الإعدادات
+const _originalLoadSettings = typeof loadSettings === 'function' ? loadSettings : null;
+if (_originalLoadSettings) {
+    const _origLoadSettings = loadSettings;
+    loadSettings = async function() {
+        await _origLoadSettings.apply(this, arguments);
+        loadSyncModeSettings();
+    };
 }
 
 // تحميل لوحة الأدمن مع إحصائيات المزامنة
