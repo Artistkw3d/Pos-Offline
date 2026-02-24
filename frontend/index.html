@@ -267,8 +267,7 @@
             </div>
             <div class="header-right">
                 <span class="user-info" id="userInfo"></span>
-                <button class="logout-btn" id="logoutBtn" onclick="if(!navigator.onLine || typeof _htmlOnlineStatus!=='undefined'&&!_htmlOnlineStatus || typeof _realOnlineStatus!=='undefined'&&!_realOnlineStatus){return false;}logout()">خروج</button>
-                <button class="emergency-logout-btn" id="emergencyLogoutBtn" onclick="emergencyLogout()" title="خروج طوارئ - يعمل بدون اتصال">⚠️</button>
+                <button class="logout-btn" id="logoutBtn" onclick="logout()">خروج</button>
             </div>
         </div>
 
@@ -3196,64 +3195,6 @@
         _lockLogout(true);
     });
 
-    // === حماية زر الخروج مباشرة في HTML (تعمل حتى لو app.js قديم) ===
-    let _htmlOnlineStatus = navigator.onLine;
-
-    function _lockLogout(lock) {
-        const btn = document.getElementById('logoutBtn');
-        const emergencyBtn = document.getElementById('emergencyLogoutBtn');
-        if (!btn) return;
-        if (lock) {
-            btn.disabled = true;
-            btn.classList.add('offline-locked');
-            btn.style.pointerEvents = 'none';
-            btn.style.opacity = '0.3';
-            btn.style.background = 'rgba(150,150,150,0.5)';
-            btn.style.textDecoration = 'line-through';
-            btn.setAttribute('aria-disabled', 'true');
-            btn.title = 'ممنوع - لا يمكن تسجيل الخروج بدون اتصال';
-            if (emergencyBtn) emergencyBtn.classList.add('visible');
-        } else {
-            btn.disabled = false;
-            btn.classList.remove('offline-locked');
-            btn.style.pointerEvents = '';
-            btn.style.opacity = '';
-            btn.style.background = '';
-            btn.style.textDecoration = '';
-            btn.removeAttribute('aria-disabled');
-            btn.title = '';
-            if (emergencyBtn) emergencyBtn.classList.remove('visible');
-        }
-    }
-
-    // فحص الاتصال الحقيقي بالسيرفر (navigator.onLine غير موثوق)
-    async function _checkReal() {
-        try {
-            const c = new AbortController();
-            const t = setTimeout(() => c.abort(), 3000);
-            const r = await fetch('/api/settings?_ping=1', { method: 'GET', cache: 'no-store', signal: c.signal });
-            clearTimeout(t);
-            _htmlOnlineStatus = r.ok;
-        } catch(e) {
-            _htmlOnlineStatus = false;
-        }
-        _lockLogout(!_htmlOnlineStatus);
-    }
-
-    // فحص دوري كل 5 ثواني بالـ ping الحقيقي
-    setInterval(_checkReal, 5000);
-    // فحص فوري عند تحميل الصفحة
-    document.addEventListener('DOMContentLoaded', _checkReal);
-    setTimeout(_checkReal, 1000);
-
-    // اعتراض أي نقرة على زر الخروج في وضع أوفلاين (ما عدا زر الطوارئ)
-    document.addEventListener('click', function(e) {
-        if (!_htmlOnlineStatus || !navigator.onLine) {
-            const btn = e.target.closest('#logoutBtn, .logout-btn');
-            const isEmergency = e.target.closest('#emergencyLogoutBtn, .emergency-logout-btn');
-            if (btn && !isEmergency) { e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation(); return false; }
-        }
-    }, true);
     </script>
     
     <!-- Variant Selection Modal for POS -->

@@ -36,7 +36,6 @@ setInterval(async () => {
     await checkRealConnection();
     // عند تغيير الحالة
     if (wasOnline !== _realOnlineStatus) {
-        if (typeof _lockLogout === 'function') _lockLogout(!_realOnlineStatus);
         if (typeof updateLogoutButton === 'function') updateLogoutButton();
         // عند العودة أونلاين - مزامنة فورية!
         if (_realOnlineStatus && !wasOnline) {
@@ -477,20 +476,8 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
     }
 });
 
-// === حماية زر الخروج من الأوفلاين - ممنوع نهائياً ===
 function updateLogoutButton() {
-    const btn = document.getElementById('logoutBtn');
-    const emergencyBtn = document.getElementById('emergencyLogoutBtn');
-    if (!btn) return;
-    btn.disabled = false;
-    btn.classList.remove('offline-locked');
-    btn.style.pointerEvents = '';
-    btn.style.opacity = '';
-    btn.style.background = '';
-    btn.style.textDecoration = '';
-    btn.removeAttribute('aria-disabled');
-    btn.title = '';
-    if (emergencyBtn) emergencyBtn.classList.remove('visible');
+    // no-op: logout is always allowed
 }
 window.addEventListener('online', () => { checkRealConnection().then(updateLogoutButton); });
 window.addEventListener('offline', () => { _realOnlineStatus = false; updateLogoutButton(); });
