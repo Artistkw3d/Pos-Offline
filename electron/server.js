@@ -1326,12 +1326,14 @@ function startServer(options = {}) {
   initDefaultDb();
   migrateDatabase();
 
-  // Migrate all tenant databases
+  // Ensure all tenant databases have full schema, then migrate
   if (fs.existsSync(TENANTS_DB_DIR)) {
     const files = fs.readdirSync(TENANTS_DB_DIR);
     for (const f of files) {
       if (f.endsWith('.db')) {
-        migrateDatabase(path.join(TENANTS_DB_DIR, f));
+        const tenantPath = path.join(TENANTS_DB_DIR, f);
+        ensureDbTables(tenantPath);
+        migrateDatabase(tenantPath);
       }
     }
   }
