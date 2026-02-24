@@ -12787,6 +12787,13 @@ function saveSyncModeSettings() {
         // تحديث عنوان السيرفر القديم أيضاً للتوافق
         localStorage.setItem('pos_server_url', serverUrl);
 
+        // حفظ عنوان الخادم في قاعدة البيانات المحلية لاستخدامه من Electron
+        fetch(`${API_URL}/api/settings`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ flask_server_url: serverUrl })
+        }).catch(function() { /* ignore - offline */ });
+
         // تحديث SyncManager
         if (typeof syncManager !== 'undefined') {
             syncManager.serverUrl = serverUrl;

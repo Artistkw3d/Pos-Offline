@@ -65,6 +65,17 @@ function getMasterDb() {
   return new Database(MASTER_DB_PATH);
 }
 
+function getFlaskServerUrl() {
+  try {
+    const db = new Database(DB_PATH);
+    const row = db.prepare("SELECT value FROM settings WHERE key = 'flask_server_url'").get();
+    db.close();
+    return row ? row.value.replace(/\/+$/, '') : null;
+  } catch (e) {
+    return null;
+  }
+}
+
 function logAction(db, actionType, description, userId, userName, branchId, targetId, details) {
   try {
     db.prepare(`
@@ -216,7 +227,10 @@ function startServer(options = {}) {
   upload = multer({ dest: UPLOADS_DIR });
 
   // Initialize databases
-  initMasterDb();
+  // Skip local master.db init if Flask server URL is configured (shared master.db)
+  if (!getFlaskServerUrl()) {
+    initMasterDb();
+  }
   initDefaultDb();
   migrateDatabase();
 
@@ -242,7 +256,7 @@ function startServer(options = {}) {
   const helpers = {
     getDb, getMasterDb, hashPassword, logAction,
     createBackupFile, getBackupDir, createTenantDatabase, migrateDatabase,
-    getTenantSlug, getTenantDbPath,
+    getTenantSlug, getTenantDbPath, getFlaskServerUrl,
     DB_PATH, MASTER_DB_PATH, TENANTS_DB_DIR, BACKUPS_DIR, FRONTEND_DIR,
     upload, Database
   };

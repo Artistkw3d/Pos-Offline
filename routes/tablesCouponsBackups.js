@@ -3,10 +3,12 @@ const fs = require('fs');
 const https = require('https');
 const querystring = require('querystring');
 const Database = require('better-sqlite3');
+const { proxyToFlask, fetchFromFlask } = require('./proxyToFlask');
 
 // These will be set from helpers when module.exports is called
 let DB_PATH, TENANTS_DB_DIR, BACKUPS_DIR;
 let getDb, getMasterDb, hashPassword, getBackupDir, createBackupFile, createTenantDatabase, upload;
+let getFlaskServerUrl;
 
 // ===== Google Drive Constants =====
 const GOOGLE_OAUTH_AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth';
@@ -274,6 +276,7 @@ module.exports = function(app, helpers) {
   createBackupFile = helpers.createBackupFile;
   createTenantDatabase = helpers.createTenantDatabase;
   upload = helpers.upload;
+  getFlaskServerUrl = helpers.getFlaskServerUrl;
   DB_PATH = helpers.DB_PATH;
   TENANTS_DB_DIR = helpers.TENANTS_DB_DIR;
   BACKUPS_DIR = helpers.BACKUPS_DIR;
@@ -692,344 +695,96 @@ module.exports = function(app, helpers) {
   });
 
   // ===================================================================
-  // ===== Multi-Tenancy Super Admin API =====
+  // ===== Multi-Tenancy Super Admin API (proxied to Flask server) =====
   // ===================================================================
 
+  // --- 10 pure proxy routes: forward entirely to Flask server ---
+
   // POST /api/super-admin/login
-  app.post('/api/super-admin/login', (req, res) => {
-    try {
-      const data = req.body;
-      const username = data.username || '';
-      const password = data.password || '';
-      const db = getMasterDb();
-      const admin = db.prepare('SELECT * FROM super_admins WHERE username = ? AND password = ?')
-        .get(username, hashPassword(password));
-      if (admin) {
-        return res.json({
-          success: true,
-          admin: {
-            id: admin.id,
-            username: admin.username,
-            full_name: admin.full_name,
-            role: 'super_admin'
-          }
-        });
-      }
-      return res.status(401).json({ success: false, error: 'بيانات الدخول غير صحيحة' });
-    } catch (e) {
-      return res.status(500).json({ success: false, error: e.message });
-    }
+  app.post('/api/super-admin/login', async (req, res) => {
+    const flaskUrl = getFlaskServerUrl();
+    if (!flaskUrl) return res.status(503).json({ success: false, error: 'لم يتم تعيين عنوان الخادم الرئيسي' });
+    await proxyToFlask(flaskUrl, '/api/super-admin/login', req, res);
   });
 
   // GET /api/super-admin/tenants
-  app.get('/api/super-admin/tenants', (req, res) => {
-    try {
-      const db = getMasterDb();
-      const tenants = db.prepare('SELECT * FROM tenants ORDER BY created_at DESC').all();
-
-      // Add stats for each tenant
-      for (const tenant of tenants) {
-        try {
-          const tDb = new Database(tenant.db_path);
-          tenant.users_count = tDb.prepare('SELECT COUNT(*) as c FROM users').get().c;
-          tenant.invoices_count = tDb.prepare('SELECT COUNT(*) as c FROM invoices').get().c;
-          tenant.products_count = tDb.prepare('SELECT COUNT(*) as c FROM products').get().c;
-          tDb.close();
-        } catch (e2) {
-          tenant.users_count = 0;
-          tenant.invoices_count = 0;
-          tenant.products_count = 0;
-        }
-      }
-
-      return res.json({ success: true, tenants });
-    } catch (e) {
-      return res.status(500).json({ success: false, error: e.message });
-    }
+  app.get('/api/super-admin/tenants', async (req, res) => {
+    const flaskUrl = getFlaskServerUrl();
+    if (!flaskUrl) return res.status(503).json({ success: false, error: 'لم يتم تعيين عنوان الخادم الرئيسي' });
+    await proxyToFlask(flaskUrl, '/api/super-admin/tenants', req, res);
   });
 
   // POST /api/super-admin/tenants
-  app.post('/api/super-admin/tenants', (req, res) => {
-    try {
-      const data = req.body;
-      const name = (data.name || '').trim();
-      let slug = (data.slug || '').trim().toLowerCase();
-      const ownerName = (data.owner_name || '').trim();
-      const ownerEmail = (data.owner_email || '').trim();
-      const ownerPhone = (data.owner_phone || '').trim();
-      const adminUsername = (data.admin_username || 'admin').trim();
-      const adminPassword = (data.admin_password || 'admin123').trim();
-      const plan = data.plan || 'basic';
-      const maxUsers = data.max_users || 5;
-      const maxBranches = data.max_branches || 3;
-      const subscriptionAmount = data.subscription_amount || 0;
-      const subscriptionPeriod = data.subscription_period || 30;
-
-      if (!name || !slug || !ownerName) {
-        return res.status(400).json({ success: false, error: 'الاسم والمعرف واسم المالك مطلوبة' });
-      }
-
-      // Clean slug
-      slug = slug.replace(/[^a-zA-Z0-9_-]/g, '');
-      if (!slug) {
-        return res.status(400).json({ success: false, error: 'المعرف (slug) غير صالح' });
-      }
-
-      const dbPath = getTenantDbPath(slug);
-
-      // Check slug uniqueness
-      const db = getMasterDb();
-      const existing = db.prepare('SELECT id FROM tenants WHERE slug = ?').get(slug);
-      if (existing) {
-        return res.status(400).json({ success: false, error: 'هذا المعرف مستخدم بالفعل' });
-      }
-
-      // Create tenant database
-      createTenantDatabase(slug);
-
-      // Add admin user for the tenant
-      const tDb = new Database(dbPath);
-      tDb.prepare(`
-        INSERT INTO users (username, password, full_name, role, invoice_prefix, is_active, branch_id)
-        VALUES (?, ?, ?, 'admin', 'INV', 1, 1)
-      `).run(adminUsername, adminPassword, ownerName);
-      tDb.close();
-
-      // Register tenant in master database
-      const result = db.prepare(`
-        INSERT INTO tenants (name, slug, owner_name, owner_email, owner_phone, db_path, plan, max_users, max_branches, subscription_amount, subscription_period)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `).run(name, slug, ownerName, ownerEmail, ownerPhone, dbPath, plan, maxUsers, maxBranches, subscriptionAmount, subscriptionPeriod);
-
-      return res.json({ success: true, id: Number(result.lastInsertRowid), slug });
-    } catch (e) {
-      return res.status(500).json({ success: false, error: e.message });
-    }
+  app.post('/api/super-admin/tenants', async (req, res) => {
+    const flaskUrl = getFlaskServerUrl();
+    if (!flaskUrl) return res.status(503).json({ success: false, error: 'لم يتم تعيين عنوان الخادم الرئيسي' });
+    await proxyToFlask(flaskUrl, '/api/super-admin/tenants', req, res);
   });
 
   // PUT /api/super-admin/tenants/:tenant_id
-  app.put('/api/super-admin/tenants/:tenant_id', (req, res) => {
-    try {
-      const tenantId = req.params.tenant_id;
-      const data = req.body;
-      const db = getMasterDb();
-      const fields = [];
-      const values = [];
-      for (const key of ['name', 'owner_name', 'owner_email', 'owner_phone', 'is_active', 'plan', 'max_users', 'max_branches', 'expires_at', 'subscription_amount', 'subscription_period']) {
-        if (key in data) {
-          fields.push(`${key} = ?`);
-          values.push(data[key]);
-        }
-      }
-      if (fields.length > 0) {
-        values.push(tenantId);
-        db.prepare(`UPDATE tenants SET ${fields.join(', ')} WHERE id = ?`).run(...values);
-      }
-      return res.json({ success: true });
-    } catch (e) {
-      return res.status(500).json({ success: false, error: e.message });
-    }
+  app.put('/api/super-admin/tenants/:tenant_id', async (req, res) => {
+    const flaskUrl = getFlaskServerUrl();
+    if (!flaskUrl) return res.status(503).json({ success: false, error: 'لم يتم تعيين عنوان الخادم الرئيسي' });
+    await proxyToFlask(flaskUrl, `/api/super-admin/tenants/${req.params.tenant_id}`, req, res);
   });
 
   // DELETE /api/super-admin/tenants/:tenant_id
-  app.delete('/api/super-admin/tenants/:tenant_id', (req, res) => {
-    try {
-      const tenantId = req.params.tenant_id;
-      const db = getMasterDb();
-      const tenant = db.prepare('SELECT db_path, slug FROM tenants WHERE id = ?').get(tenantId);
-      if (!tenant) {
-        return res.status(404).json({ success: false, error: 'المستأجر غير موجود' });
-      }
-
-      // Delete tenant database file
-      const dbPath = tenant.db_path;
-      if (fs.existsSync(dbPath)) {
-        fs.unlinkSync(dbPath);
-      }
-
-      db.prepare('DELETE FROM tenants WHERE id = ?').run(tenantId);
-      return res.json({ success: true });
-    } catch (e) {
-      return res.status(500).json({ success: false, error: e.message });
-    }
+  app.delete('/api/super-admin/tenants/:tenant_id', async (req, res) => {
+    const flaskUrl = getFlaskServerUrl();
+    if (!flaskUrl) return res.status(503).json({ success: false, error: 'لم يتم تعيين عنوان الخادم الرئيسي' });
+    await proxyToFlask(flaskUrl, `/api/super-admin/tenants/${req.params.tenant_id}`, req, res);
   });
 
   // GET /api/super-admin/tenants/:tenant_id/stats
-  app.get('/api/super-admin/tenants/:tenant_id/stats', (req, res) => {
-    try {
-      const tenantId = req.params.tenant_id;
-      const db = getMasterDb();
-      const tenant = db.prepare('SELECT * FROM tenants WHERE id = ?').get(tenantId);
-      if (!tenant) {
-        return res.status(404).json({ success: false, error: 'المستأجر غير موجود' });
-      }
-
-      const tDb = new Database(tenant.db_path);
-      const stats = {};
-      stats.users_count = tDb.prepare('SELECT COUNT(*) as c FROM users').get().c;
-      stats.invoices_count = tDb.prepare('SELECT COUNT(*) as c FROM invoices').get().c;
-      stats.products_count = tDb.prepare('SELECT COUNT(*) as c FROM products').get().c;
-      stats.customers_count = tDb.prepare('SELECT COUNT(*) as c FROM customers').get().c;
-      stats.total_sales = tDb.prepare('SELECT COALESCE(SUM(total), 0) as t FROM invoices').get().t;
-      stats.branches_count = tDb.prepare('SELECT COUNT(*) as c FROM branches').get().c;
-      tDb.close();
-
-      return res.json({ success: true, stats, tenant });
-    } catch (e) {
-      return res.status(500).json({ success: false, error: e.message });
-    }
+  app.get('/api/super-admin/tenants/:tenant_id/stats', async (req, res) => {
+    const flaskUrl = getFlaskServerUrl();
+    if (!flaskUrl) return res.status(503).json({ success: false, error: 'لم يتم تعيين عنوان الخادم الرئيسي' });
+    await proxyToFlask(flaskUrl, `/api/super-admin/tenants/${req.params.tenant_id}/stats`, req, res);
   });
 
   // GET /api/super-admin/subscriptions/:tenant_id
-  app.get('/api/super-admin/subscriptions/:tenant_id', (req, res) => {
-    try {
-      const tenantId = req.params.tenant_id;
-      const db = getMasterDb();
-      const invoices = db.prepare('SELECT * FROM subscription_invoices WHERE tenant_id = ? ORDER BY created_at DESC').all(tenantId);
-      return res.json({ success: true, invoices });
-    } catch (e) {
-      return res.status(500).json({ success: false, error: e.message });
-    }
+  app.get('/api/super-admin/subscriptions/:tenant_id', async (req, res) => {
+    const flaskUrl = getFlaskServerUrl();
+    if (!flaskUrl) return res.status(503).json({ success: false, error: 'لم يتم تعيين عنوان الخادم الرئيسي' });
+    await proxyToFlask(flaskUrl, `/api/super-admin/subscriptions/${req.params.tenant_id}`, req, res);
   });
 
   // POST /api/super-admin/subscriptions
-  app.post('/api/super-admin/subscriptions', (req, res) => {
-    try {
-      const data = req.body;
-      const tenantId = data.tenant_id;
-      const amount = parseFloat(data.amount || 0);
-      const periodDays = parseInt(data.period_days || 30);
-      const notes = data.notes || '';
-      const paymentMethod = data.payment_method || 'cash';
-
-      if (!tenantId || amount <= 0 || periodDays <= 0) {
-        return res.status(400).json({ success: false, error: 'بيانات الفاتورة غير مكتملة' });
-      }
-
-      const db = getMasterDb();
-      const tenant = db.prepare('SELECT * FROM tenants WHERE id = ?').get(tenantId);
-      if (!tenant) {
-        return res.status(404).json({ success: false, error: 'المستأجر غير موجود' });
-      }
-
-      // Calculate start and end dates
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      let startDate = new Date(today);
-
-      // If subscription is still active, add from current expiry date
-      if (tenant.expires_at) {
-        try {
-          const currentExpiry = new Date(tenant.expires_at.substring(0, 10));
-          if (currentExpiry > today) {
-            startDate = currentExpiry;
-          }
-        } catch (e2) {
-          // keep startDate as today
-        }
-      }
-
-      const endDate = new Date(startDate);
-      endDate.setDate(endDate.getDate() + periodDays);
-
-      const startDateStr = startDate.toISOString().slice(0, 10);
-      const endDateStr = endDate.toISOString().slice(0, 10);
-
-      // Create subscription invoice
-      const result = db.prepare(`
-        INSERT INTO subscription_invoices (tenant_id, amount, period_days, start_date, end_date, notes, payment_method)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-      `).run(tenantId, amount, periodDays, startDateStr, endDateStr, notes, paymentMethod);
-
-      // Update expiry date and activate store
-      db.prepare('UPDATE tenants SET expires_at = ?, is_active = 1 WHERE id = ?')
-        .run(endDateStr, tenantId);
-
-      return res.json({
-        success: true,
-        id: Number(result.lastInsertRowid),
-        start_date: startDateStr,
-        end_date: endDateStr
-      });
-    } catch (e) {
-      return res.status(500).json({ success: false, error: e.message });
-    }
+  app.post('/api/super-admin/subscriptions', async (req, res) => {
+    const flaskUrl = getFlaskServerUrl();
+    if (!flaskUrl) return res.status(503).json({ success: false, error: 'لم يتم تعيين عنوان الخادم الرئيسي' });
+    await proxyToFlask(flaskUrl, '/api/super-admin/subscriptions', req, res);
   });
 
   // DELETE /api/super-admin/subscriptions/:invoice_id
-  app.delete('/api/super-admin/subscriptions/:invoice_id', (req, res) => {
-    try {
-      const invoiceId = req.params.invoice_id;
-      const db = getMasterDb();
-      db.prepare('DELETE FROM subscription_invoices WHERE id = ?').run(invoiceId);
-      return res.json({ success: true });
-    } catch (e) {
-      return res.status(500).json({ success: false, error: e.message });
-    }
+  app.delete('/api/super-admin/subscriptions/:invoice_id', async (req, res) => {
+    const flaskUrl = getFlaskServerUrl();
+    if (!flaskUrl) return res.status(503).json({ success: false, error: 'لم يتم تعيين عنوان الخادم الرئيسي' });
+    await proxyToFlask(flaskUrl, `/api/super-admin/subscriptions/${req.params.invoice_id}`, req, res);
   });
 
   // POST /api/super-admin/change-password
-  app.post('/api/super-admin/change-password', (req, res) => {
-    try {
-      const data = req.body;
-      const adminId = data.admin_id;
-      const oldPassword = data.old_password || '';
-      const newPassword = data.new_password || '';
-      const newUsername = (data.new_username || '').trim();
-      const newFullName = (data.new_full_name || '').trim();
-
-      const db = getMasterDb();
-      const admin = db.prepare('SELECT * FROM super_admins WHERE id = ? AND password = ?')
-        .get(adminId, hashPassword(oldPassword));
-      if (!admin) {
-        return res.status(400).json({ success: false, error: 'كلمة المرور القديمة غير صحيحة' });
-      }
-
-      // Update password
-      if (newPassword) {
-        db.prepare('UPDATE super_admins SET password = ? WHERE id = ?')
-          .run(hashPassword(newPassword), adminId);
-      }
-
-      // Update username
-      if (newUsername && newUsername !== admin.username) {
-        const existingUser = db.prepare('SELECT id FROM super_admins WHERE username = ? AND id != ?').get(newUsername, adminId);
-        if (existingUser) {
-          return res.status(400).json({ success: false, error: 'اسم المستخدم مستخدم بالفعل' });
-        }
-        db.prepare('UPDATE super_admins SET username = ? WHERE id = ?').run(newUsername, adminId);
-      }
-
-      // Update full name
-      if (newFullName) {
-        db.prepare('UPDATE super_admins SET full_name = ? WHERE id = ?').run(newFullName, adminId);
-      }
-
-      // Return updated data
-      const updated = db.prepare('SELECT id, username, full_name FROM super_admins WHERE id = ?').get(adminId);
-      return res.json({
-        success: true,
-        admin: {
-          id: updated.id,
-          username: updated.username,
-          full_name: updated.full_name,
-          role: 'super_admin'
-        }
-      });
-    } catch (e) {
-      return res.status(500).json({ success: false, error: e.message });
-    }
+  app.post('/api/super-admin/change-password', async (req, res) => {
+    const flaskUrl = getFlaskServerUrl();
+    if (!flaskUrl) return res.status(503).json({ success: false, error: 'لم يتم تعيين عنوان الخادم الرئيسي' });
+    await proxyToFlask(flaskUrl, '/api/super-admin/change-password', req, res);
   });
 
+  // --- 3 hybrid backup routes: fetch tenant info from Flask, perform local backup ---
+
   // POST /api/super-admin/backup/tenant/:tenant_id
-  app.post('/api/super-admin/backup/tenant/:tenant_id', (req, res) => {
+  app.post('/api/super-admin/backup/tenant/:tenant_id', async (req, res) => {
     try {
       const tenantId = req.params.tenant_id;
-      const db = getMasterDb();
-      const tenant = db.prepare('SELECT * FROM tenants WHERE id = ?').get(tenantId);
-      if (!tenant) {
+      const flaskUrl = getFlaskServerUrl();
+      if (!flaskUrl) return res.status(503).json({ success: false, error: 'لم يتم تعيين عنوان الخادم الرئيسي' });
+
+      // Fetch tenant info from Flask
+      const result = await fetchFromFlask(flaskUrl, `/api/super-admin/tenants/${tenantId}/stats`);
+      if (!result.ok || !result.data || !result.data.tenant) {
         return res.status(404).json({ success: false, error: 'المتجر غير موجود' });
       }
+      const tenant = result.data.tenant;
       const slug = tenant.slug;
       const { backupInfo, error } = createBackupFile(getTenantDbPath(slug), getBackupDir(req), slug);
       if (error) {
@@ -1043,10 +798,16 @@ module.exports = function(app, helpers) {
   });
 
   // POST /api/super-admin/backup/all
-  app.post('/api/super-admin/backup/all', (req, res) => {
+  app.post('/api/super-admin/backup/all', async (req, res) => {
     try {
-      const db = getMasterDb();
-      const tenants = db.prepare('SELECT * FROM tenants WHERE is_active = 1 ORDER BY id').all();
+      const flaskUrl = getFlaskServerUrl();
+      if (!flaskUrl) return res.status(503).json({ success: false, error: 'لم يتم تعيين عنوان الخادم الرئيسي' });
+
+      // Fetch tenant list from Flask
+      const tenantsResult = await fetchFromFlask(flaskUrl, '/api/super-admin/tenants');
+      const tenants = (tenantsResult.ok && tenantsResult.data && tenantsResult.data.tenants)
+        ? tenantsResult.data.tenants.filter(t => t.is_active)
+        : [];
 
       const results = [];
       const errors = [];
@@ -1084,10 +845,16 @@ module.exports = function(app, helpers) {
   });
 
   // GET /api/super-admin/backup/list
-  app.get('/api/super-admin/backup/list', (req, res) => {
+  app.get('/api/super-admin/backup/list', async (req, res) => {
     try {
-      const db = getMasterDb();
-      const tenants = db.prepare('SELECT id, name, slug FROM tenants ORDER BY id').all();
+      const flaskUrl = getFlaskServerUrl();
+      if (!flaskUrl) return res.status(503).json({ success: false, error: 'لم يتم تعيين عنوان الخادم الرئيسي' });
+
+      // Fetch tenant list from Flask
+      const tenantsResult = await fetchFromFlask(flaskUrl, '/api/super-admin/tenants');
+      const tenants = (tenantsResult.ok && tenantsResult.data && tenantsResult.data.tenants)
+        ? tenantsResult.data.tenants
+        : [];
 
       const allBackups = {};
 

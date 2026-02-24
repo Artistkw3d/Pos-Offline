@@ -3,8 +3,10 @@
  * Converted from server.py lines 981-2255
  */
 
+const { fetchFromFlask } = require('./proxyToFlask');
+
 module.exports = function (app, helpers) {
-  const { getDb, getMasterDb, hashPassword } = helpers;
+  const { getDb, getMasterDb, hashPassword, getFlaskServerUrl } = helpers;
 
   // Helper: ensure new permission columns exist on users table
   function ensureUserPermissionColumns(db) {
@@ -27,33 +29,60 @@ module.exports = function (app, helpers) {
   }
 
   // ===== POST /api/login =====
-  app.post('/api/login', (req, res) => {
+  app.post('/api/login', async (req, res) => {
     try {
       const data = req.body;
       const username = data.username;
       const password = data.password;
 
-      // Check tenant subscription
+      // Check tenant subscription via Flask server (remote master.db)
       const tenantSlug = req.headers['x-tenant-id'];
       if (tenantSlug) {
-        const masterDb = getMasterDb();
-        const tenant = masterDb.prepare('SELECT is_active, expires_at, name FROM tenants WHERE slug = ?').get(tenantSlug);
-        if (!tenant) {
-          return res.status(404).json({ success: false, error: 'معرف المتجر غير صحيح' });
-        }
-        if (!tenant.is_active) {
-          return res.status(403).json({ success: false, error: '⛔ هذا المتجر معطل. تواصل مع إدارة النظام' });
-        }
-        if (tenant.expires_at) {
-          const expiry = new Date(tenant.expires_at.substring(0, 10));
-          const today = new Date();
-          today.setHours(0, 0, 0, 0);
-          if (today > expiry) {
-            masterDb.prepare('UPDATE tenants SET is_active = 0 WHERE slug = ?').run(tenantSlug);
-            return res.status(403).json({
-              success: false,
-              error: `⛔ انتهى اشتراك المتجر "${tenant.name}" بتاريخ ${tenant.expires_at.substring(0, 10)}.\nتواصل مع إدارة النظام لتجديد الاشتراك.`
-            });
+        const flaskUrl = getFlaskServerUrl();
+        if (flaskUrl) {
+          // Remote check via Flask server
+          const result = await fetchFromFlask(flaskUrl, `/api/tenant/check-status?slug=${encodeURIComponent(tenantSlug)}`);
+          if (result.ok && result.data) {
+            if (!result.data.success) {
+              return res.status(404).json({ success: false, error: 'معرف المتجر غير صحيح' });
+            }
+            if (!result.data.is_active) {
+              if (result.data.expires_at) {
+                return res.status(403).json({
+                  success: false,
+                  error: `⛔ انتهى اشتراك المتجر "${result.data.name}" بتاريخ ${result.data.expires_at}.\nتواصل مع إدارة النظام لتجديد الاشتراك.`
+                });
+              }
+              return res.status(403).json({ success: false, error: '⛔ هذا المتجر معطل. تواصل مع إدارة النظام' });
+            }
+          }
+          // If Flask unreachable (result.ok === false), allow login to proceed (offline-first)
+        } else {
+          // No Flask URL configured — fallback to local master.db
+          try {
+            const masterDb = getMasterDb();
+            const tenant = masterDb.prepare('SELECT is_active, expires_at, name FROM tenants WHERE slug = ?').get(tenantSlug);
+            if (!tenant) {
+              return res.status(404).json({ success: false, error: 'معرف المتجر غير صحيح' });
+            }
+            if (!tenant.is_active) {
+              return res.status(403).json({ success: false, error: '⛔ هذا المتجر معطل. تواصل مع إدارة النظام' });
+            }
+            if (tenant.expires_at) {
+              const expiry = new Date(tenant.expires_at.substring(0, 10));
+              const today = new Date();
+              today.setHours(0, 0, 0, 0);
+              if (today > expiry) {
+                masterDb.prepare('UPDATE tenants SET is_active = 0 WHERE slug = ?').run(tenantSlug);
+                return res.status(403).json({
+                  success: false,
+                  error: `⛔ انتهى اشتراك المتجر "${tenant.name}" بتاريخ ${tenant.expires_at.substring(0, 10)}.\nتواصل مع إدارة النظام لتجديد الاشتراك.`
+                });
+              }
+            }
+          } catch (masterErr) {
+            // Local master.db unavailable — allow login to proceed (offline-first)
+            console.warn('[Login] Could not check tenant status locally:', masterErr.message);
           }
         }
       }
