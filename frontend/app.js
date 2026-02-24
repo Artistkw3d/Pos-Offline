@@ -482,31 +482,15 @@ function updateLogoutButton() {
     const btn = document.getElementById('logoutBtn');
     const emergencyBtn = document.getElementById('emergencyLogoutBtn');
     if (!btn) return;
-    const isOnline = _realOnlineStatus && navigator.onLine;
-    if (isOnline) {
-        btn.disabled = false;
-        btn.classList.remove('offline-locked');
-        btn.style.pointerEvents = '';
-        btn.style.opacity = '';
-        btn.style.background = '';
-        btn.style.textDecoration = '';
-        btn.removeAttribute('aria-disabled');
-        btn.title = '';
-        // إخفاء زر الطوارئ عند الاتصال
-        if (emergencyBtn) emergencyBtn.classList.remove('visible');
-    } else {
-        btn.disabled = true;
-        btn.classList.add('offline-locked');
-        btn.style.pointerEvents = 'none';
-        btn.style.opacity = '0.3';
-        btn.style.background = 'rgba(150,150,150,0.5)';
-        btn.style.textDecoration = 'line-through';
-        btn.setAttribute('aria-disabled', 'true');
-        btn.title = 'ممنوع - لا يمكن تسجيل الخروج بدون اتصال';
-        btn.blur();
-        // إظهار زر الطوارئ عند عدم الاتصال
-        if (emergencyBtn) emergencyBtn.classList.add('visible');
-    }
+    btn.disabled = false;
+    btn.classList.remove('offline-locked');
+    btn.style.pointerEvents = '';
+    btn.style.opacity = '';
+    btn.style.background = '';
+    btn.style.textDecoration = '';
+    btn.removeAttribute('aria-disabled');
+    btn.title = '';
+    if (emergencyBtn) emergencyBtn.classList.remove('visible');
 }
 window.addEventListener('online', () => { checkRealConnection().then(updateLogoutButton); });
 window.addEventListener('offline', () => { _realOnlineStatus = false; updateLogoutButton(); });
@@ -514,33 +498,10 @@ setInterval(updateLogoutButton, 3000);
 document.addEventListener('DOMContentLoaded', () => { checkRealConnection().then(updateLogoutButton); });
 setTimeout(() => { checkRealConnection().then(updateLogoutButton); }, 500);
 
-// اعتراض أي نقرة على زر الخروج في وضع أوفلاين - خط دفاع إضافي (ما عدا زر الطوارئ)
-document.addEventListener('click', function(e) {
-    const isOnline = _realOnlineStatus && navigator.onLine;
-    if (!isOnline) {
-        const isEmergency = e.target.closest('#emergencyLogoutBtn, .emergency-logout-btn');
-        if (isEmergency) return; // السماح لزر الطوارئ بالعمل دائماً
-        const btn = e.target.closest('#logoutBtn, .logout-btn');
-        if (btn) {
-            e.preventDefault();
-            e.stopPropagation();
-            e.stopImmediatePropagation();
-            return false;
-        }
-    }
-}, true); // capture phase لاعتراضها قبل أي handler آخر
 
 async function logout() {
     // إيقاف فاحص قفل الشفت
     stopShiftLockChecker();
-
-    // فحص الاتصال الحقيقي قبل السماح بالخروج
-    const reallyOnline = await checkRealConnection();
-    if (!reallyOnline || !navigator.onLine) {
-        alert('📴 لا يمكن تسجيل الخروج - لا يوجد اتصال بالسيرفر');
-        updateLogoutButton();
-        return;
-    }
 
     if (!confirm('هل أنت متأكد من تسجيل الخروج؟')) return;
     
