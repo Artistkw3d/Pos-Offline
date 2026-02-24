@@ -20,7 +20,7 @@ let TENANTS_DB_DIR = path.join(DB_DIR, 'tenants');
 let BACKUPS_DIR = path.join(DB_DIR, 'backups');
 let FRONTEND_DIR = path.join(__dirname, '..', 'frontend');
 
-const upload = multer({ dest: path.join(DB_DIR, 'uploads') });
+let upload = multer({ dest: path.join(DB_DIR, 'uploads') });
 
 // ===== Helper Functions =====
 
@@ -1311,11 +1311,15 @@ function startServer(options = {}) {
   }
 
   // Ensure directories exist
-  [DB_DIR, TENANTS_DB_DIR, BACKUPS_DIR].forEach(dir => {
+  const UPLOADS_DIR = path.join(DB_DIR, 'uploads');
+  [DB_DIR, TENANTS_DB_DIR, BACKUPS_DIR, UPLOADS_DIR].forEach(dir => {
     if (!fs.existsSync(dir)) {
       fs.mkdirSync(dir, { recursive: true });
     }
   });
+
+  // Reinitialize multer with correct path
+  upload = multer({ dest: UPLOADS_DIR });
 
   // Initialize databases
   initMasterDb();
