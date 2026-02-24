@@ -1396,8 +1396,10 @@
                             <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-top: 10px;">
                                 <button onclick="saveSyncModeSettings()" class="btn" style="background: #667eea;">💾 حفظ إعدادات التزامن</button>
                                 <button onclick="testSyncServer()" class="btn" style="background: #06b6d4;">🔌 اختبار الاتصال</button>
+                                <button id="syncNowSettingsBtn" onclick="syncNowFromSettings()" class="btn" style="background: #38a169;">🔄 مزامنة الآن</button>
                             </div>
                             <div id="syncServerTestResult" style="margin-top: 10px; padding: 10px; border-radius: 8px; display: none;"></div>
+                            <div id="syncNowResult" style="margin-top: 10px; padding: 12px; border-radius: 8px; display: none; font-size: 13px;"></div>
                         </div>
 
                         <!-- حالة الوضع الحالي -->

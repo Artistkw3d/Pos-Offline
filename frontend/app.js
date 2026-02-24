@@ -12958,6 +12958,59 @@ function updateSyncModeStatus() {
     }
 }
 
+// مزامنة الآن من صفحة الإعدادات
+async function syncNowFromSettings() {
+    const resultEl = document.getElementById('syncNowResult');
+    const btn = document.getElementById('syncNowSettingsBtn');
+    if (!resultEl) return;
+
+    const mode = getSyncMode();
+    const serverUrl = getSyncServerUrl();
+    if (mode !== 'server' || !serverUrl) {
+        resultEl.style.display = 'block';
+        resultEl.style.background = '#fffff0';
+        resultEl.style.border = '1px solid #ecc94b';
+        resultEl.innerHTML = '⚠️ يرجى حفظ إعدادات السيرفر أولاً';
+        return;
+    }
+
+    // Show loading state
+    if (btn) btn.disabled = true;
+    resultEl.style.display = 'block';
+    resultEl.style.background = '#ebf8ff';
+    resultEl.style.border = '1px solid #63b3ed';
+    resultEl.innerHTML = '⏳ جاري المزامنة مع السيرفر...';
+
+    try {
+        // Ensure syncManager has the correct server URL
+        if (typeof syncManager !== 'undefined') {
+            syncManager.serverUrl = serverUrl;
+        }
+
+        const result = await syncManager.sync();
+
+        if (result.success) {
+            const uploaded = (result.invoices_uploaded || 0) + (result.customers_uploaded || 0);
+            const downloaded = result.products_downloaded || 0;
+            resultEl.style.background = '#f0fff4';
+            resultEl.style.border = '1px solid #68d391';
+            resultEl.innerHTML = `✅ <strong>تمت المزامنة بنجاح!</strong><br>`
+                + `<span style="font-size: 12px;">📤 تم رفع: ${result.invoices_uploaded || 0} فاتورة، ${result.customers_uploaded || 0} عميل<br>`
+                + `📥 تم تحميل: ${downloaded} منتج</span>`;
+        } else {
+            resultEl.style.background = '#fff5f5';
+            resultEl.style.border = '1px solid #fc8181';
+            resultEl.innerHTML = `❌ <strong>فشلت المزامنة</strong><br><span style="font-size: 12px;">${escHTML(result.error || 'خطأ غير معروف')}</span>`;
+        }
+    } catch (e) {
+        resultEl.style.background = '#fff5f5';
+        resultEl.style.border = '1px solid #fc8181';
+        resultEl.innerHTML = `❌ <strong>خطأ في المزامنة</strong><br><span style="font-size: 12px;">${escHTML(e.message)}</span>`;
+    } finally {
+        if (btn) btn.disabled = false;
+    }
+}
+
 // تحميل إعدادات التزامن عند فتح صفحة الإعدادات
 const _originalLoadSettings = typeof loadSettings === 'function' ? loadSettings : null;
 if (_originalLoadSettings) {
