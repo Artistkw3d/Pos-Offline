@@ -1402,6 +1402,24 @@
                             <div id="syncNowResult" style="margin-top: 10px; padding: 12px; border-radius: 8px; display: none; font-size: 13px;"></div>
                         </div>
 
+                        <!-- إعدادات المزامنة التلقائية -->
+                        <div style="margin-top: 15px; padding-top: 15px; border-top: 2px solid #e2e8f0;">
+                            <div class="form-group" style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                                <label style="margin: 0; white-space: nowrap;">⏱️ المزامنة التلقائية كل:</label>
+                                <select id="autoSyncIntervalSelect" onchange="saveAutoSyncInterval()" style="padding: 8px; border: 2px solid #cbd5e0; border-radius: 6px; width: auto;">
+                                    <option value="1">1 دقيقة</option>
+                                    <option value="2">2 دقيقة</option>
+                                    <option value="3">3 دقائق</option>
+                                    <option value="5" selected>5 دقائق</option>
+                                    <option value="10">10 دقائق</option>
+                                    <option value="15">15 دقيقة</option>
+                                    <option value="30">30 دقيقة</option>
+                                    <option value="60">60 دقيقة</option>
+                                </select>
+                                <span id="autoSyncNextRun" style="font-size: 12px; color: #666;"></span>
+                            </div>
+                        </div>
+
                         <!-- حالة الوضع الحالي -->
                         <div id="syncModeStatus" style="margin-top: 15px; padding: 12px; border-radius: 8px; background: #e6fffa; border: 1px solid #81e6d9;">
                             <span id="syncModeStatusText" style="font-size: 13px; color: #2d3748;">الوضع الحالي: محلي بالكامل</span>

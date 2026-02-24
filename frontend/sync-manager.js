@@ -1,6 +1,6 @@
 // ========================================
-// Sync Manager - مدير المزامنة
-// يدعم المزامنة اليدوية والتلقائية
+// Sync Manager v3 - مدير المزامنة الشامل
+// مزامنة كاملة لجميع البيانات
 // ========================================
 
 class SyncManager {
@@ -9,11 +9,10 @@ class SyncManager {
         this.lastSync = null;
         this.autoSyncInterval = null;
         this.syncProgress = { total: 0, done: 0, step: '' };
-        this.serverUrl = null; // عنوان السيرفر البعيد (null = محلي)
+        this.serverUrl = null;
         this._loadSyncMode();
     }
 
-    // تحميل وضع التزامن من localStorage
     _loadSyncMode() {
         const mode = localStorage.getItem('pos_sync_mode') || 'local';
         if (mode === 'server') {
@@ -23,29 +22,32 @@ class SyncManager {
         }
     }
 
-    // جلب عنوان API حسب الوضع الحالي
     getApiUrl() {
         if (this.serverUrl) return this.serverUrl;
         return typeof API_URL !== 'undefined' ? API_URL : '';
     }
 
-    // هل الوضع سيرفر؟
     isServerMode() {
         return !!this.serverUrl;
     }
 
-    // بدء المزامنة التلقائية
-    start(intervalMinutes = 5) {
-        this.autoSyncInterval = setInterval(() => {
-            if (typeof _realOnlineStatus !== 'undefined' ? _realOnlineStatus : navigator.onLine) {
-                if (!this.isSyncing) this.sync();
-            }
-        }, intervalMinutes * 60 * 1000);
-
-        console.log(`[Sync] Auto-sync started (every ${intervalMinutes} min)`);
+    // Get auto-sync interval from localStorage (default 5 minutes)
+    getAutoSyncMinutes() {
+        const val = parseInt(localStorage.getItem('pos_auto_sync_minutes') || '5', 10);
+        return (val >= 1 && val <= 60) ? val : 5;
     }
 
-    // إيقاف المزامنة التلقائية
+    // Start auto-sync with configurable interval
+    start(intervalMinutes) {
+        this.stop();
+        const minutes = intervalMinutes || this.getAutoSyncMinutes();
+        this.autoSyncInterval = setInterval(() => {
+            const isOnline = typeof _realOnlineStatus !== 'undefined' ? _realOnlineStatus : navigator.onLine;
+            if (isOnline && !this.isSyncing) this.sync();
+        }, minutes * 60 * 1000);
+        console.log(`[Sync] Auto-sync started (every ${minutes} min)`);
+    }
+
     stop() {
         if (this.autoSyncInterval) {
             clearInterval(this.autoSyncInterval);
@@ -53,14 +55,29 @@ class SyncManager {
         }
     }
 
-    // المزامنة الكاملة (يدوية أو تلقائية)
+    // Restart auto-sync (called when interval changes)
+    restart() {
+        this.stop();
+        this.start();
+    }
+
+    // Helper: fetch with tenant header
+    async _fetch(url, options = {}) {
+        const headers = options.headers || {};
+        const tenantId = localStorage.getItem('pos_tenant_id') || '';
+        if (tenantId) {
+            headers['X-Tenant-ID'] = tenantId;
+        }
+        return fetch(url, { ...options, headers });
+    }
+
+    // ========== MAIN SYNC ==========
     async sync() {
         if (this.isSyncing) {
             console.log('[Sync] Already syncing...');
             return { success: false, reason: 'already_syncing' };
         }
 
-        // إعادة تحميل وضع التزامن
         this._loadSyncMode();
 
         const isOnline = typeof _realOnlineStatus !== 'undefined' ? _realOnlineStatus : navigator.onLine;
@@ -69,27 +86,26 @@ class SyncManager {
             return { success: false, reason: 'offline' };
         }
 
-        // في وضع السيرفر، تحقق من الاتصال بالسيرفر البعيد
+        // Ping server first
         if (this.isServerMode()) {
             try {
                 const ctrl = new AbortController();
                 const t = setTimeout(() => ctrl.abort(), 5000);
-                // نستخدم /api/settings للفحص لأن السيرفر البعيد ما فيه /api/sync/status
                 const resp = await fetch(`${this.getApiUrl()}/api/settings?_ping=1`, { signal: ctrl.signal, cache: 'no-store' });
                 clearTimeout(t);
                 if (!resp.ok) throw new Error('Server not reachable');
             } catch (e) {
                 console.log('[Sync] Remote server unreachable - skipped');
                 this.showStatus('السيرفر غير متاح', 'error');
-                return { success: false, reason: 'server_unreachable' };
+                return { success: false, reason: 'server_unreachable', error: e.message };
             }
         }
 
         this.isSyncing = true;
-        this.syncProgress = { total: 4, done: 0, step: '' };
+        this.syncProgress = { total: 9, done: 0, step: '' };
         const targetUrl = this.getApiUrl();
-        const modeLabel = this.isServerMode() ? `سيرفر: ${targetUrl}` : 'محلي';
-        console.log(`[Sync] Starting sync (${modeLabel})`);
+        const modeLabel = this.isServerMode() ? `server: ${targetUrl}` : 'local';
+        console.log(`[Sync] Starting full sync (${modeLabel})`);
         this.showStatus(this.isServerMode() ? 'جاري المزامنة مع السيرفر...' : 'جاري المزامنة...', 'info');
         this.updateSyncUI('syncing');
 
@@ -97,14 +113,21 @@ class SyncManager {
             success: true,
             invoices_uploaded: 0,
             customers_uploaded: 0,
-            products_downloaded: 0,
-            customers_downloaded: 0,
+            branches: 0,
+            products: 0,
+            customers: 0,
+            invoices: 0,
+            categories: 0,
+            settings: 0,
+            returns: 0,
+            expenses: 0,
+            coupons: 0,
             errors: []
         };
 
         try {
-            // 1. رفع الفواتير المعلقة
-            this.syncProgress.step = 'رفع الفواتير...';
+            // 1. Upload pending data
+            this.syncProgress.step = 'رفع البيانات المعلقة...';
             this.updateProgressUI();
             const uploadResult = await this.uploadPendingData();
             syncResult.invoices_uploaded = uploadResult.invoices;
@@ -112,34 +135,59 @@ class SyncManager {
             if (uploadResult.errors.length) syncResult.errors.push(...uploadResult.errors);
             this.syncProgress.done = 1;
 
-            // 2. تحميل المنتجات
-            this.syncProgress.step = 'تحديث المنتجات...';
+            // 2. Download branches
+            this.syncProgress.step = 'تحديث الفروع...';
             this.updateProgressUI();
-            const productsCount = await this.downloadProducts();
-            syncResult.products_downloaded = productsCount;
+            syncResult.branches = await this.downloadBranches();
             this.syncProgress.done = 2;
 
-            // 3. تحميل العملاء
-            this.syncProgress.step = 'تحديث العملاء...';
+            // 3. Download products
+            this.syncProgress.step = 'تحديث المنتجات...';
             this.updateProgressUI();
-            const customersCount = await this.downloadCustomers();
-            syncResult.customers_downloaded = customersCount;
+            syncResult.products = await this.downloadProducts();
             this.syncProgress.done = 3;
 
-            // 4. تحميل الإعدادات والكوبونات
-            this.syncProgress.step = 'تحديث الإعدادات...';
+            // 4. Download customers
+            this.syncProgress.step = 'تحديث العملاء...';
             this.updateProgressUI();
-            await this.downloadSettings();
+            syncResult.customers = await this.downloadCustomers();
             this.syncProgress.done = 4;
 
-            // حفظ وقت المزامنة
+            // 5. Download invoices
+            this.syncProgress.step = 'تحديث الفواتير...';
+            this.updateProgressUI();
+            syncResult.invoices = await this.downloadInvoices();
+            this.syncProgress.done = 5;
+
+            // 6. Download settings
+            this.syncProgress.step = 'تحديث الإعدادات...';
+            this.updateProgressUI();
+            syncResult.settings = await this.downloadSettings();
+            this.syncProgress.done = 6;
+
+            // 7. Download categories
+            this.syncProgress.step = 'تحديث الفئات...';
+            this.updateProgressUI();
+            syncResult.categories = await this.downloadCategories();
+            this.syncProgress.done = 7;
+
+            // 8. Download returns
+            this.syncProgress.step = 'تحديث المرتجعات...';
+            this.updateProgressUI();
+            syncResult.returns = await this.downloadReturns();
+            this.syncProgress.done = 8;
+
+            // 9. Download expenses
+            this.syncProgress.step = 'تحديث المصروفات...';
+            this.updateProgressUI();
+            syncResult.expenses = await this.downloadExpenses();
+            this.syncProgress.done = 9;
+
+            // Save sync time
             this.lastSync = new Date();
             if (localDB.isReady) {
                 await localDB.setLastSync(this.lastSync.toISOString());
-                await localDB.addSyncLog({
-                    type: 'sync_complete',
-                    ...syncResult
-                });
+                await localDB.addSyncLog({ type: 'sync_complete', ...syncResult });
             }
             localStorage.setItem('pos_last_sync', this.lastSync.toISOString());
 
@@ -155,10 +203,7 @@ class SyncManager {
             this.updateSyncUI('error');
 
             if (localDB.isReady) {
-                await localDB.addSyncLog({
-                    type: 'sync_error',
-                    error: error.message
-                });
+                await localDB.addSyncLog({ type: 'sync_error', error: error.message });
             }
         } finally {
             this.isSyncing = false;
@@ -167,11 +212,10 @@ class SyncManager {
         return syncResult;
     }
 
-    // المزامنة الكاملة - تحميل كل البيانات من الصفر (للأدمن)
+    // ========== FULL SYNC (admin) ==========
     async fullSync() {
         if (this.isSyncing) return { success: false, reason: 'already_syncing' };
 
-        // إعادة تحميل وضع التزامن
         this._loadSyncMode();
 
         const isOnline = typeof _realOnlineStatus !== 'undefined' ? _realOnlineStatus : navigator.onLine;
@@ -182,25 +226,24 @@ class SyncManager {
         this.updateSyncUI('syncing');
 
         try {
-            // 1. رفع أي بيانات معلقة أولاً
+            // Upload pending first
             await this.uploadPendingData();
 
-            let productCount = 0;
-            let customerCount = 0;
+            let counts = {};
 
             if (this.isServerMode()) {
-                // وضع السيرفر البعيد: نحمل من CRUD endpoints العادية
                 console.log('[Sync] Full sync via standard API endpoints');
-
-                // تحميل المنتجات
-                productCount = await this.downloadProducts();
-                // تحميل العملاء
-                customerCount = await this.downloadCustomers();
-                // تحميل الإعدادات
-                await this.downloadSettings();
-
+                counts.branches = await this.downloadBranches();
+                counts.products = await this.downloadProducts();
+                counts.customers = await this.downloadCustomers();
+                counts.invoices = await this.downloadInvoices();
+                counts.settings = await this.downloadSettings();
+                counts.categories = await this.downloadCategories();
+                counts.returns = await this.downloadReturns();
+                counts.expenses = await this.downloadExpenses();
+                counts.coupons = await this.downloadCoupons();
             } else {
-                // الوضع المحلي: نستخدم /api/sync/full-download
+                // Local mode: use /api/sync/full-download + individual endpoints for missing data
                 const branchId = (typeof currentUser !== 'undefined' && currentUser?.branch_id) ? currentUser.branch_id : 1;
                 const response = await fetch(`${this.getApiUrl()}/api/sync/full-download?branch_id=${branchId}`);
                 if (!response.ok) throw new Error(`Server error: ${response.status}`);
@@ -213,33 +256,42 @@ class SyncManager {
                 if (data.products) {
                     await localDB.clear('products');
                     await localDB.saveAll('products', data.products);
-                    productCount = data.products.length;
+                    counts.products = data.products.length;
                 }
                 if (data.customers) {
                     await localDB.clear('customers');
                     await localDB.saveAll('customers', data.customers);
-                    customerCount = data.customers.length;
+                    counts.customers = data.customers.length;
                 }
                 if (data.settings) {
                     await localDB.clear('settings');
                     for (const [key, value] of Object.entries(data.settings)) {
                         await localDB.save('settings', { key, value });
                     }
+                    counts.settings = Object.keys(data.settings).length;
                 }
                 if (data.categories) {
                     await localDB.clear('categories');
                     for (const cat of data.categories) {
                         await localDB.save('categories', { name: cat });
                     }
+                    counts.categories = data.categories.length;
                 }
                 if (data.coupons) {
                     await localDB.clear('coupons');
                     await localDB.saveAll('coupons', data.coupons);
+                    counts.coupons = data.coupons.length;
                 }
+
+                // Also download branches, invoices, returns, expenses (not in full-download)
+                counts.branches = await this.downloadBranches();
+                counts.invoices = await this.downloadInvoices();
+                counts.returns = await this.downloadReturns();
+                counts.expenses = await this.downloadExpenses();
             }
 
-            // تحديث العرض
-            if (typeof allProducts !== 'undefined' && productCount > 0) {
+            // Refresh UI
+            if (typeof allProducts !== 'undefined' && counts.products > 0) {
                 const products = await localDB.getAll('products');
                 if (products.length) {
                     allProducts = products;
@@ -250,20 +302,13 @@ class SyncManager {
             this.lastSync = new Date();
             if (localDB.isReady) {
                 await localDB.setLastSync(this.lastSync.toISOString());
-                await localDB.addSyncLog({
-                    type: 'full_sync_complete',
-                    products: productCount,
-                    customers: customerCount
-                });
+                await localDB.addSyncLog({ type: 'full_sync_complete', ...counts });
             }
             localStorage.setItem('pos_last_sync', this.lastSync.toISOString());
 
             this.showStatus('تمت المزامنة الكاملة', 'success');
             this.updateSyncUI('idle');
-            return { success: true, data_counts: {
-                products: productCount,
-                customers: customerCount
-            }};
+            return { success: true, data_counts: counts };
 
         } catch (error) {
             console.error('[Sync] Full sync error:', error);
@@ -275,7 +320,7 @@ class SyncManager {
         }
     }
 
-    // رفع البيانات المعلقة (فواتير + عملاء)
+    // ========== UPLOAD ==========
     async uploadPendingData() {
         const result = { invoices: 0, customers: 0, errors: [] };
 
@@ -289,13 +334,11 @@ class SyncManager {
 
             const apiUrl = this.getApiUrl();
 
-            // في وضع السيرفر البعيد: نستخدم CRUD endpoints العادية
-            // لأن السيرفر البعيد ما فيه /api/sync/upload
             if (this.isServerMode()) {
-                // رفع العملاء أولاً (لأن الفواتير قد تحتاج customer_id)
+                // Server mode: use individual CRUD endpoints
                 for (const cust of pendingCustomers) {
                     try {
-                        const resp = await fetch(`${apiUrl}/api/customers`, {
+                        const resp = await this._fetch(`${apiUrl}/api/customers`, {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify(cust)
@@ -309,15 +352,14 @@ class SyncManager {
                         }
                     } catch (e) {
                         console.error('[Sync] Customer upload error:', e);
-                        result.errors.push(`عميل ${cust.name || cust.id}: ${e.message}`);
+                        result.errors.push(`customer ${cust.name || cust.id}: ${e.message}`);
                     }
                 }
 
-                // رفع الفواتير واحدة واحدة
                 for (const inv of pendingInvoices) {
                     try {
                         const invoiceData = inv.data || inv;
-                        const resp = await fetch(`${apiUrl}/api/invoices`, {
+                        const resp = await this._fetch(`${apiUrl}/api/invoices`, {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify(invoiceData)
@@ -330,12 +372,11 @@ class SyncManager {
                                 result.invoices++;
                             }
                         } else {
-                            console.error(`[Sync] Invoice upload HTTP ${resp.status}`);
-                            result.errors.push(`فاتورة ${inv.local_id}: HTTP ${resp.status}`);
+                            result.errors.push(`invoice ${inv.local_id}: HTTP ${resp.status}`);
                         }
                     } catch (e) {
                         console.error('[Sync] Invoice upload error:', e);
-                        result.errors.push(`فاتورة ${inv.local_id}: ${e.message}`);
+                        result.errors.push(`invoice ${inv.local_id}: ${e.message}`);
                     }
                 }
 
@@ -343,7 +384,7 @@ class SyncManager {
                 return result;
             }
 
-            // الوضع المحلي: نستخدم /api/sync/upload (batch)
+            // Local mode: batch upload via /api/sync/upload
             const uploadData = {
                 invoices: pendingInvoices.map(inv => inv.data || inv),
                 customers: pendingCustomers
@@ -383,81 +424,40 @@ class SyncManager {
         return result;
     }
 
-    // رفع الفواتير المعلقة (للتوافق مع الكود القديم)
+    // Legacy compat
     async uploadPendingInvoices() {
-        try {
-            const pending = await localDB.getAll('pending_invoices');
-
-            if (pending.length === 0) {
-                console.log('[Sync] No pending invoices');
-                return;
-            }
-
-            console.log(`[Sync] Uploading ${pending.length} invoices...`);
-
-            for (const invoice of pending) {
-                try {
-                    const response = await fetch(`${this.getApiUrl()}/api/invoices`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(invoice.data)
-                    });
-
-                    if (!response.ok) {
-                        console.error(`[Sync] Server returned ${response.status} for invoice ${invoice.local_id}`);
-                        continue;
-                    }
-
-                    const result = await response.json();
-
-                    if (result.success) {
-                        await localDB.delete('pending_invoices', invoice.local_id);
-                        if (invoice.data.id) {
-                            await localDB.delete('local_invoices', invoice.data.id);
-                        }
-                        console.log(`[Sync] Uploaded invoice ${invoice.local_id}`);
-                    }
-                } catch (error) {
-                    console.error(`[Sync] Failed to upload invoice:`, error);
-                }
-            }
-        } catch (error) {
-            console.error('[Sync] Upload error:', error);
-        }
+        const r = await this.uploadPendingData();
+        return r;
     }
-
-    // رفع العملاء المعلقين (للتوافق)
     async uploadPendingCustomers() {
-        try {
-            const pending = await localDB.getAll('pending_customers');
-            if (pending.length === 0) return;
+        const r = await this.uploadPendingData();
+        return r;
+    }
 
-            for (const customer of pending) {
-                try {
-                    const response = await fetch(`${this.getApiUrl()}/api/customers`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(customer)
-                    });
-                    if (!response.ok) continue;
-                    const result = await response.json();
-                    if (result.success) {
-                        await localDB.delete('pending_customers', customer.id);
-                    }
-                } catch (error) {
-                    console.error(`[Sync] Failed to upload customer:`, error);
-                }
+    // ========== DOWNLOADS ==========
+
+    async downloadBranches() {
+        try {
+            const response = await this._fetch(`${this.getApiUrl()}/api/branches`);
+            if (!response.ok) return 0;
+            const data = await response.json();
+            const branches = data.branches || data.data || [];
+            if (branches.length && localDB.isReady) {
+                await localDB.clear('branches');
+                await localDB.saveAll('branches', branches);
+                console.log(`[Sync] Downloaded ${branches.length} branches`);
             }
+            return branches.length;
         } catch (error) {
-            console.error('[Sync] Customer upload error:', error);
+            console.error('[Sync] Branches download error:', error);
+            return 0;
         }
     }
 
-    // تحديث المنتجات
     async downloadProducts() {
         try {
             const branchId = (typeof currentUser !== 'undefined' && currentUser?.branch_id) ? currentUser.branch_id : 1;
-            const response = await fetch(`${this.getApiUrl()}/api/products?branch_id=${branchId}`);
+            const response = await this._fetch(`${this.getApiUrl()}/api/products?branch_id=${branchId}`);
             if (!response.ok) return 0;
 
             const data = await response.json();
@@ -467,7 +467,6 @@ class SyncManager {
                 await localDB.saveAll('products', data.products);
                 console.log(`[Sync] Downloaded ${data.products.length} products`);
 
-                // تحديث العرض
                 if (typeof allProducts !== 'undefined') {
                     allProducts = data.products;
                     if (typeof displayProducts === 'function') {
@@ -482,50 +481,149 @@ class SyncManager {
         return 0;
     }
 
-    // تحميل العملاء
     async downloadCustomers() {
         try {
-            const response = await fetch(`${this.getApiUrl()}/api/customers`);
+            const response = await this._fetch(`${this.getApiUrl()}/api/customers`);
             if (!response.ok) return 0;
-
             const data = await response.json();
-
-            if (data.success && data.customers) {
+            const customers = data.customers || [];
+            if (data.success && customers.length) {
                 await localDB.clear('customers');
-                await localDB.saveAll('customers', data.customers);
-                return data.customers.length;
+                await localDB.saveAll('customers', customers);
+                console.log(`[Sync] Downloaded ${customers.length} customers`);
             }
+            return customers.length;
         } catch (error) {
             console.error('[Sync] Customers download error:', error);
+            return 0;
         }
-        return 0;
     }
 
-    // تحميل الإعدادات
+    async downloadInvoices() {
+        try {
+            const response = await this._fetch(`${this.getApiUrl()}/api/invoices?limit=500`);
+            if (!response.ok) return 0;
+            const data = await response.json();
+            const invoices = data.invoices || [];
+            if (invoices.length && localDB.isReady) {
+                await localDB.clear('invoices');
+                await localDB.saveAll('invoices', invoices);
+                console.log(`[Sync] Downloaded ${invoices.length} invoices`);
+            }
+            return invoices.length;
+        } catch (error) {
+            console.error('[Sync] Invoices download error:', error);
+            return 0;
+        }
+    }
+
     async downloadSettings() {
         try {
-            const response = await fetch(`${this.getApiUrl()}/api/settings`);
-            if (!response.ok) return;
-
+            const response = await this._fetch(`${this.getApiUrl()}/api/settings`);
+            if (!response.ok) return 0;
             const data = await response.json();
             if (data.success && data.settings) {
                 await localDB.clear('settings');
+                let count = 0;
                 if (Array.isArray(data.settings)) {
                     for (const s of data.settings) {
                         await localDB.save('settings', { key: s.key, value: s.value });
+                        count++;
                     }
                 } else {
                     for (const [key, value] of Object.entries(data.settings)) {
                         await localDB.save('settings', { key, value });
+                        count++;
                     }
                 }
+                console.log(`[Sync] Downloaded ${count} settings`);
+                return count;
             }
         } catch (error) {
             console.error('[Sync] Settings download error:', error);
         }
+        return 0;
     }
 
-    // جلب حالة المزامنة (إحصائيات)
+    async downloadCategories() {
+        try {
+            const response = await this._fetch(`${this.getApiUrl()}/api/categories`);
+            if (!response.ok) return 0;
+            const data = await response.json();
+            const categories = data.categories || [];
+            if (categories.length && localDB.isReady) {
+                await localDB.clear('categories');
+                for (const cat of categories) {
+                    if (typeof cat === 'string') {
+                        await localDB.save('categories', { name: cat });
+                    } else {
+                        await localDB.save('categories', cat);
+                    }
+                }
+                console.log(`[Sync] Downloaded ${categories.length} categories`);
+            }
+            return categories.length;
+        } catch (error) {
+            console.error('[Sync] Categories download error:', error);
+            return 0;
+        }
+    }
+
+    async downloadReturns() {
+        try {
+            const response = await this._fetch(`${this.getApiUrl()}/api/returns`);
+            if (!response.ok) return 0;
+            const data = await response.json();
+            const returns = data.returns || [];
+            if (returns.length && localDB.isReady) {
+                await localDB.clear('returns');
+                await localDB.saveAll('returns', returns);
+                console.log(`[Sync] Downloaded ${returns.length} returns`);
+            }
+            return returns.length;
+        } catch (error) {
+            console.error('[Sync] Returns download error:', error);
+            return 0;
+        }
+    }
+
+    async downloadExpenses() {
+        try {
+            const response = await this._fetch(`${this.getApiUrl()}/api/expenses`);
+            if (!response.ok) return 0;
+            const data = await response.json();
+            const expenses = data.expenses || [];
+            if (expenses.length && localDB.isReady) {
+                await localDB.clear('expenses');
+                await localDB.saveAll('expenses', expenses);
+                console.log(`[Sync] Downloaded ${expenses.length} expenses`);
+            }
+            return expenses.length;
+        } catch (error) {
+            console.error('[Sync] Expenses download error:', error);
+            return 0;
+        }
+    }
+
+    async downloadCoupons() {
+        try {
+            const response = await this._fetch(`${this.getApiUrl()}/api/coupons`);
+            if (!response.ok) return 0;
+            const data = await response.json();
+            const coupons = data.coupons || [];
+            if (coupons.length && localDB.isReady) {
+                await localDB.clear('coupons');
+                await localDB.saveAll('coupons', coupons);
+                console.log(`[Sync] Downloaded ${coupons.length} coupons`);
+            }
+            return coupons.length;
+        } catch (error) {
+            console.error('[Sync] Coupons download error:', error);
+            return 0;
+        }
+    }
+
+    // ========== STATS ==========
     async getSyncStats() {
         const stats = {
             pendingInvoices: 0,
@@ -533,6 +631,7 @@ class SyncManager {
             localProducts: 0,
             localCustomers: 0,
             localInvoices: 0,
+            localBranches: 0,
             lastSync: localStorage.getItem('pos_last_sync') || null
         };
 
@@ -543,6 +642,7 @@ class SyncManager {
                 stats.localProducts = await localDB.count('products');
                 stats.localCustomers = await localDB.count('customers');
                 stats.localInvoices = await localDB.count('local_invoices');
+                stats.localBranches = await localDB.count('branches');
             }
         } catch (e) {
             console.error('[Sync] Stats error:', e);
@@ -551,7 +651,7 @@ class SyncManager {
         return stats;
     }
 
-    // عرض الحالة
+    // ========== UI ==========
     showStatus(message, type = 'info') {
         let indicator = document.getElementById('syncStatus');
 
@@ -574,24 +674,16 @@ class SyncManager {
             document.body.appendChild(indicator);
         }
 
-        const colors = {
-            info: '#667eea',
-            success: '#28a745',
-            error: '#dc3545'
-        };
-
+        const colors = { info: '#667eea', success: '#28a745', error: '#dc3545' };
         indicator.style.background = colors[type] || colors.info;
         indicator.textContent = message;
         indicator.style.display = 'block';
 
         if (type !== 'info') {
-            setTimeout(() => {
-                indicator.style.display = 'none';
-            }, 3000);
+            setTimeout(() => { indicator.style.display = 'none'; }, 3000);
         }
     }
 
-    // تحديث واجهة المزامنة
     updateSyncUI(state) {
         const syncBtn = document.getElementById('manualSyncBtn');
         const syncStatusEl = document.getElementById('syncStatusText');
@@ -623,7 +715,6 @@ class SyncManager {
         }
     }
 
-    // تحديث شريط التقدم
     updateProgressUI() {
         const progressEl = document.getElementById('syncProgressText');
         if (progressEl) {
@@ -660,4 +751,4 @@ syncStyle.textContent = `
 `;
 document.head.appendChild(syncStyle);
 
-console.log('[Sync] Loaded v2');
+console.log('[Sync] Loaded v3');

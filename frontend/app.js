@@ -260,9 +260,9 @@ async function initializeUI() {
     // تشغيل فاحص قفل الشفت
     startShiftLockChecker();
 
-    // تشغيل المزامنة التلقائية كل 5 دقائق
+    // تشغيل المزامنة التلقائية بالفترة المحفوظة
     if (typeof syncManager !== 'undefined') {
-        syncManager.start(5);
+        syncManager.start(); // uses saved interval from localStorage
     }
 
     console.log('[App] User restored from localStorage ✅');
@@ -12974,33 +12974,34 @@ async function syncNowFromSettings() {
         return;
     }
 
-    // Show loading state
     if (btn) btn.disabled = true;
     resultEl.style.display = 'block';
     resultEl.style.background = '#ebf8ff';
     resultEl.style.border = '1px solid #63b3ed';
-    resultEl.innerHTML = '⏳ جاري المزامنة مع السيرفر...';
+    resultEl.innerHTML = '⏳ جاري المزامنة الشاملة مع السيرفر...';
 
     try {
-        // Ensure syncManager has the correct server URL
         if (typeof syncManager !== 'undefined') {
             syncManager.serverUrl = serverUrl;
         }
 
-        const result = await syncManager.sync();
+        const r = await syncManager.sync();
 
-        if (result.success) {
-            const uploaded = (result.invoices_uploaded || 0) + (result.customers_uploaded || 0);
-            const downloaded = result.products_downloaded || 0;
+        if (r.success) {
             resultEl.style.background = '#f0fff4';
             resultEl.style.border = '1px solid #68d391';
-            resultEl.innerHTML = `✅ <strong>تمت المزامنة بنجاح!</strong><br>`
-                + `<span style="font-size: 12px;">📤 تم رفع: ${result.invoices_uploaded || 0} فاتورة، ${result.customers_uploaded || 0} عميل<br>`
-                + `📥 تم تحميل: ${downloaded} منتج</span>`;
+            let details = '<span style="font-size: 12px;">';
+            if (r.invoices_uploaded || r.customers_uploaded)
+                details += `📤 رفع: ${r.invoices_uploaded || 0} فاتورة، ${r.customers_uploaded || 0} عميل<br>`;
+            details += `📥 تحميل: ${r.branches || 0} فرع، ${r.products || 0} منتج، ${r.customers || 0} عميل، ${r.invoices || 0} فاتورة<br>`;
+            details += `📋 ${r.categories || 0} فئة، ${r.settings || 0} إعداد، ${r.returns || 0} مرتجع، ${r.expenses || 0} مصروف`;
+            details += '</span>';
+            resultEl.innerHTML = `✅ <strong>تمت المزامنة بنجاح!</strong><br>${details}`;
         } else {
             resultEl.style.background = '#fff5f5';
             resultEl.style.border = '1px solid #fc8181';
-            resultEl.innerHTML = `❌ <strong>فشلت المزامنة</strong><br><span style="font-size: 12px;">${escHTML(result.error || 'خطأ غير معروف')}</span>`;
+            const errMsg = r.error || r.reason || r.errors?.join(', ') || 'خطأ غير معروف';
+            resultEl.innerHTML = `❌ <strong>فشلت المزامنة</strong><br><span style="font-size: 12px;">${escHTML(errMsg)}</span>`;
         }
     } catch (e) {
         resultEl.style.background = '#fff5f5';
@@ -13011,6 +13012,25 @@ async function syncNowFromSettings() {
     }
 }
 
+// حفظ فترة المزامنة التلقائية
+function saveAutoSyncInterval() {
+    const select = document.getElementById('autoSyncIntervalSelect');
+    if (!select) return;
+    const minutes = parseInt(select.value, 10) || 5;
+    localStorage.setItem('pos_auto_sync_minutes', String(minutes));
+    if (typeof syncManager !== 'undefined') {
+        syncManager.restart();
+    }
+}
+
+// تحميل فترة المزامنة التلقائية
+function loadAutoSyncInterval() {
+    const select = document.getElementById('autoSyncIntervalSelect');
+    if (!select) return;
+    const saved = localStorage.getItem('pos_auto_sync_minutes') || '5';
+    select.value = saved;
+}
+
 // تحميل إعدادات التزامن عند فتح صفحة الإعدادات
 const _originalLoadSettings = typeof loadSettings === 'function' ? loadSettings : null;
 if (_originalLoadSettings) {
@@ -13018,6 +13038,7 @@ if (_originalLoadSettings) {
     loadSettings = async function() {
         await _origLoadSettings.apply(this, arguments);
         loadSyncModeSettings();
+        loadAutoSyncInterval();
     };
 }
 

@@ -5,7 +5,7 @@
 class LocalDB {
     constructor() {
         this.dbName = 'POS_DB';
-        this.version = 5; // v5: دعم كامل للعمل بدون اتصال
+        this.version = 6; // v6: دعم مزامنة الفروع والفواتير
         this.db = null;
         this.isReady = false;
     }
@@ -79,7 +79,27 @@ class LocalDB {
                     db.createObjectStore('coupons', { keyPath: 'id' });
                 }
 
-                console.log('[LocalDB] All stores created (v5)');
+                // Branches - الفروع
+                if (!db.objectStoreNames.contains('branches')) {
+                    db.createObjectStore('branches', { keyPath: 'id' });
+                }
+
+                // Invoices - الفواتير (من السيرفر)
+                if (!db.objectStoreNames.contains('invoices')) {
+                    db.createObjectStore('invoices', { keyPath: 'id' });
+                }
+
+                // Returns - المرتجعات
+                if (!db.objectStoreNames.contains('returns')) {
+                    db.createObjectStore('returns', { keyPath: 'id' });
+                }
+
+                // Expenses - المصروفات
+                if (!db.objectStoreNames.contains('expenses')) {
+                    db.createObjectStore('expenses', { keyPath: 'id' });
+                }
+
+                console.log('[LocalDB] All stores created (v6)');
             };
         });
     }
@@ -257,4 +277,4 @@ class LocalDB {
 // Instance
 const localDB = new LocalDB();
 
-console.log('[LocalDB] Loaded v5');
+console.log('[LocalDB] Loaded v6');
