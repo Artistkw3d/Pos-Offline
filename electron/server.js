@@ -20,7 +20,7 @@ let TENANTS_DB_DIR = path.join(DB_DIR, 'tenants');
 let BACKUPS_DIR = path.join(DB_DIR, 'backups');
 let FRONTEND_DIR = path.join(__dirname, '..', 'frontend');
 
-const upload = multer({ dest: '/tmp/pos-uploads/' });
+const upload = multer({ dest: path.join(DB_DIR, 'uploads') });
 
 // ===== Helper Functions =====
 
@@ -282,6 +282,19 @@ function ensureDbTables(dbPath) {
       FOREIGN KEY (product_id) REFERENCES products(id)
     );
   `);
+  // Indexes for performance
+  try {
+    db.exec(`
+      CREATE INDEX IF NOT EXISTS idx_products_barcode ON products(barcode);
+      CREATE INDEX IF NOT EXISTS idx_invoices_number ON invoices(invoice_number);
+      CREATE INDEX IF NOT EXISTS idx_invoices_date ON invoices(created_at);
+      CREATE INDEX IF NOT EXISTS idx_invoice_items_invoice ON invoice_items(invoice_id);
+      CREATE INDEX IF NOT EXISTS idx_branch_stock_inventory ON branch_stock(inventory_id);
+      CREATE INDEX IF NOT EXISTS idx_branch_stock_branch ON branch_stock(branch_id);
+      CREATE INDEX IF NOT EXISTS idx_customers_phone ON customers(phone);
+    `);
+  } catch (_e) { /* ignore */ }
+
   db.prepare("INSERT OR IGNORE INTO settings (key, value) VALUES ('loyalty_points_per_invoice', '10')").run();
   db.prepare("INSERT OR IGNORE INTO settings (key, value) VALUES ('loyalty_point_value', '0.1')").run();
   db.prepare("INSERT OR IGNORE INTO settings (key, value) VALUES ('loyalty_enabled', 'true')").run();
@@ -289,6 +302,11 @@ function ensureDbTables(dbPath) {
   db.prepare("INSERT OR IGNORE INTO settings (key, value) VALUES ('currency', 'KD')").run();
   db.prepare("INSERT OR IGNORE INTO settings (key, value) VALUES ('tax_enabled', 'false')").run();
   db.prepare("INSERT OR IGNORE INTO settings (key, value) VALUES ('low_stock_threshold', '5')").run();
+  db.prepare("INSERT OR IGNORE INTO settings (key, value) VALUES ('store_phone', '')").run();
+  db.prepare("INSERT OR IGNORE INTO settings (key, value) VALUES ('store_address', '')").run();
+  db.prepare("INSERT OR IGNORE INTO settings (key, value) VALUES ('invoice_prefix', 'INV')").run();
+  db.prepare("INSERT OR IGNORE INTO settings (key, value) VALUES ('next_invoice_number', '1')").run();
+  db.prepare("INSERT OR IGNORE INTO settings (key, value) VALUES ('tax_rate', '0')").run();
   db.prepare("INSERT OR IGNORE INTO branches (id, name, location, is_active) VALUES (1, 'الفرع الرئيسي', '', 1)").run();
   db.close();
   _initializedDbs.add(dbPath);
@@ -1210,8 +1228,11 @@ function migrateDatabase(dbPath) {
     addColumn('invoice_items', 'variant_id', 'INTEGER');
     addColumn('invoice_items', 'variant_name', 'TEXT');
 
+    addColumn('users', 'can_view_cross_branch_stock', 'INTEGER', 0);
+
     addColumn('branch_stock', 'variant_id', 'INTEGER');
     addColumn('branch_stock', 'notes', 'TEXT');
+    addColumn('branch_stock', 'sales_count', 'INTEGER', 0);
 
     addColumn('subscription_plans', 'image', 'TEXT');
 
@@ -1333,10 +1354,6 @@ function startServer(options = {}) {
 
   app.get('/sw.js', (req, res) => {
     res.sendFile(path.join(FRONTEND_DIR, 'sw.js'));
-  });
-
-  app.get('/clear-cache', (req, res) => {
-    res.sendFile(path.join(FRONTEND_DIR, 'clear-cache.html'));
   });
 
   // ===== Load Route Modules =====

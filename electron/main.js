@@ -48,7 +48,6 @@ function createWindow() {
         minWidth: 800,
         minHeight: 600,
         title: 'POS Offline - نظام نقاط البيع',
-        icon: path.join(__dirname, 'icon.png'),
         webPreferences: {
             nodeIntegration: false,
             contextIsolation: true,

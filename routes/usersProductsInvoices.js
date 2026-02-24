@@ -783,6 +783,657 @@ module.exports = function (app, helpers) {
     }
   });
 
+  // ===== GET /api/customers =====
+  app.get('/api/customers', (req, res) => {
+    try {
+      const search = req.query.search || '';
+      const db = getDb(req);
+      let rows;
+      if (search) {
+        const pattern = `%${search}%`;
+        rows = db.prepare(`
+          SELECT *,
+                 (SELECT COUNT(*) FROM invoices WHERE customer_id = customers.id) as total_orders,
+                 (SELECT COALESCE(SUM(total), 0) FROM invoices WHERE customer_id = customers.id) as total_spent
+          FROM customers
+          WHERE name LIKE ? OR phone LIKE ? OR address LIKE ?
+          ORDER BY created_at DESC
+        `).all(pattern, pattern, pattern);
+      } else {
+        rows = db.prepare(`
+          SELECT *,
+                 (SELECT COUNT(*) FROM invoices WHERE customer_id = customers.id) as total_orders,
+                 (SELECT COALESCE(SUM(total), 0) FROM invoices WHERE customer_id = customers.id) as total_spent
+          FROM customers
+          ORDER BY created_at DESC
+        `).all();
+      }
+      return res.json({ success: true, customers: rows });
+    } catch (e) {
+      return res.status(500).json({ success: false, error: e.message });
+    }
+  });
+
+  // ===== GET /api/customers/search =====
+  app.get('/api/customers/search', (req, res) => {
+    try {
+      const phone = req.query.phone || '';
+      if (!phone) return res.status(400).json({ success: false, error: 'رقم الهاتف مطلوب' });
+      const db = getDb(req);
+      const row = db.prepare(`
+        SELECT *,
+               COALESCE(loyalty_points, 0) as points,
+               (SELECT COUNT(*) FROM invoices WHERE customer_id = customers.id) as total_orders,
+               (SELECT COALESCE(SUM(total), 0) FROM invoices WHERE customer_id = customers.id) as total_spent
+        FROM customers WHERE phone = ?
+      `).get(phone);
+      if (row) return res.json({ success: true, customer: row });
+      return res.json({ success: false, error: 'العميل غير موجود' });
+    } catch (e) {
+      return res.status(500).json({ success: false, error: e.message });
+    }
+  });
+
+  // ===== GET /api/customers/:customer_id =====
+  app.get('/api/customers/:customer_id', (req, res) => {
+    try {
+      const db = getDb(req);
+      const row = db.prepare(`
+        SELECT *,
+               (SELECT COUNT(*) FROM invoices WHERE customer_id = customers.id) as total_orders,
+               (SELECT COALESCE(SUM(total), 0) FROM invoices WHERE customer_id = customers.id) as total_spent
+        FROM customers WHERE id = ?
+      `).get(req.params.customer_id);
+      if (row) return res.json({ success: true, customer: row });
+      return res.status(404).json({ success: false, error: 'العميل غير موجود' });
+    } catch (e) {
+      return res.status(500).json({ success: false, error: e.message });
+    }
+  });
+
+  // ===== POST /api/customers/:customer_id/points/adjust =====
+  app.post('/api/customers/:customer_id/points/adjust', (req, res) => {
+    try {
+      const points = req.body.points || 0;
+      const db = getDb(req);
+      db.prepare('UPDATE customers SET loyalty_points = MAX(0, COALESCE(loyalty_points, 0) + ?) WHERE id = ?')
+        .run(points, req.params.customer_id);
+      const row = db.prepare('SELECT COALESCE(loyalty_points, 0) as loyalty_points FROM customers WHERE id = ?')
+        .get(req.params.customer_id);
+      return res.json({ success: true, new_points: row ? row.loyalty_points : 0 });
+    } catch (e) {
+      return res.status(500).json({ success: false, error: e.message });
+    }
+  });
+
+  // ===== POST /api/customers =====
+  app.post('/api/customers', (req, res) => {
+    try {
+      const data = req.body;
+      const db = getDb(req);
+      const phone = data.phone || '';
+      if (phone) {
+        const existing = db.prepare('SELECT id FROM customers WHERE phone = ?').get(phone);
+        if (existing) {
+          db.prepare('UPDATE customers SET name = ?, address = ?, notes = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
+            .run(data.name || '', data.address || '', data.notes || '', existing.id);
+          return res.json({ success: true, id: existing.id, updated: true });
+        }
+      }
+      const result = db.prepare('INSERT INTO customers (name, phone, address, notes) VALUES (?, ?, ?, ?)')
+        .run(data.name || '', data.phone || '', data.address || '', data.notes || '');
+      return res.json({ success: true, id: Number(result.lastInsertRowid) });
+    } catch (e) {
+      return res.status(500).json({ success: false, error: e.message });
+    }
+  });
+
+  // ===== PUT /api/customers/:customer_id =====
+  app.put('/api/customers/:customer_id', (req, res) => {
+    try {
+      const data = req.body;
+      const db = getDb(req);
+      db.prepare('UPDATE customers SET name = ?, phone = ?, address = ?, notes = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
+        .run(data.name || '', data.phone || '', data.address || '', data.notes || '', req.params.customer_id);
+      return res.json({ success: true });
+    } catch (e) {
+      return res.status(500).json({ success: false, error: e.message });
+    }
+  });
+
+  // ===== DELETE /api/customers/:customer_id =====
+  app.delete('/api/customers/:customer_id', (req, res) => {
+    try {
+      const db = getDb(req);
+      db.prepare('DELETE FROM customers WHERE id = ?').run(req.params.customer_id);
+      return res.json({ success: true });
+    } catch (e) {
+      return res.status(500).json({ success: false, error: e.message });
+    }
+  });
+
+  // ===== GET /api/customers/:customer_id/invoices =====
+  app.get('/api/customers/:customer_id/invoices', (req, res) => {
+    try {
+      const db = getDb(req);
+      const invoices = db.prepare('SELECT * FROM invoices WHERE customer_id = ? ORDER BY created_at DESC')
+        .all(req.params.customer_id);
+      return res.json({ success: true, invoices });
+    } catch (e) {
+      return res.status(500).json({ success: false, error: e.message });
+    }
+  });
+
+  // ===== GET /api/settings =====
+  app.get('/api/settings', (req, res) => {
+    try {
+      const db = getDb(req);
+      const rows = db.prepare('SELECT * FROM settings').all();
+      const settings = {};
+      for (const row of rows) { settings[row.key] = row.value; }
+      return res.json({ success: true, settings });
+    } catch (e) {
+      return res.status(500).json({ success: false, error: e.message });
+    }
+  });
+
+  // ===== PUT /api/settings =====
+  app.put('/api/settings', (req, res) => {
+    try {
+      const data = req.body;
+      const db = getDb(req);
+      const stmt = db.prepare("INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)");
+      for (const [key, value] of Object.entries(data)) {
+        stmt.run(key, value);
+      }
+      return res.json({ success: true });
+    } catch (e) {
+      return res.status(500).json({ success: false, error: e.message });
+    }
+  });
+
+  // ===== GET /api/reports/sales =====
+  app.get('/api/reports/sales', (req, res) => {
+    try {
+      const startDate = req.query.start_date;
+      const endDate = req.query.end_date;
+      const branchId = req.query.branch_id;
+      const db = getDb(req);
+
+      let where = ' WHERE 1=1';
+      const params = [];
+
+      if (startDate) { where += ' AND date(created_at) >= ?'; params.push(startDate); }
+      if (endDate) { where += ' AND date(created_at) <= ?'; params.push(endDate); }
+      if (branchId) {
+        const branch = db.prepare('SELECT name FROM branches WHERE id = ?').get(branchId);
+        if (branch) { where += ' AND branch_name = ?'; params.push(branch.name); }
+      }
+
+      const report = db.prepare(`
+        SELECT COUNT(*) as total_invoices, COALESCE(SUM(subtotal), 0) as total_subtotal,
+               COALESCE(SUM(discount), 0) as total_discount, COALESCE(SUM(delivery_fee), 0) as total_delivery,
+               COALESCE(SUM(total), 0) as total_sales, COALESCE(AVG(total), 0) as average_sale
+        FROM invoices ${where}
+      `).get(...params);
+
+      const payment_methods = db.prepare(`
+        SELECT payment_method, COUNT(*) as count, COALESCE(SUM(total), 0) as total
+        FROM invoices ${where} GROUP BY payment_method
+      `).all(...params);
+
+      const branches = db.prepare(`
+        SELECT branch_name, COUNT(*) as count, COALESCE(SUM(total), 0) as total
+        FROM invoices ${where} AND branch_name IS NOT NULL GROUP BY branch_name
+      `).all(...params);
+
+      const invoices = db.prepare(`SELECT * FROM invoices ${where} ORDER BY created_at DESC`).all(...params);
+
+      report.payment_methods = payment_methods;
+      report.branches = branches;
+      report.invoices = invoices;
+
+      return res.json({ success: true, report });
+    } catch (e) {
+      return res.status(500).json({ success: false, error: e.message });
+    }
+  });
+
+  // ===== GET /api/reports/inventory =====
+  app.get('/api/reports/inventory', (req, res) => {
+    try {
+      const branchId = req.query.branch_id;
+      const db = getDb(req);
+
+      let query = `
+        SELECT i.id, i.name, i.barcode, i.category, i.price, i.cost,
+               bs.branch_id, b.name as branch_name, bs.stock,
+               (bs.stock * i.cost) as stock_value
+        FROM inventory i
+        LEFT JOIN branch_stock bs ON i.id = bs.inventory_id
+        LEFT JOIN branches b ON bs.branch_id = b.id
+        WHERE 1=1
+      `;
+      const params = [];
+      if (branchId) { query += ' AND bs.branch_id = ?'; params.push(branchId); }
+      query += ' ORDER BY i.name';
+
+      const items = db.prepare(query).all(...params);
+      let totalStock = 0, totalValue = 0;
+      for (const item of items) {
+        totalStock += item.stock || 0;
+        totalValue += item.stock_value || 0;
+      }
+
+      return res.json({
+        success: true,
+        report: { total_items: items.length, total_stock: totalStock, total_value: totalValue, items }
+      });
+    } catch (e) {
+      return res.status(500).json({ success: false, error: e.message });
+    }
+  });
+
+  // ===== GET /api/reports/damaged =====
+  app.get('/api/reports/damaged', (req, res) => {
+    try {
+      const startDate = req.query.start_date;
+      const endDate = req.query.end_date;
+      const branchId = req.query.branch_id;
+      const db = getDb(req);
+
+      let query = `
+        SELECT d.*, i.name as product_name, i.cost,
+               (d.quantity * i.cost) as damage_value, b.name as branch_name
+        FROM damaged_items d
+        JOIN inventory i ON d.inventory_id = i.id
+        LEFT JOIN branches b ON d.branch_id = b.id
+        WHERE 1=1
+      `;
+      const params = [];
+      if (startDate) { query += ' AND date(d.created_at) >= ?'; params.push(startDate); }
+      if (endDate) { query += ' AND date(d.created_at) <= ?'; params.push(endDate); }
+      if (branchId) { query += ' AND d.branch_id = ?'; params.push(branchId); }
+      query += ' ORDER BY d.created_at DESC';
+
+      const items = db.prepare(query).all(...params);
+      let totalDamaged = 0, totalValue = 0;
+      for (const item of items) {
+        totalDamaged += item.quantity || 0;
+        totalValue += item.damage_value || 0;
+      }
+
+      return res.json({
+        success: true,
+        report: { total_damaged: totalDamaged, total_value: totalValue, items }
+      });
+    } catch (e) {
+      return res.status(500).json({ success: false, error: e.message });
+    }
+  });
+
+  // ===== GET /api/reports/top-products =====
+  app.get('/api/reports/top-products', (req, res) => {
+    try {
+      const limit = parseInt(req.query.limit) || 10;
+      const db = getDb(req);
+      const products = db.prepare(`
+        SELECT product_name, SUM(quantity) as total_quantity,
+               SUM(total) as total_sales, COUNT(DISTINCT invoice_id) as times_sold
+        FROM invoice_items GROUP BY product_name ORDER BY total_quantity DESC LIMIT ?
+      `).all(limit);
+      return res.json({ success: true, products });
+    } catch (e) {
+      return res.status(500).json({ success: false, error: e.message });
+    }
+  });
+
+  // ===== GET /api/reports/low-stock =====
+  app.get('/api/reports/low-stock', (req, res) => {
+    try {
+      const threshold = parseInt(req.query.threshold) || 10;
+      const db = getDb(req);
+      const products = db.prepare('SELECT * FROM products WHERE stock <= ? ORDER BY stock ASC').all(threshold);
+      return res.json({ success: true, products });
+    } catch (e) {
+      return res.status(500).json({ success: false, error: e.message });
+    }
+  });
+
+  // ===== GET /api/reports/sales-by-product =====
+  app.get('/api/reports/sales-by-product', (req, res) => {
+    try {
+      const startDate = req.query.start_date;
+      const endDate = req.query.end_date;
+      const branchId = req.query.branch_id;
+      const db = getDb(req);
+
+      let where = ' WHERE 1=1';
+      const params = [];
+      if (startDate) { where += ' AND date(i.created_at) >= ?'; params.push(startDate); }
+      if (endDate) { where += ' AND date(i.created_at) <= ?'; params.push(endDate); }
+      if (branchId) {
+        const branch = db.prepare('SELECT name FROM branches WHERE id = ?').get(branchId);
+        if (branch) { where += ' AND i.branch_name = ?'; params.push(branch.name); }
+      }
+
+      const products = db.prepare(`
+        SELECT ii.product_name, SUM(ii.quantity) as total_quantity,
+               SUM(ii.total) as total_sales, COUNT(DISTINCT ii.invoice_id) as invoice_count,
+               AVG(ii.price) as avg_price
+        FROM invoice_items ii JOIN invoices i ON ii.invoice_id = i.id
+        ${where} GROUP BY ii.product_name ORDER BY total_sales DESC
+      `).all(...params);
+
+      let totalSales = 0, totalQuantity = 0;
+      for (const p of products) { totalSales += p.total_sales || 0; totalQuantity += p.total_quantity || 0; }
+
+      return res.json({
+        success: true, products,
+        summary: { total_sales: totalSales, total_quantity: totalQuantity, products_count: products.length }
+      });
+    } catch (e) {
+      return res.status(500).json({ success: false, error: e.message });
+    }
+  });
+
+  // ===== GET /api/reports/sales-by-branch =====
+  app.get('/api/reports/sales-by-branch', (req, res) => {
+    try {
+      const startDate = req.query.start_date;
+      const endDate = req.query.end_date;
+      const db = getDb(req);
+
+      let where = ' WHERE 1=1';
+      const params = [];
+      if (startDate) { where += ' AND date(created_at) >= ?'; params.push(startDate); }
+      if (endDate) { where += ' AND date(created_at) <= ?'; params.push(endDate); }
+
+      const branches = db.prepare(`
+        SELECT branch_name, COUNT(*) as invoice_count,
+               COALESCE(SUM(subtotal), 0) as total_subtotal, COALESCE(SUM(discount), 0) as total_discount,
+               COALESCE(SUM(delivery_fee), 0) as total_delivery, COALESCE(SUM(total), 0) as total_sales,
+               COALESCE(AVG(total), 0) as avg_sale
+        FROM invoices ${where} GROUP BY branch_name ORDER BY total_sales DESC
+      `).all(...params);
+
+      let totalSales = 0, totalInvoices = 0;
+      for (const b of branches) { totalSales += b.total_sales || 0; totalInvoices += b.invoice_count || 0; }
+
+      return res.json({
+        success: true, branches,
+        summary: { total_sales: totalSales, total_invoices: totalInvoices, branches_count: branches.length }
+      });
+    } catch (e) {
+      return res.status(500).json({ success: false, error: e.message });
+    }
+  });
+
+  // ===== GET /api/returns =====
+  app.get('/api/returns', (req, res) => {
+    try {
+      const db = getDb(req);
+      const returns = db.prepare('SELECT * FROM returns ORDER BY created_at DESC').all();
+      return res.json({ success: true, returns });
+    } catch (e) {
+      return res.status(500).json({ success: false, error: e.message });
+    }
+  });
+
+  // ===== GET /api/returns/:return_id =====
+  app.get('/api/returns/:return_id', (req, res) => {
+    try {
+      const db = getDb(req);
+      const row = db.prepare('SELECT * FROM returns WHERE id = ?').get(req.params.return_id);
+      if (!row) return res.status(404).json({ success: false, error: 'المرتجع غير موجود' });
+      return res.json({ success: true, 'return': row });
+    } catch (e) {
+      return res.status(500).json({ success: false, error: e.message });
+    }
+  });
+
+  // ===== POST /api/returns =====
+  app.post('/api/returns', (req, res) => {
+    try {
+      const data = req.body;
+      const db = getDb(req);
+      const result = db.prepare(`
+        INSERT INTO returns (invoice_id, invoice_number, product_id, product_name, quantity, price, total, reason, employee_name)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        data.invoice_id, data.invoice_number, data.product_id, data.product_name,
+        data.quantity, data.price, data.total, data.reason, data.employee_name
+      );
+      if (data.product_id) {
+        db.prepare('UPDATE products SET stock = stock + ? WHERE id = ?').run(data.quantity, data.product_id);
+      }
+      return res.json({ success: true, return_id: Number(result.lastInsertRowid), message: 'تم إضافة المرتجع وإعادة المنتج للمخزون' });
+    } catch (e) {
+      return res.status(500).json({ success: false, error: e.message });
+    }
+  });
+
+  // ===== DELETE /api/returns/:return_id =====
+  app.delete('/api/returns/:return_id', (req, res) => {
+    try {
+      const db = getDb(req);
+      const row = db.prepare('SELECT * FROM returns WHERE id = ?').get(req.params.return_id);
+      if (!row) return res.status(404).json({ success: false, error: 'المرتجع غير موجود' });
+      if (row.product_id) {
+        db.prepare('UPDATE products SET stock = stock - ? WHERE id = ?').run(row.quantity, row.product_id);
+      }
+      db.prepare('DELETE FROM returns WHERE id = ?').run(req.params.return_id);
+      return res.json({ success: true, message: 'تم حذف المرتجع' });
+    } catch (e) {
+      return res.status(500).json({ success: false, error: e.message });
+    }
+  });
+
+  // ===== GET /api/expenses =====
+  app.get('/api/expenses', (req, res) => {
+    try {
+      const startDate = req.query.start_date;
+      const endDate = req.query.end_date;
+      const branchId = req.query.branch_id;
+      const db = getDb(req);
+
+      let query = 'SELECT * FROM expenses WHERE 1=1';
+      const params = [];
+      if (startDate) { query += ' AND date(expense_date) >= ?'; params.push(startDate); }
+      if (endDate) { query += ' AND date(expense_date) <= ?'; params.push(endDate); }
+      if (branchId) { query += ' AND branch_id = ?'; params.push(branchId); }
+      query += ' ORDER BY expense_date DESC';
+
+      const expenses = db.prepare(query).all(...params);
+      for (const exp of expenses) {
+        if (exp.expense_type === 'رواتب') {
+          exp.salary_details = db.prepare('SELECT * FROM salary_details WHERE expense_id = ? ORDER BY id').all(exp.id);
+        } else {
+          exp.salary_details = [];
+        }
+      }
+      return res.json({ success: true, expenses });
+    } catch (e) {
+      return res.status(500).json({ success: false, error: e.message });
+    }
+  });
+
+  // ===== POST /api/expenses =====
+  app.post('/api/expenses', (req, res) => {
+    try {
+      const data = req.body;
+      const db = getDb(req);
+      const result = db.prepare(`
+        INSERT INTO expenses (expense_type, amount, description, expense_date, branch_id, created_by)
+        VALUES (?, ?, ?, ?, ?, ?)
+      `).run(data.expense_type, data.amount, data.description || '', data.expense_date, data.branch_id, data.created_by);
+      const expenseId = Number(result.lastInsertRowid);
+
+      const salaryDetails = data.salary_details || [];
+      if (data.expense_type === 'رواتب' && salaryDetails.length > 0) {
+        const stmt = db.prepare('INSERT INTO salary_details (expense_id, employee_name, monthly_salary) VALUES (?, ?, ?)');
+        for (const emp of salaryDetails) {
+          stmt.run(expenseId, emp.employee_name || '', emp.monthly_salary || 0);
+        }
+      }
+      return res.json({ success: true, id: expenseId });
+    } catch (e) {
+      return res.status(500).json({ success: false, error: e.message });
+    }
+  });
+
+  // ===== DELETE /api/expenses/:expense_id =====
+  app.delete('/api/expenses/:expense_id', (req, res) => {
+    try {
+      const db = getDb(req);
+      db.prepare('DELETE FROM salary_details WHERE expense_id = ?').run(req.params.expense_id);
+      db.prepare('DELETE FROM expenses WHERE id = ?').run(req.params.expense_id);
+      return res.json({ success: true });
+    } catch (e) {
+      return res.status(500).json({ success: false, error: e.message });
+    }
+  });
+
+  // ===== POST /api/attendance/check-in =====
+  app.post('/api/attendance/check-in', (req, res) => {
+    try {
+      const data = req.body;
+      const db = getDb(req);
+      const result = db.prepare('INSERT INTO attendance_log (user_id, user_name, branch_id, check_in) VALUES (?, ?, ?, CURRENT_TIMESTAMP)')
+        .run(data.user_id, data.user_name, data.branch_id || 1);
+      return res.json({ success: true, id: Number(result.lastInsertRowid) });
+    } catch (e) {
+      return res.status(500).json({ success: false, error: e.message });
+    }
+  });
+
+  // ===== POST /api/attendance/check-out =====
+  app.post('/api/attendance/check-out', (req, res) => {
+    try {
+      const data = req.body;
+      const db = getDb(req);
+      const record = db.prepare('SELECT id FROM attendance_log WHERE user_id = ? AND check_out IS NULL ORDER BY check_in DESC LIMIT 1')
+        .get(data.user_id);
+      if (record) {
+        db.prepare('UPDATE attendance_log SET check_out = CURRENT_TIMESTAMP WHERE id = ?').run(record.id);
+        return res.json({ success: true });
+      }
+      return res.json({ success: false, error: 'لا يوجد سجل حضور' });
+    } catch (e) {
+      return res.status(500).json({ success: false, error: e.message });
+    }
+  });
+
+  // ===== GET /api/attendance =====
+  app.get('/api/attendance', (req, res) => {
+    try {
+      const userId = req.query.user_id;
+      const date = req.query.date;
+      const branchId = req.query.branch_id;
+      const db = getDb(req);
+
+      let query = 'SELECT * FROM attendance_log WHERE 1=1';
+      const params = [];
+      if (userId) { query += ' AND user_id = ?'; params.push(userId); }
+      if (date) { query += ' AND DATE(check_in) = ?'; params.push(date); }
+      if (branchId) { query += ' AND branch_id = ?'; params.push(branchId); }
+      query += ' ORDER BY check_in DESC';
+
+      return res.json({ success: true, records: db.prepare(query).all(...params) });
+    } catch (e) {
+      return res.status(500).json({ success: false, error: e.message });
+    }
+  });
+
+  // ===== GET /api/damaged-items =====
+  app.get('/api/damaged-items', (req, res) => {
+    try {
+      const branchId = req.query.branch_id;
+      const db = getDb(req);
+
+      let query = `
+        SELECT d.*, i.name as product_name, b.name as branch_name
+        FROM damaged_items d
+        JOIN inventory i ON d.inventory_id = i.id
+        LEFT JOIN branches b ON d.branch_id = b.id
+        WHERE 1=1
+      `;
+      const params = [];
+      if (branchId) { query += ' AND d.branch_id = ?'; params.push(branchId); }
+      query += ' ORDER BY d.created_at DESC';
+
+      return res.json({ success: true, damaged: db.prepare(query).all(...params) });
+    } catch (e) {
+      return res.status(500).json({ success: false, error: e.message });
+    }
+  });
+
+  // ===== POST /api/damaged-items =====
+  app.post('/api/damaged-items', (req, res) => {
+    try {
+      const data = req.body;
+      const db = getDb(req);
+      const result = db.prepare('INSERT INTO damaged_items (inventory_id, branch_id, quantity, reason, reported_by) VALUES (?, ?, ?, ?, ?)')
+        .run(data.inventory_id, data.branch_id, data.quantity, data.reason || '', data.reported_by);
+      db.prepare('UPDATE branch_stock SET stock = stock - ? WHERE inventory_id = ? AND branch_id = ?')
+        .run(data.quantity, data.inventory_id, data.branch_id);
+      return res.json({ success: true, id: Number(result.lastInsertRowid) });
+    } catch (e) {
+      return res.status(500).json({ success: false, error: e.message });
+    }
+  });
+
+  // ===== DELETE /api/damaged-items/:damaged_id =====
+  app.delete('/api/damaged-items/:damaged_id', (req, res) => {
+    try {
+      const db = getDb(req);
+      db.prepare('DELETE FROM damaged_items WHERE id = ?').run(req.params.damaged_id);
+      return res.json({ success: true });
+    } catch (e) {
+      return res.status(500).json({ success: false, error: e.message });
+    }
+  });
+
+  // ===== GET /api/system-logs =====
+  app.get('/api/system-logs', (req, res) => {
+    try {
+      const limit = parseInt(req.query.limit) || 500;
+      const actionType = req.query.action_type;
+      const userId = req.query.user_id;
+      const dateFrom = req.query.date_from;
+      const dateTo = req.query.date_to;
+      const db = getDb(req);
+
+      let query = 'SELECT * FROM system_logs WHERE 1=1';
+      const params = [];
+      if (actionType) { query += ' AND action_type = ?'; params.push(actionType); }
+      if (userId) { query += ' AND user_id = ?'; params.push(userId); }
+      if (dateFrom) { query += ' AND created_at >= ?'; params.push(dateFrom + ' 00:00:00'); }
+      if (dateTo) { query += ' AND created_at <= ?'; params.push(dateTo + ' 23:59:59'); }
+      query += ' ORDER BY created_at DESC LIMIT ?';
+      params.push(limit);
+
+      return res.json({ success: true, logs: db.prepare(query).all(...params) });
+    } catch (e) {
+      return res.status(500).json({ success: false, error: e.message });
+    }
+  });
+
+  // ===== POST /api/system-logs =====
+  app.post('/api/system-logs', (req, res) => {
+    try {
+      const data = req.body;
+      const db = getDb(req);
+      const result = db.prepare(`
+        INSERT INTO system_logs (action_type, description, user_id, user_name, branch_id, target_id, details)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+      `).run(data.action_type, data.description, data.user_id, data.user_name, data.branch_id, data.target_id, data.details);
+      return res.json({ success: true, id: Number(result.lastInsertRowid) });
+    } catch (e) {
+      return res.status(500).json({ success: false, error: e.message });
+    }
+  });
+
   // ===== PUT /api/invoices/:invoice_id/cancel =====
   app.put('/api/invoices/:invoice_id/cancel', (req, res) => {
     try {

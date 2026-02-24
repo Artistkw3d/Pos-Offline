@@ -261,6 +261,11 @@ async function initializeUI() {
     // تشغيل فاحص قفل الشفت
     startShiftLockChecker();
 
+    // تشغيل المزامنة التلقائية كل 5 دقائق
+    if (typeof syncManager !== 'undefined') {
+        syncManager.start(5);
+    }
+
     console.log('[App] User restored from localStorage ✅');
 }
 
@@ -1421,6 +1426,18 @@ async function completeSale() {
                 }
 
                 currentInvoice = {...invoiceData, id: data.id, created_at: new Date().toISOString(), items: invoiceData.items};
+
+                // إذا وضع التزامن "سيرفر" → حفظ في pending_invoices للرفع للسيرفر المركزي
+                if (typeof syncManager !== 'undefined' && syncManager.isServerMode() && localDB.isReady) {
+                    try {
+                        await localDB.add('pending_invoices', {
+                            data: { ...invoiceData, invoice_number: data.invoice_number || invoiceNumber, created_at: new Date().toISOString() },
+                            timestamp: new Date().toISOString()
+                        });
+                    } catch (e) {
+                        console.log('[App] Pending sync queue skipped:', e.message);
+                    }
+                }
 
                 // تسجيل استخدام الكوبون
                 if (appliedCouponId) {
