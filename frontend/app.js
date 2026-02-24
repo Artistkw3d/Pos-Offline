@@ -126,6 +126,77 @@ function applyViewMode(mode) {
     });
 })();
 
+// ===== شاشة إعداد الخادم (أول تشغيل) =====
+function checkFirstTimeSetup() {
+    const configured = localStorage.getItem('pos_flask_server_url_configured');
+    const skipped = localStorage.getItem('pos_setup_skipped');
+    if (!configured && !skipped) {
+        const setupOverlay = document.getElementById('serverSetupOverlay');
+        const loginOverlay = document.getElementById('loginOverlay');
+        if (setupOverlay) {
+            setupOverlay.style.display = '';
+            if (loginOverlay) loginOverlay.style.display = 'none';
+            return true;
+        }
+    }
+    return false;
+}
+
+function testSetupConnection() {
+    const urlInput = document.getElementById('setupServerUrl');
+    const resultDiv = document.getElementById('setupTestResult');
+    let url = (urlInput.value || '').trim().replace(/\/+$/, '');
+    if (!url) {
+        resultDiv.innerHTML = '<span style="color:#e74c3c;">الرجاء إدخال عنوان الخادم</span>';
+        return;
+    }
+    resultDiv.innerHTML = '<span style="color:#888;">جاري الاختبار...</span>';
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 5000);
+    fetch(url + '/api/version', { method: 'GET', cache: 'no-store', signal: controller.signal })
+        .then(r => {
+            clearTimeout(timeout);
+            if (r.ok) return r.json();
+            throw new Error('status ' + r.status);
+        })
+        .then(data => {
+            const ver = data.version || data.data || '';
+            resultDiv.innerHTML = '<span style="color:#22c55e;">✓ متصل بنجاح' + (ver ? ' — v' + escHTML(String(ver)) : '') + '</span>';
+        })
+        .catch(err => {
+            clearTimeout(timeout);
+            resultDiv.innerHTML = '<span style="color:#e74c3c;">✗ فشل الاتصال: ' + escHTML(err.message) + '</span>';
+        });
+}
+
+function saveServerSetup() {
+    const urlInput = document.getElementById('setupServerUrl');
+    let url = (urlInput.value || '').trim().replace(/\/+$/, '');
+    if (!url) {
+        document.getElementById('setupTestResult').innerHTML = '<span style="color:#e74c3c;">الرجاء إدخال عنوان الخادم</span>';
+        return;
+    }
+    localStorage.setItem('pos_sync_server_url', url);
+    localStorage.setItem('pos_server_url', url);
+    localStorage.setItem('pos_sync_mode', 'server');
+    localStorage.setItem('pos_flask_server_url_configured', '1');
+    // Save to server settings (fire-and-forget)
+    fetch(API_URL + '/api/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ flask_server_url: url })
+    }).catch(() => {});
+    // Show login
+    document.getElementById('serverSetupOverlay').style.display = 'none';
+    document.getElementById('loginOverlay').style.display = '';
+}
+
+function skipServerSetup() {
+    localStorage.setItem('pos_setup_skipped', '1');
+    document.getElementById('serverSetupOverlay').style.display = 'none';
+    document.getElementById('loginOverlay').style.display = '';
+}
+
 // استعادة المستخدم من localStorage
 function restoreUser() {
     const savedUser = localStorage.getItem('pos_current_user');
@@ -5635,6 +5706,18 @@ fetchVersion();
 
 document.addEventListener('DOMContentLoaded', () => {
     console.log('[App] DOMContentLoaded - checking for saved user...');
+
+    // First-time setup check
+    if (checkFirstTimeSetup()) {
+        console.log('[App] First-time setup screen shown');
+        return;
+    }
+
+    // Auto-sync on launch if server is configured
+    if (typeof getSyncServerUrl === 'function' && getSyncServerUrl() && typeof syncManager !== 'undefined') {
+        console.log('[App] Server configured, triggering background sync...');
+        try { syncManager.sync(); } catch(e) {}
+    }
 
     // إذا كان المدير الأعلى مسجل دخوله، لا نستعيد جلسة المستخدم العادي
     const savedSA = localStorage.getItem('pos_super_admin');

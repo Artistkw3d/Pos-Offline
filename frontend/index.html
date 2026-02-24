@@ -25,6 +25,25 @@
         </div>
     </div>
 
+    <!-- Server Setup (first-time) -->
+    <div class="login-overlay" id="serverSetupOverlay" style="display:none;">
+        <div class="login-box">
+            <div class="login-logo">🖥️</div>
+            <h1 class="login-title">إعداد الخادم</h1>
+            <p style="text-align:center; color:#666; margin-bottom:18px; font-size:14px;">أدخل عنوان خادم Flask للمزامنة وإدارة المتاجر</p>
+            <div class="login-form-group">
+                <label>عنوان الخادم (Server URL)</label>
+                <input type="text" id="setupServerUrl" placeholder="http://192.168.1.5:5000" style="direction:ltr; text-align:center; font-size:16px;">
+            </div>
+            <div id="setupTestResult" style="min-height:28px; text-align:center; font-size:13px; margin-bottom:8px;"></div>
+            <button type="button" class="login-btn" style="background:#3b82f6; margin-bottom:10px;" onclick="testSetupConnection()">اختبار الاتصال</button>
+            <button type="button" class="login-btn" onclick="saveServerSetup()">حفظ والمتابعة</button>
+            <div style="text-align:center; margin-top:14px;">
+                <a href="#" onclick="skipServerSetup(); return false;" style="color:#999; font-size:13px; text-decoration:underline;">تخطي (استخدام محلي فقط)</a>
+            </div>
+        </div>
+    </div>
+
     <!-- Login -->
     <div class="login-overlay" id="loginOverlay">
         <div class="login-box">
