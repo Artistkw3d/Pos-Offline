@@ -20,7 +20,7 @@ let TENANTS_DB_DIR = path.join(DB_DIR, 'tenants');
 let BACKUPS_DIR = path.join(DB_DIR, 'backups');
 let FRONTEND_DIR = path.join(__dirname, '..', 'frontend');
 
-let upload = multer({ dest: path.join(DB_DIR, 'uploads') });
+let upload = null; // Initialized in startServer() after directories are created
 
 // ===== Helper Functions =====
 
@@ -1310,10 +1310,18 @@ function startServer(options = {}) {
     BACKUPS_DIR = options.backupsDir;
   }
 
-  // Ensure directories exist
+  // Ensure directories exist (and are actually directories, not files)
   const UPLOADS_DIR = path.join(DB_DIR, 'uploads');
   [DB_DIR, TENANTS_DB_DIR, BACKUPS_DIR, UPLOADS_DIR].forEach(dir => {
-    if (!fs.existsSync(dir)) {
+    if (fs.existsSync(dir)) {
+      const stat = fs.statSync(dir);
+      if (!stat.isDirectory()) {
+        console.error(`[Server] ENOTDIR: "${dir}" exists but is NOT a directory — removing and recreating`);
+        fs.unlinkSync(dir);
+        fs.mkdirSync(dir, { recursive: true });
+      }
+    } else {
+      console.log(`[Server] Creating directory: ${dir}`);
       fs.mkdirSync(dir, { recursive: true });
     }
   });
