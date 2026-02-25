@@ -249,20 +249,45 @@ print('OK')
 
 Frontend JS files are validated with `node --check` for syntax only.
 
+## Cross-Repo & Cross-Platform Sync Policy
+
+**CRITICAL: On every change, you MUST ask the user:**
+
+> "This change affects [describe scope]. Should I also apply it to:"
+> 1. **My-Pos repo** (Docker/server deployment at `C:\Users\em6er\Desktop\My-Pos`)?
+> 2. **Electron/Windows desktop app** (electron/server.js + routes/*.js)?
+> 3. **Android/Capacitor app** (rebuild APK)?
+
+The two repos (Pos-Offline and My-Pos) share the same frontend, SQLite schema, and REST API contract but have different backend structures. Changes must be adapted when syncing:
+- `server.py` in Pos-Offline → must be adapted to My-Pos's modular `db_modules/` structure
+- `frontend/` changes → must be copied to My-Pos's `frontend/` as-is
+- `setup_database.py` schema changes → must be applied to both repos
+- My-Pos does NOT have `electron/`, `routes/`, or Node.js — skip those for My-Pos
+
+### Platform build checklist
+After applying changes, remind the user if any platform needs rebuilding:
+- **Docker**: `docker build` in My-Pos repo
+- **Electron (.exe)**: `npm run electron:build` in Pos-Offline repo
+- **Android (.apk)**: `npx cap sync android && gradlew assembleDebug` in Pos-Offline repo
+- **PWA**: Update `frontend/sw.js` version if caching changed
+
 ## Important Files to Change Together
 
 When modifying the API:
 1. `server.py` — Flask routes (canonical)
 2. `electron/server.js` or `routes/*.js` — Express routes (must stay in sync)
 3. `frontend/app.js` — Frontend API calls
+4. **My-Pos repo**: `server.py` + `db_modules/` (adapted to modular structure)
 
 When modifying the database schema:
 1. `setup_database.py` — Fresh install schema
 2. `server.py` `init_default_db()` — Flask runtime schema init + migration
 3. `electron/server.js` `ensureDbTables()` — Electron runtime schema init + migration
+4. **My-Pos repo**: `db_modules/schema.py` + `db_modules/migrate.py`
 
 When modifying the frontend:
 1. `frontend/app.js` — Main logic
 2. `frontend/index.html` — HTML structure and modals
 3. `frontend/style.css` — Styling
 4. `frontend/sw.js` — Update service worker version if caching changes
+5. **My-Pos repo**: Copy the same `frontend/` changes

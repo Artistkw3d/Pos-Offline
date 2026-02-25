@@ -1,4 +1,15 @@
-const API_URL = window.location.protocol === 'file:' ? 'http://localhost:5050' : window.location.origin;
+const API_URL = (function() {
+    // Capacitor: no local backend, use remote server
+    if (window.Capacitor && window.Capacitor.isNativePlatform()) {
+        return localStorage.getItem('pos_server_url') || 'https://my-pos.org';
+    }
+    // Electron file:// protocol: use local Express server
+    if (window.location.protocol === 'file:') {
+        return 'http://localhost:5050';
+    }
+    // Web/Docker: use current origin
+    return window.location.origin;
+})();
 
 // === دالة حماية من XSS - تنظيف النصوص قبل إدراجها في HTML ===
 function escHTML(str) {
