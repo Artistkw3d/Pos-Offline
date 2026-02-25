@@ -11,6 +11,23 @@ POS Offline is a multi-tenant Point-of-Sale system designed for offline-first op
 **Version**: 1.0.3
 **Currency**: Kuwaiti Dinar (KD)
 
+## Repositories
+
+There are **two repositories** for this project:
+
+| Repo | URL | Purpose |
+|------|-----|---------|
+| **Pos-Offline** (this repo) | `https://github.com/Artistkw3d/Pos-Offline.git` | Main/canonical — Electron + Flask + frontend. Has both Node.js Express server (`electron/server.js` + `routes/*.js`) and Python Flask server (`server.py`). JWT-based license enforcement. |
+| **My-Pos** | `https://github.com/Artistkw3d/My-Pos.git` | Docker/server deployment — Flask-only. Modularized DB layer (`db_modules/`). Periodically synced from Pos-Offline. Date-based subscription enforcement. |
+
+### Key Differences Between Repos
+
+- **My-Pos** has a modularized DB layer: `db_modules/schema.py`, `db_modules/master.py`, `db_modules/migrate.py` (extracted from server.py for Docker volume mounts)
+- **My-Pos** does NOT have `electron/`, `routes/`, or Node.js Express — it's Flask-only for Docker
+- **Pos-Offline** (this repo) has JWT license tokens; **My-Pos** uses simple date-based expiry checks
+- Both share the same `frontend/` code, SQLite schema, and REST API contract
+- When syncing changes: `server.py` changes in Pos-Offline must be adapted to My-Pos's modular structure, and vice versa
+
 ## Architecture
 
 ```
