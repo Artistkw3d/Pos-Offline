@@ -8783,15 +8783,15 @@ def sync_full_download():
 
 @app.route('/api/version', methods=['GET'])
 def get_version():
-    """جلب تاريخ آخر تحديث"""
+    """جلب رقم الإصدار من package.json"""
     base_dir = os.path.dirname(os.path.abspath(__file__))
     try:
-        # تاريخ آخر تعديل لملف server.py
-        mtime = os.path.getmtime(os.path.join(base_dir, 'server.py'))
-        last_update = datetime.fromtimestamp(mtime).strftime('%Y-%m-%d')
-        return jsonify({'success': True, 'version': last_update})
+        import json as _json
+        with open(os.path.join(base_dir, 'package.json'), 'r', encoding='utf-8') as f:
+            pkg = _json.load(f)
+        return jsonify({'success': True, 'version': pkg.get('version', '1.0.0')})
     except:
-        return jsonify({'success': True, 'version': datetime.now().strftime('%Y-%m-%d')})
+        return jsonify({'success': True, 'version': '1.0.0'})
 
 
 if __name__ == '__main__':

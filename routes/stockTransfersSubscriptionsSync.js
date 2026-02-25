@@ -1242,17 +1242,12 @@ module.exports = function (app, helpers) {
 
   // GET /api/version
   app.get('/api/version', (req, res) => {
-    const baseDir = __dirname;
     try {
-      // Last modification time of server.js (or the main server file)
-      const serverFilePath = path.join(baseDir, '..', 'server.js');
-      const stats = fs.statSync(serverFilePath);
-      const mtime = stats.mtime;
-      const last_update = mtime.toISOString().slice(0, 10);
-      return res.json({ success: true, version: last_update });
+      const pkgPath = path.join(__dirname, '..', 'package.json');
+      const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
+      return res.json({ success: true, version: pkg.version || '1.0.0' });
     } catch (_e) {
-      const now = new Date();
-      return res.json({ success: true, version: now.toISOString().slice(0, 10) });
+      return res.json({ success: true, version: '1.0.0' });
     }
   });
 

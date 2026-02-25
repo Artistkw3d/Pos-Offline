@@ -1,5 +1,8 @@
 # CLAUDE.md - POS Offline
 
+## Communication
+- Always respond in English only. The user's terminal does not support Arabic text.
+
 ## Project Overview
 
 POS Offline is a multi-tenant Point-of-Sale system designed for offline-first operation with manual sync to a server. The UI is Arabic (RTL). It targets four deployment platforms: Docker (Python Flask server), Electron (Windows/Linux desktop), Capacitor (Android), and PWA (browser).

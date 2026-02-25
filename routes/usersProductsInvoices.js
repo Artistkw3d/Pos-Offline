@@ -107,7 +107,24 @@ module.exports = function (app, helpers) {
           db.prepare('UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = ?').run(user.id);
           const userData = { ...user };
           delete userData.password;
+          db.close();
           return res.json({ success: true, user: userData });
+        }
+      }
+      db.close();
+
+      // Local login failed — try Flask server if configured (tenant DB may not be synced yet)
+      const flaskUrl = getFlaskServerUrl();
+      if (flaskUrl) {
+        const extraHeaders = {};
+        if (tenantSlug) extraHeaders['X-Tenant-ID'] = tenantSlug;
+        const flaskResult = await fetchFromFlask(
+          flaskUrl, '/api/login', 'POST',
+          { username, password },
+          extraHeaders
+        );
+        if (flaskResult.ok && flaskResult.data && flaskResult.data.success) {
+          return res.json(flaskResult.data);
         }
       }
 
