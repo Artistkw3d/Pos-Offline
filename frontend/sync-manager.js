@@ -71,6 +71,33 @@ class SyncManager {
         return fetch(url, { ...options, headers });
     }
 
+    // Refresh license token from server
+    async refreshLicenseToken() {
+        try {
+            const resp = await this._fetch(`${this.getApiUrl()}/api/license/refresh-token`);
+            if (resp.ok) {
+                const data = await resp.json();
+                if (data.success && data.token) {
+                    // Store token metadata in localStorage for frontend grace period checks
+                    try {
+                        const parts = data.token.split('.');
+                        const payload = JSON.parse(atob(parts[1]));
+                        localStorage.setItem('pos_license_exp', String(payload.exp || ''));
+                        localStorage.setItem('pos_license_iat', String(payload.iat || ''));
+                        localStorage.setItem('pos_license_active', String(payload.is_active));
+                        localStorage.setItem('pos_license_max_users', String(payload.max_users || ''));
+                        localStorage.setItem('pos_license_max_branches', String(payload.max_branches || ''));
+                    } catch (_) {}
+                    console.log('[Sync] License token refreshed');
+                    return true;
+                }
+            }
+        } catch (e) {
+            console.warn('[Sync] License refresh failed:', e.message);
+        }
+        return false;
+    }
+
     // ========== MAIN SYNC ==========
     async sync() {
         if (this.isSyncing) {
@@ -102,7 +129,7 @@ class SyncManager {
         }
 
         this.isSyncing = true;
-        this.syncProgress = { total: 9, done: 0, step: '' };
+        this.syncProgress = { total: 10, done: 0, step: '' };
         const targetUrl = this.getApiUrl();
         const modeLabel = this.isServerMode() ? `server: ${targetUrl}` : 'local';
         console.log(`[Sync] Starting full sync (${modeLabel})`);
@@ -126,62 +153,68 @@ class SyncManager {
         };
 
         try {
-            // 1. Upload pending data
+            // 1. Refresh license token
+            this.syncProgress.step = 'تجديد الترخيص...';
+            this.updateProgressUI();
+            await this.refreshLicenseToken();
+            this.syncProgress.done = 1;
+
+            // 2. Upload pending data
             this.syncProgress.step = 'رفع البيانات المعلقة...';
             this.updateProgressUI();
             const uploadResult = await this.uploadPendingData();
             syncResult.invoices_uploaded = uploadResult.invoices;
             syncResult.customers_uploaded = uploadResult.customers;
             if (uploadResult.errors.length) syncResult.errors.push(...uploadResult.errors);
-            this.syncProgress.done = 1;
+            this.syncProgress.done = 2;
 
-            // 2. Download branches
+            // 3. Download branches
             this.syncProgress.step = 'تحديث الفروع...';
             this.updateProgressUI();
             syncResult.branches = await this.downloadBranches();
-            this.syncProgress.done = 2;
+            this.syncProgress.done = 3;
 
-            // 3. Download products
+            // 4. Download products
             this.syncProgress.step = 'تحديث المنتجات...';
             this.updateProgressUI();
             syncResult.products = await this.downloadProducts();
-            this.syncProgress.done = 3;
+            this.syncProgress.done = 4;
 
-            // 4. Download customers
+            // 5. Download customers
             this.syncProgress.step = 'تحديث العملاء...';
             this.updateProgressUI();
             syncResult.customers = await this.downloadCustomers();
-            this.syncProgress.done = 4;
+            this.syncProgress.done = 5;
 
-            // 5. Download invoices
+            // 6. Download invoices
             this.syncProgress.step = 'تحديث الفواتير...';
             this.updateProgressUI();
             syncResult.invoices = await this.downloadInvoices();
-            this.syncProgress.done = 5;
+            this.syncProgress.done = 6;
 
-            // 6. Download settings
+            // 7. Download settings
             this.syncProgress.step = 'تحديث الإعدادات...';
             this.updateProgressUI();
             syncResult.settings = await this.downloadSettings();
-            this.syncProgress.done = 6;
+            this.syncProgress.done = 7;
 
-            // 7. Download categories
+            // 8. Download categories
             this.syncProgress.step = 'تحديث الفئات...';
             this.updateProgressUI();
             syncResult.categories = await this.downloadCategories();
-            this.syncProgress.done = 7;
+            this.syncProgress.done = 8;
 
-            // 8. Download returns
+            // 9. Download returns
             this.syncProgress.step = 'تحديث المرتجعات...';
             this.updateProgressUI();
             syncResult.returns = await this.downloadReturns();
-            this.syncProgress.done = 8;
+            this.syncProgress.done = 9;
 
-            // 9. Download expenses
+            // 10. Download expenses
             this.syncProgress.step = 'تحديث المصروفات...';
             this.updateProgressUI();
             syncResult.expenses = await this.downloadExpenses();
-            this.syncProgress.done = 9;
+            this.syncProgress.done = 10;
 
             // Save sync time
             this.lastSync = new Date();

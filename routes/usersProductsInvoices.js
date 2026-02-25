@@ -4,9 +4,81 @@
  */
 
 const { fetchFromFlask } = require('./proxyToFlask');
+const jwt = require('jsonwebtoken');
+
+const LICENSE_SECRET = process.env.POS_LICENSE_SECRET || 'pos-offline-license-secret-v1';
+const LICENSE_GRACE_DAYS = 7;
 
 module.exports = function (app, helpers) {
   const { getDb, getMasterDb, hashPassword, getFlaskServerUrl } = helpers;
+
+  // === License helpers ===
+
+  /**
+   * Read and validate license_token from tenant's settings table.
+   * Returns decoded payload or null if invalid/missing.
+   */
+  function validateLicenseToken(db) {
+    let tokenStr = null;
+    try {
+      const row = db.prepare("SELECT value FROM settings WHERE key = 'license_token'").get();
+      if (!row || !row.value) return null;
+      tokenStr = row.value;
+      return jwt.verify(tokenStr, LICENSE_SECRET, { issuer: 'pos-offline-flask' });
+    } catch (e) {
+      // Token expired or invalid signature
+      if (e.name === 'TokenExpiredError' && tokenStr) {
+        try {
+          return { _expired: true, ...jwt.decode(tokenStr) };
+        } catch (_) {}
+      }
+      return null;
+    }
+  }
+
+  /**
+   * Try to fetch a fresh license token from Flask server and store it.
+   * Returns the decoded token payload or null on failure.
+   */
+  async function refreshLicenseToken(db, tenantSlug) {
+    const flaskUrl = getFlaskServerUrl();
+    if (!flaskUrl || !tenantSlug) return null;
+    try {
+      const result = await fetchFromFlask(flaskUrl, `/api/license/refresh-token`, 'GET', null, { 'X-Tenant-ID': tenantSlug });
+      if (result.ok && result.data && result.data.success && result.data.token) {
+        try {
+          db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('license_token', ?)").run(result.data.token);
+        } catch (_) {}
+        return jwt.verify(result.data.token, LICENSE_SECRET, { issuer: 'pos-offline-flask' });
+      }
+    } catch (e) {
+      console.warn('[License] Failed to refresh token:', e.message);
+    }
+    return null;
+  }
+
+  // === License refresh endpoint ===
+  app.get('/api/license/refresh-token', async (req, res) => {
+    try {
+      const tenantSlug = req.headers['x-tenant-id'];
+      if (!tenantSlug) {
+        return res.status(400).json({ success: false, error: 'لا يوجد معرف مستأجر' });
+      }
+      const db = getDb(req);
+      const decoded = await refreshLicenseToken(db, tenantSlug);
+      if (decoded) {
+        return res.json({ success: true, token: db.prepare("SELECT value FROM settings WHERE key = 'license_token'").get()?.value, decoded });
+      }
+      // Flask unreachable — return cached token if available
+      const cached = db.prepare("SELECT value FROM settings WHERE key = 'license_token'").get();
+      if (cached && cached.value) {
+        return res.json({ success: true, token: cached.value, cached: true });
+      }
+      return res.status(503).json({ success: false, error: 'تعذر الاتصال بالخادم لتجديد الترخيص' });
+    } catch (e) {
+      return res.status(500).json({ success: false, error: e.message });
+    }
+  });
 
   // Helper: ensure new permission columns exist on users table
   function ensureUserPermissionColumns(db) {
@@ -56,6 +128,13 @@ module.exports = function (app, helpers) {
               return res.status(403).json({ success: false, error: '⛔ هذا المتجر معطل. تواصل مع إدارة النظام' });
             }
           }
+          // If Flask reachable, also refresh license token
+          if (result.ok) {
+            try {
+              const tDb = getDb(req);
+              await refreshLicenseToken(tDb, tenantSlug);
+            } catch (_) {}
+          }
           // If Flask unreachable (result.ok === false), allow login to proceed (offline-first)
         } else {
           // No Flask URL configured — fallback to local master.db
@@ -84,6 +163,33 @@ module.exports = function (app, helpers) {
             // Local master.db unavailable — allow login to proceed (offline-first)
             console.warn('[Login] Could not check tenant status locally:', masterErr.message);
           }
+        }
+
+        // License token check for offline enforcement
+        try {
+          const tDb = getDb(req);
+          const license = validateLicenseToken(tDb);
+          if (license) {
+            if (license._expired) {
+              // Token expired — try to refresh
+              const refreshed = await refreshLicenseToken(tDb, tenantSlug);
+              if (!refreshed) {
+                return res.status(403).json({
+                  success: false,
+                  error: '⛔ انتهت صلاحية الترخيص. يرجى الاتصال بالخادم الرئيسي لتجديد الترخيص.',
+                  license_expired: true
+                });
+              }
+            } else if (!license.is_active) {
+              return res.status(403).json({
+                success: false,
+                error: '⛔ هذا المتجر معطل. تواصل مع إدارة النظام'
+              });
+            }
+          }
+          // If no token exists (first use), allow login (offline-first)
+        } catch (licErr) {
+          console.warn('[Login] License check error:', licErr.message);
         }
       }
 
@@ -153,6 +259,23 @@ module.exports = function (app, helpers) {
     try {
       const data = req.body;
       const db = getDb(req);
+
+      // License enforcement: check max_users via JWT token
+      const tenantSlug = req.headers['x-tenant-id'];
+      if (tenantSlug) {
+        const license = validateLicenseToken(db);
+        if (license && !license._expired) {
+          const maxUsers = license.max_users || 999;
+          const activeCount = db.prepare('SELECT COUNT(*) as c FROM users WHERE is_active = 1').get().c;
+          if (activeCount >= maxUsers) {
+            return res.status(403).json({
+              success: false,
+              error: `تم الوصول للحد الأقصى من المستخدمين (${maxUsers}). قم بترقية الاشتراك لإضافة المزيد.`
+            });
+          }
+        }
+      }
+
       ensureUserPermissionColumns(db);
 
       const result = db.prepare(`
@@ -579,6 +702,23 @@ module.exports = function (app, helpers) {
     try {
       const data = req.body;
       const db = getDb(req);
+
+      // License enforcement: check max_branches via JWT token
+      const tenantSlug = req.headers['x-tenant-id'];
+      if (tenantSlug) {
+        const license = validateLicenseToken(db);
+        if (license && !license._expired) {
+          const maxBranches = license.max_branches || 999;
+          const activeCount = db.prepare('SELECT COUNT(*) as c FROM branches WHERE is_active = 1').get().c;
+          if (activeCount >= maxBranches) {
+            return res.status(403).json({
+              success: false,
+              error: `تم الوصول للحد الأقصى من الفروع (${maxBranches}). قم بترقية الاشتراك لإضافة المزيد.`
+            });
+          }
+        }
+      }
+
       const result = db.prepare('INSERT INTO branches (name, location, phone) VALUES (?, ?, ?)').run(
         data.name, data.location || '', data.phone || ''
       );

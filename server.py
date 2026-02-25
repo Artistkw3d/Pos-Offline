@@ -20,8 +20,13 @@ from datetime import datetime, timedelta
 import json
 import re
 import hashlib
+import jwt
 
 app = Flask(__name__, static_folder='frontend')
+
+# === License enforcement constants ===
+LICENSE_SECRET = os.environ.get('POS_LICENSE_SECRET', 'pos-offline-license-secret-v1')
+LICENSE_GRACE_DAYS = 7
 CORS(app)
 
 # إعدادات قواعد البيانات
@@ -2099,6 +2104,27 @@ def ensure_user_permission_columns(cursor):
 def add_user():
     """إضافة مستخدم جديد"""
     try:
+        # License enforcement: check max_users
+        tenant_slug = get_tenant_slug()
+        if tenant_slug:
+            try:
+                m_conn = get_master_db()
+                m_cursor = m_conn.cursor()
+                m_cursor.execute('SELECT max_users FROM tenants WHERE slug = ?', (tenant_slug,))
+                t_row = m_cursor.fetchone()
+                m_conn.close()
+                if t_row:
+                    max_users = t_row['max_users'] or 999
+                    conn_check = get_db()
+                    cur_check = conn_check.cursor()
+                    cur_check.execute('SELECT COUNT(*) as c FROM users WHERE is_active = 1')
+                    active_count = cur_check.fetchone()['c']
+                    conn_check.close()
+                    if active_count >= max_users:
+                        return jsonify({'success': False, 'error': f'تم الوصول للحد الأقصى من المستخدمين ({max_users}). قم بترقية الاشتراك لإضافة المزيد.'}), 403
+            except Exception:
+                pass  # If master.db unavailable, allow (offline-first)
+
         data = request.json
         conn = get_db()
         cursor = conn.cursor()
@@ -3775,6 +3801,27 @@ def get_branches():
 def add_branch():
     """إضافة فرع جديد"""
     try:
+        # License enforcement: check max_branches
+        tenant_slug = get_tenant_slug()
+        if tenant_slug:
+            try:
+                m_conn = get_master_db()
+                m_cursor = m_conn.cursor()
+                m_cursor.execute('SELECT max_branches FROM tenants WHERE slug = ?', (tenant_slug,))
+                t_row = m_cursor.fetchone()
+                m_conn.close()
+                if t_row:
+                    max_branches = t_row['max_branches'] or 999
+                    conn_check = get_db()
+                    cur_check = conn_check.cursor()
+                    cur_check.execute('SELECT COUNT(*) as c FROM branches WHERE is_active = 1')
+                    active_count = cur_check.fetchone()['c']
+                    conn_check.close()
+                    if active_count >= max_branches:
+                        return jsonify({'success': False, 'error': f'تم الوصول للحد الأقصى من الفروع ({max_branches}). قم بترقية الاشتراك لإضافة المزيد.'}), 403
+            except Exception:
+                pass  # If master.db unavailable, allow (offline-first)
+
         data = request.json
         conn = get_db()
         cursor = conn.cursor()
@@ -5006,6 +5053,110 @@ def super_admin_login():
                 }
             })
         return jsonify({'success': False, 'error': 'بيانات الدخول غير صحيحة'}), 401
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+# ===== License Token Endpoints =====
+
+@app.route('/api/tenant/check-status', methods=['GET'])
+def check_tenant_status():
+    """التحقق من حالة اشتراك المستأجر"""
+    try:
+        slug = request.args.get('slug', '').strip()
+        if not slug:
+            return jsonify({'success': False, 'error': 'slug مطلوب'}), 400
+        conn = get_master_db()
+        cursor = conn.cursor()
+        cursor.execute('SELECT is_active, expires_at, name FROM tenants WHERE slug = ?', (slug,))
+        tenant = cursor.fetchone()
+        conn.close()
+        if not tenant:
+            return jsonify({'success': False, 'error': 'معرف المتجر غير صحيح'}), 404
+        t = dict_from_row(tenant)
+        # Auto-deactivate expired tenants
+        if t['is_active'] and t['expires_at']:
+            from datetime import date
+            expiry = date.fromisoformat(t['expires_at'][:10])
+            if date.today() > expiry:
+                conn2 = get_master_db()
+                conn2.cursor().execute('UPDATE tenants SET is_active = 0 WHERE slug = ?', (slug,))
+                conn2.commit()
+                conn2.close()
+                t['is_active'] = 0
+        return jsonify({'success': True, 'is_active': t['is_active'], 'expires_at': t['expires_at'], 'name': t['name']})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/license/token', methods=['GET'])
+def generate_license_token():
+    """إنشاء رمز ترخيص JWT للمستأجر"""
+    try:
+        slug = request.args.get('slug', '').strip()
+        if not slug:
+            return jsonify({'success': False, 'error': 'slug مطلوب'}), 400
+        conn = get_master_db()
+        cursor = conn.cursor()
+        cursor.execute('SELECT * FROM tenants WHERE slug = ?', (slug,))
+        tenant = cursor.fetchone()
+        conn.close()
+        if not tenant:
+            return jsonify({'success': False, 'error': 'المستأجر غير موجود'}), 404
+        t = dict_from_row(tenant)
+        now = int(time.time())
+        payload = {
+            'sub': slug,
+            'max_branches': t.get('max_branches', 3),
+            'max_users': t.get('max_users', 5),
+            'is_active': t.get('is_active', 1),
+            'plan': t.get('plan', 'basic'),
+            'tenant_expires_at': t.get('expires_at', ''),
+            'iat': now,
+            'exp': now + (LICENSE_GRACE_DAYS * 86400),
+            'iss': 'pos-offline-flask'
+        }
+        token = jwt.encode(payload, LICENSE_SECRET, algorithm='HS256')
+        return jsonify({'success': True, 'token': token})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/license/refresh-token', methods=['GET'])
+def refresh_license_token():
+    """تجديد رمز الترخيص للمستأجر الحالي وحفظه في إعداداته"""
+    try:
+        slug = get_tenant_slug()
+        if not slug:
+            return jsonify({'success': False, 'error': 'لا يوجد معرف مستأجر'}), 400
+        conn = get_master_db()
+        cursor = conn.cursor()
+        cursor.execute('SELECT * FROM tenants WHERE slug = ?', (slug,))
+        tenant = cursor.fetchone()
+        conn.close()
+        if not tenant:
+            return jsonify({'success': False, 'error': 'المستأجر غير موجود'}), 404
+        t = dict_from_row(tenant)
+        now = int(time.time())
+        payload = {
+            'sub': slug,
+            'max_branches': t.get('max_branches', 3),
+            'max_users': t.get('max_users', 5),
+            'is_active': t.get('is_active', 1),
+            'plan': t.get('plan', 'basic'),
+            'tenant_expires_at': t.get('expires_at', ''),
+            'iat': now,
+            'exp': now + (LICENSE_GRACE_DAYS * 86400),
+            'iss': 'pos-offline-flask'
+        }
+        token = jwt.encode(payload, LICENSE_SECRET, algorithm='HS256')
+        # Store token in tenant's settings table
+        try:
+            tenant_db = get_db()
+            tc = tenant_db.cursor()
+            tc.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('license_token', ?)", (token,))
+            tenant_db.commit()
+            tenant_db.close()
+        except Exception:
+            pass
+        return jsonify({'success': True, 'token': token})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 

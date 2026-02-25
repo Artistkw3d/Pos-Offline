@@ -51,7 +51,84 @@ setInterval(async () => {
             }
         }
     }
+    // Check license grace period
+    if (typeof checkLicenseGracePeriod === 'function') {
+        try { checkLicenseGracePeriod(); } catch(e) {}
+    }
 }, 5000);
+
+// === License grace period check ===
+function checkLicenseGracePeriod() {
+    const banner = document.getElementById('licenseWarningBanner');
+    const text = document.getElementById('licenseWarningText');
+    if (!banner || !text) return;
+
+    const tenantSlug = localStorage.getItem('pos_tenant_slug') || '';
+    if (!tenantSlug) {
+        banner.style.display = 'none';
+        return;
+    }
+
+    const expStr = localStorage.getItem('pos_license_exp');
+    if (!expStr) {
+        // No token yet (first use) - no warning
+        banner.style.display = 'none';
+        return;
+    }
+
+    const exp = parseInt(expStr, 10);
+    if (!exp || isNaN(exp)) {
+        banner.style.display = 'none';
+        return;
+    }
+
+    const now = Math.floor(Date.now() / 1000);
+    const remaining = exp - now;
+    const daysLeft = remaining / 86400;
+
+    if (remaining <= 0) {
+        // Token expired
+        banner.style.display = 'block';
+        banner.style.background = '#e74c3c';
+        banner.style.color = '#fff';
+        text.textContent = '⛔ انتهت صلاحية الترخيص! يرجى الاتصال بالخادم الرئيسي لتجديد الترخيص.';
+    } else if (daysLeft <= 2) {
+        // Warning: less than 2 days left
+        banner.style.display = 'block';
+        banner.style.background = '#f39c12';
+        banner.style.color = '#333';
+        const hours = Math.floor(remaining / 3600);
+        text.textContent = `⚠ ينتهي الترخيص خلال ${hours} ساعة. يرجى الاتصال بالخادم لتجديد الترخيص.`;
+    } else {
+        banner.style.display = 'none';
+    }
+}
+
+async function forceLicenseRefresh() {
+    const banner = document.getElementById('licenseWarningBanner');
+    const text = document.getElementById('licenseWarningText');
+    if (text) text.textContent = 'جاري تجديد الترخيص...';
+    try {
+        const resp = await fetch(`${API_URL}/api/license/refresh-token`);
+        if (resp.ok) {
+            const data = await resp.json();
+            if (data.success && data.token) {
+                try {
+                    const parts = data.token.split('.');
+                    const payload = JSON.parse(atob(parts[1]));
+                    localStorage.setItem('pos_license_exp', String(payload.exp || ''));
+                    localStorage.setItem('pos_license_iat', String(payload.iat || ''));
+                    localStorage.setItem('pos_license_active', String(payload.is_active));
+                } catch (_) {}
+                checkLicenseGracePeriod();
+                return;
+            }
+        }
+        if (text) text.textContent = '⛔ فشل تجديد الترخيص. تأكد من الاتصال بالخادم.';
+    } catch (e) {
+        if (text) text.textContent = '⛔ فشل تجديد الترخيص. تأكد من الاتصال بالخادم.';
+    }
+}
 
 let currentUser = null;
 let cart = [];
@@ -336,6 +413,9 @@ async function initializeUI() {
         syncManager.start(); // uses saved interval from localStorage
     }
 
+    // فحص صلاحية الترخيص
+    checkLicenseGracePeriod();
+
     console.log('[App] User restored from localStorage ✅');
 }
 
@@ -538,6 +618,9 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
 
             // تشغيل فاحص قفل الشفت
             startShiftLockChecker();
+
+            // فحص صلاحية الترخيص
+            checkLicenseGracePeriod();
         } else {
             alert(data.error || 'فشل تسجيل الدخول');
         }

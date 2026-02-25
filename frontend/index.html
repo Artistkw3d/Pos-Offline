@@ -14,6 +14,12 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 </head>
 <body>
+    <!-- License Warning Banner -->
+    <div id="licenseWarningBanner" style="display:none; position:fixed; top:0; left:0; right:0; z-index:99998; padding:10px 20px; text-align:center; font-size:14px; font-weight:bold; direction:rtl; cursor:pointer;" onclick="forceLicenseRefresh()">
+        <span id="licenseWarningText"></span>
+        <button onclick="event.stopPropagation(); forceLicenseRefresh();" style="margin-right:15px; padding:4px 16px; border:none; border-radius:4px; cursor:pointer; font-size:13px; background:#fff; color:#333;">تجديد الترخيص</button>
+    </div>
+
     <!-- Shift Lock Overlay -->
     <div id="shiftLockOverlay" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.85); z-index:99999; justify-content:center; align-items:center; flex-direction:column;">
         <div style="text-align:center; color:#fff; padding:40px;">
