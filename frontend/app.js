@@ -322,6 +322,20 @@ function skipServerSetup() {
     document.getElementById('loginOverlay').style.display = '';
 }
 
+function openServerSetup() {
+    const setupOverlay = document.getElementById('serverSetupOverlay');
+    const loginOverlay = document.getElementById('loginOverlay');
+    const urlInput = document.getElementById('setupServerUrl');
+    if (setupOverlay) {
+        // Pre-fill with current saved URL
+        const savedUrl = localStorage.getItem('pos_sync_server_url') || localStorage.getItem('pos_server_url') || '';
+        if (urlInput && savedUrl) urlInput.value = savedUrl;
+        document.getElementById('setupTestResult').innerHTML = '';
+        setupOverlay.style.display = '';
+        if (loginOverlay) loginOverlay.style.display = 'none';
+    }
+}
+
 // استعادة المستخدم من localStorage
 function restoreUser() {
     const savedUser = localStorage.getItem('pos_current_user');
