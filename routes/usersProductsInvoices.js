@@ -7,10 +7,13 @@ const { fetchFromFlask } = require('./proxyToFlask');
 const jwt = require('jsonwebtoken');
 
 const LICENSE_SECRET = process.env.POS_LICENSE_SECRET || 'pos-offline-license-secret-v1';
+if (LICENSE_SECRET === 'pos-offline-license-secret-v1' && !process.env.POS_ALLOW_DEFAULT_SECRET) {
+  console.warn('WARNING: Using default LICENSE_SECRET. Set POS_LICENSE_SECRET environment variable for production security.');
+}
 const LICENSE_GRACE_DAYS = 7;
 
 module.exports = function (app, helpers) {
-  const { getDb, getMasterDb, hashPassword, getFlaskServerUrl } = helpers;
+  const { getDb, getMasterDb, hashPassword, verifyPassword, needsRehash, getFlaskServerUrl } = helpers;
 
   // === License helpers ===
 
@@ -196,7 +199,6 @@ module.exports = function (app, helpers) {
       const db = getDb(req);
       ensureUserPermissionColumns(db);
 
-      const hashedPw = hashPassword(password);
       const user = db.prepare(`
         SELECT u.*, b.name as branch_name
         FROM users u
@@ -206,9 +208,11 @@ module.exports = function (app, helpers) {
 
       if (user) {
         const storedPw = user.password;
-        if (storedPw === hashedPw || storedPw === password) {
-          if (storedPw === password && storedPw !== hashedPw) {
-            db.prepare('UPDATE users SET password = ? WHERE id = ?').run(hashedPw, user.id);
+        if (verifyPassword(password, storedPw) || storedPw === password) {
+          // Upgrade old hash (SHA-256 or plaintext) to PBKDF2
+          if (needsRehash(storedPw) || storedPw === password) {
+            const newHash = hashPassword(password);
+            db.prepare('UPDATE users SET password = ? WHERE id = ?').run(newHash, user.id);
           }
           db.prepare('UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = ?').run(user.id);
           const userData = { ...user };
