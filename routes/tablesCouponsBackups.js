@@ -702,11 +702,31 @@ module.exports = function(app, helpers) {
 
   // --- 10 pure proxy routes: forward entirely to Flask server ---
 
-  // POST /api/super-admin/login
+  // POST /api/super-admin/login (local-first, fallback to Flask)
   app.post('/api/super-admin/login', async (req, res) => {
-    const flaskUrl = getFlaskServerUrl();
-    if (!flaskUrl) return res.status(503).json({ success: false, error: 'لم يتم تعيين عنوان الخادم الرئيسي' });
-    await proxyToFlask(flaskUrl, '/api/super-admin/login', req, res);
+    try {
+      const { username, password } = req.body;
+      // Try local master.db first
+      try {
+        const masterDb = getMasterDb();
+        const admin = masterDb.prepare('SELECT * FROM super_admins WHERE username = ?').get(username);
+        if (admin && verifyPassword(password, admin.password)) {
+          const adminData = { id: admin.id, username: admin.username, full_name: admin.full_name };
+          const token = helpers.generateAuthToken(adminData, '', true);
+          return res.json({ success: true, admin: adminData, token });
+        }
+      } catch (localErr) {
+        console.warn('[SuperAdmin] Local master.db check failed:', localErr.message);
+      }
+      // Fallback to Flask server
+      const flaskUrl = getFlaskServerUrl();
+      if (flaskUrl) {
+        return await proxyToFlask(flaskUrl, '/api/super-admin/login', req, res);
+      }
+      return res.status(401).json({ success: false, error: 'اسم المستخدم أو كلمة المرور غير صحيحة' });
+    } catch (e) {
+      return res.status(500).json({ success: false, error: e.message });
+    }
   });
 
   // GET /api/super-admin/tenants
