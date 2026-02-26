@@ -7,7 +7,7 @@ const { proxyToFlask, fetchFromFlask } = require('./proxyToFlask');
 
 // These will be set from helpers when module.exports is called
 let DB_PATH, TENANTS_DB_DIR, BACKUPS_DIR;
-let getDb, getMasterDb, hashPassword, getBackupDir, createBackupFile, createTenantDatabase, upload;
+let getDb, getMasterDb, hashPassword, verifyPassword, needsRehash, getBackupDir, createBackupFile, createTenantDatabase, upload;
 let getFlaskServerUrl;
 
 // ===== Google Drive Constants =====
@@ -272,6 +272,8 @@ module.exports = function(app, helpers) {
   getDb = helpers.getDb;
   getMasterDb = helpers.getMasterDb;
   hashPassword = helpers.hashPassword;
+  verifyPassword = helpers.verifyPassword;
+  needsRehash = helpers.needsRehash;
   getBackupDir = helpers.getBackupDir;
   createBackupFile = helpers.createBackupFile;
   createTenantDatabase = helpers.createTenantDatabase;

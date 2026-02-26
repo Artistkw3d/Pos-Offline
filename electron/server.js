@@ -28,7 +28,33 @@ let upload = null; // Initialized in startServer() after directories are created
 // ===== Helper Functions =====
 
 function hashPassword(password) {
-  return crypto.createHash('sha256').update(password, 'utf8').digest('hex');
+  // PBKDF2 with random salt (secure)
+  const salt = crypto.randomBytes(16).toString('hex');
+  const iterations = 260000;
+  const hash = crypto.pbkdf2Sync(password, salt, iterations, 32, 'sha256').toString('hex');
+  return `pbkdf2:sha256:${iterations}$${salt}$${hash}`;
+}
+
+function verifyPassword(password, storedHash) {
+  if (!storedHash) return false;
+  // Old format: plain SHA-256 (64 hex chars)
+  if (storedHash.length === 64 && /^[0-9a-f]{64}$/.test(storedHash)) {
+    return crypto.createHash('sha256').update(password, 'utf8').digest('hex') === storedHash;
+  }
+  // New format: pbkdf2:sha256:iterations$salt$hash
+  const match = storedHash.match(/^pbkdf2:sha256:(\d+)\$([^$]+)\$([0-9a-f]+)$/);
+  if (match) {
+    const [, iterations, salt, expectedHash] = match;
+    const hash = crypto.pbkdf2Sync(password, salt, parseInt(iterations, 10), 32, 'sha256').toString('hex');
+    return hash === expectedHash;
+  }
+  // Plaintext fallback (legacy)
+  return storedHash === password;
+}
+
+function needsRehash(storedHash) {
+  if (!storedHash) return false;
+  return storedHash.length === 64 && /^[0-9a-f]{64}$/.test(storedHash);
 }
 
 function getTenantSlug(req) {
@@ -254,7 +280,7 @@ function startServer(options = {}) {
 
   // Shared helpers context for route modules
   const helpers = {
-    getDb, getMasterDb, hashPassword, logAction,
+    getDb, getMasterDb, hashPassword, verifyPassword, needsRehash, logAction,
     createBackupFile, getBackupDir, createTenantDatabase, migrateDatabase,
     getTenantSlug, getTenantDbPath, getFlaskServerUrl,
     DB_PATH, MASTER_DB_PATH, TENANTS_DB_DIR, BACKUPS_DIR, FRONTEND_DIR,

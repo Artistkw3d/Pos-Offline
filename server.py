@@ -21,11 +21,18 @@ import json
 import re
 import hashlib
 import jwt
+from werkzeug.security import generate_password_hash, check_password_hash
 
 app = Flask(__name__, static_folder='frontend')
 
 # === License enforcement constants ===
 LICENSE_SECRET = os.environ.get('POS_LICENSE_SECRET', 'pos-offline-license-secret-v1')
+if LICENSE_SECRET == 'pos-offline-license-secret-v1' and not os.environ.get('POS_ALLOW_DEFAULT_SECRET'):
+    import warnings
+    warnings.warn(
+        "WARNING: Using default LICENSE_SECRET. Set POS_LICENSE_SECRET environment variable for production security.",
+        stacklevel=1
+    )
 LICENSE_GRACE_DAYS = 7
 CORS(app)
 
@@ -44,8 +51,25 @@ os.makedirs(BACKUPS_DIR, exist_ok=True)
 # ===== نظام Multi-Tenancy =====
 
 def hash_password(password):
-    """تشفير كلمة المرور"""
-    return hashlib.sha256(password.encode('utf-8')).hexdigest()
+    """تشفير كلمة المرور باستخدام PBKDF2 (آمن)"""
+    return generate_password_hash(password, method='pbkdf2:sha256', salt_length=16)
+
+def verify_password(password, stored_hash):
+    """التحقق من كلمة المرور - يدعم الهاش القديم (SHA-256) والجديد (PBKDF2)"""
+    if not stored_hash:
+        return False
+    # الهاش القديم: SHA-256 بطول 64 حرف hex
+    if len(stored_hash) == 64 and all(c in '0123456789abcdef' for c in stored_hash):
+        return hashlib.sha256(password.encode('utf-8')).hexdigest() == stored_hash
+    # الهاش الجديد: PBKDF2
+    return check_password_hash(stored_hash, password)
+
+def needs_rehash(stored_hash):
+    """هل كلمة المرور بحاجة لإعادة تشفير؟"""
+    if not stored_hash:
+        return False
+    # SHA-256 القديم = 64 hex chars
+    return len(stored_hash) == 64 and all(c in '0123456789abcdef' for c in stored_hash)
 
 def init_master_db():
     """إنشاء قاعدة البيانات الرئيسية للمستأجرين"""
@@ -2038,7 +2062,6 @@ def login():
         ensure_user_permission_columns(cursor)
         conn.commit()
 
-        hashed_pw = hash_password(password)
         cursor.execute('''
             SELECT u.*, b.name as branch_name
             FROM users u
@@ -2050,11 +2073,12 @@ def login():
 
         if user:
             stored_pw = user['password']
-            # دعم كلمات المرور القديمة (نص عادي) والجديدة (مشفرة)
-            if stored_pw == hashed_pw or stored_pw == password:
-                # ترقية كلمة المرور القديمة إلى مشفرة تلقائياً
-                if stored_pw == password and stored_pw != hashed_pw:
-                    cursor.execute('UPDATE users SET password = ? WHERE id = ?', (hashed_pw, user['id']))
+            # دعم كلمات المرور القديمة (نص عادي + SHA-256) والجديدة (PBKDF2)
+            if verify_password(password, stored_pw) or stored_pw == password:
+                # ترقية كلمة المرور القديمة إلى PBKDF2 تلقائياً
+                if needs_rehash(stored_pw) or stored_pw == password:
+                    new_hash = hash_password(password)
+                    cursor.execute('UPDATE users SET password = ? WHERE id = ?', (new_hash, user['id']))
                 # تحديث وقت آخر دخول
                 cursor.execute('UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = ?', (user['id'],))
                 conn.commit()
@@ -5038,11 +5062,15 @@ def super_admin_login():
         password = data.get('password', '')
         conn = get_master_db()
         cursor = conn.cursor()
-        cursor.execute('SELECT * FROM super_admins WHERE username = ? AND password = ?',
-                       (username, hash_password(password)))
+        cursor.execute('SELECT * FROM super_admins WHERE username = ?', (username,))
         admin = cursor.fetchone()
-        conn.close()
-        if admin:
+        if admin and verify_password(password, admin['password']):
+            # ترقية الهاش القديم إلى PBKDF2 تلقائياً
+            if needs_rehash(admin['password']):
+                cursor.execute('UPDATE super_admins SET password = ? WHERE id = ?',
+                               (hash_password(password), admin['id']))
+                conn.commit()
+            conn.close()
             return jsonify({
                 'success': True,
                 'admin': {
@@ -5052,6 +5080,7 @@ def super_admin_login():
                     'role': 'super_admin'
                 }
             })
+        conn.close()
         return jsonify({'success': False, 'error': 'بيانات الدخول غير صحيحة'}), 401
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
@@ -5437,10 +5466,9 @@ def super_admin_change_password():
         new_full_name = data.get('new_full_name', '').strip()
         conn = get_master_db()
         cursor = conn.cursor()
-        cursor.execute('SELECT * FROM super_admins WHERE id = ? AND password = ?',
-                       (admin_id, hash_password(old_password)))
+        cursor.execute('SELECT * FROM super_admins WHERE id = ?', (admin_id,))
         admin = cursor.fetchone()
-        if not admin:
+        if not admin or not verify_password(old_password, admin['password']):
             conn.close()
             return jsonify({'success': False, 'error': 'كلمة المرور القديمة غير صحيحة'}), 400
 
