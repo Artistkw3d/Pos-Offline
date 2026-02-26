@@ -19,13 +19,6 @@ COPY database/ ./database/
 # إنشاء مجلد للنسخ الاحتياطية
 RUN mkdir -p /app/database/backups
 
-# Create a non-root user and assign ownership
-RUN addgroup --system appgroup && adduser --system --ingroup appgroup appuser \
-    && chown -R appuser:appgroup /app
-
-# Switch to non-root user
-USER appuser
-
 # فتح المنفذ 5000
 EXPOSE 5000
 
