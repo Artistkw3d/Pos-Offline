@@ -776,16 +776,25 @@ module.exports = function(app, helpers) {
         return { ...t, users_count: usersCount, invoices_count: invoicesCount };
       });
     } catch (_) {}
-    // 3) Merge: remote tenants + local-only tenants
+    // 3) Merge: remote tenants + local-only tenants (tag source)
+    const localSlugs = new Set(localTenants.map(t => t.slug));
     if (remoteTenants) {
       const remoteSlugs = new Set(remoteTenants.map(t => t.slug));
-      const localOnly = localTenants.filter(t => !remoteSlugs.has(t.slug));
-      const merged = [...remoteTenants, ...localOnly];
+      // Tag remote tenants: "both" if also local, "remote" if remote-only
+      const taggedRemote = remoteTenants.map(t => ({
+        ...t,
+        source: localSlugs.has(t.slug) ? 'both' : 'remote'
+      }));
+      // Local-only tenants not on remote
+      const localOnly = localTenants
+        .filter(t => !remoteSlugs.has(t.slug))
+        .map(t => ({ ...t, source: 'local' }));
+      const merged = [...taggedRemote, ...localOnly];
       return res.json({ success: true, tenants: merged });
     }
     // 4) Offline fallback: local only
     if (localTenants.length > 0) {
-      return res.json({ success: true, tenants: localTenants });
+      return res.json({ success: true, tenants: localTenants.map(t => ({ ...t, source: 'local' })) });
     }
     return res.status(503).json({ success: false, error: 'لا يمكن قراءة بيانات المتاجر' });
   });

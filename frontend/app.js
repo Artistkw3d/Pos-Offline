@@ -8997,6 +8997,15 @@ async function loadSuperAdminDashboard() {
         } else {
             tenants.forEach((t, i) => {
                 const planNames = {'basic': 'أساسية', 'premium': 'متقدمة', 'enterprise': 'مؤسسات'};
+                // Source badge (local / remote / both)
+                let sourceBadge = '';
+                if (t.source === 'remote') {
+                    sourceBadge = '<span style="background: #fef3c7; color: #92400e; padding: 2px 6px; border-radius: 4px; font-size: 10px; margin-right: 5px;" title="سيرفر فقط - البيانات غير متوفرة محلياً">☁️ سيرفر</span>';
+                } else if (t.source === 'local') {
+                    sourceBadge = '<span style="background: #dbeafe; color: #1e40af; padding: 2px 6px; border-radius: 4px; font-size: 10px; margin-right: 5px;" title="محلي فقط - غير موجود بالسيرفر">💻 محلي</span>';
+                } else if (t.source === 'both') {
+                    sourceBadge = '<span style="background: #d1fae5; color: #065f46; padding: 2px 6px; border-radius: 4px; font-size: 10px; margin-right: 5px;" title="متزامن - موجود محلياً وبالسيرفر">🔗 متزامن</span>';
+                }
                 // حالة الاشتراك
                 let subStatus = '';
                 if (t.expires_at) {
@@ -9018,7 +9027,7 @@ async function loadSuperAdminDashboard() {
                 tableHTML += `
                     <tr style="border-bottom: 1px solid #f1f5f9;">
                         <td style="padding: 10px;">${i + 1}</td>
-                        <td style="padding: 10px; font-weight: bold;">${escHTML(t.name)}</td>
+                        <td style="padding: 10px; font-weight: bold;">${escHTML(t.name)} ${sourceBadge}</td>
                         <td style="padding: 10px; direction: ltr; color: #64748b;">${escHTML(t.slug)}</td>
                         <td style="padding: 10px;">${escHTML(t.owner_name)}</td>
                         <td style="padding: 10px;"><span style="background: ${t.plan === 'enterprise' ? '#fef3c7' : t.plan === 'premium' ? '#dbeafe' : '#f1f5f9'}; padding: 3px 8px; border-radius: 6px; font-size: 11px;">${planNames[t.plan] || t.plan}</span></td>
