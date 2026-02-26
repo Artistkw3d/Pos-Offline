@@ -78,9 +78,13 @@ def generate_auth_token(user_data, tenant_slug='', is_super_admin=False):
     return jwt.encode(payload, get_auth_secret(), algorithm='HS256')
 
 # Routes that don't require authentication
+# /api/settings GET is public (sensitive keys already filtered)
+# /api/sync/status is public (health check, no sensitive data)
+# /api/products GET is public (needed for POS operation, read-only)
 PUBLIC_ROUTES = {
     '/api/login', '/api/super-admin/login', '/api/version',
-    '/api/tenant/check-status', '/api/license/verify'
+    '/api/tenant/check-status', '/api/license/verify',
+    '/api/sync/status', '/api/products', '/api/settings'
 }
 
 # Rate limiting for login endpoints

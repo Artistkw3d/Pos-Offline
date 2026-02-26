@@ -34,7 +34,7 @@ jobs:
       - name: Verify server starts
         run: |
           timeout 10 python -c "
-          import sys
+          import sys, json
           sys.path.insert(0, '.')
           from server import app
           client = app.test_client()
@@ -43,38 +43,54 @@ jobs:
           r = client.get('/')
           assert r.status_code == 200, f'Index failed: {r.status_code}'
 
-          # اختبار API الإعدادات
+          # اختبار الإصدار (public)
+          r = client.get('/api/version')
+          assert r.status_code == 200, f'Version failed: {r.status_code}'
+
+          # اختبار API الإعدادات (public, filtered)
           r = client.get('/api/settings')
           assert r.status_code == 200, f'Settings failed: {r.status_code}'
 
-          # اختبار Sync API
+          # اختبار Sync API (public)
           r = client.get('/api/sync/status')
           assert r.status_code == 200, f'Sync status failed: {r.status_code}'
           data = r.get_json()
           assert data['success'] == True, 'Sync status not successful'
 
-          # اختبار تحميل البيانات
-          r = client.get('/api/sync/download?branch_id=1')
-          assert r.status_code == 200, f'Sync download failed: {r.status_code}'
-
-          # اختبار التحميل الكامل
-          r = client.get('/api/sync/full-download?branch_id=1')
-          assert r.status_code == 200, f'Full download failed: {r.status_code}'
-
-          # اختبار رفع المزامنة
-          import json
-          r = client.post('/api/sync/upload',
-              data=json.dumps({'invoices': [], 'customers': []}),
-              content_type='application/json')
-          assert r.status_code == 200, f'Sync upload failed: {r.status_code}'
-
-          # اختبار المنتجات
+          # اختبار المنتجات (public)
           r = client.get('/api/products')
           assert r.status_code == 200, f'Products failed: {r.status_code}'
 
-          # اختبار الإصدار
-          r = client.get('/api/version')
-          assert r.status_code == 200, f'Version failed: {r.status_code}'
+          # Create test admin user and login for protected routes
+          import sqlite3
+          from werkzeug.security import generate_password_hash
+          conn = sqlite3.connect('database/pos.db')
+          c = conn.cursor()
+          c.execute('INSERT OR IGNORE INTO users (username, password, full_name, role, invoice_prefix, is_active, branch_id) VALUES (?, ?, ?, ?, ?, 1, 1)',
+              ('testadmin', generate_password_hash('testpass123', method='pbkdf2:sha256', salt_length=16), 'Test Admin', 'admin', 'TST'))
+          conn.commit()
+          conn.close()
+          r = client.post('/api/login',
+              data=json.dumps({'username': 'testadmin', 'password': 'testpass123'}),
+              content_type='application/json')
+          assert r.status_code == 200, f'Login failed: {r.status_code}'
+          token = r.get_json().get('token', '')
+          auth = {'Authorization': f'Bearer {token}'}
+
+          # اختبار تحميل البيانات (protected)
+          r = client.get('/api/sync/download?branch_id=1', headers=auth)
+          assert r.status_code == 200, f'Sync download failed: {r.status_code}'
+
+          # اختبار التحميل الكامل (protected)
+          r = client.get('/api/sync/full-download?branch_id=1', headers=auth)
+          assert r.status_code == 200, f'Full download failed: {r.status_code}'
+
+          # اختبار رفع المزامنة (protected)
+          r = client.post('/api/sync/upload',
+              data=json.dumps({'invoices': [], 'customers': []}),
+              content_type='application/json',
+              headers=auth)
+          assert r.status_code == 200, f'Sync upload failed: {r.status_code}'
 
           print('All server tests passed!')
           " || true

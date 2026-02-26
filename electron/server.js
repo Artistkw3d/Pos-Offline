@@ -273,7 +273,8 @@ function checkRateLimit(ip, endpoint) {
 
 const PUBLIC_ROUTES = new Set([
   '/api/login', '/api/super-admin/login', '/api/version',
-  '/api/tenant/check-status', '/api/license/verify'
+  '/api/tenant/check-status', '/api/license/verify',
+  '/api/sync/status', '/api/products', '/api/settings'
 ]);
 
 function authMiddleware(req, res, next) {
