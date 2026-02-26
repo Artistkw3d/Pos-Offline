@@ -19,8 +19,19 @@ COPY database/ ./database/
 # إنشاء مجلد للنسخ الاحتياطية
 RUN mkdir -p /app/database/backups
 
+# Create a non-root user and assign ownership
+RUN addgroup --system appgroup && adduser --system --ingroup appgroup appuser \
+    && chown -R appuser:appgroup /app
+
+# Switch to non-root user
+USER appuser
+
 # فتح المنفذ 5000
 EXPOSE 5000
 
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:5000/api/version')" || exit 1
+
 # تهيئة قاعدة البيانات ثم تشغيل الخادم
-CMD ["sh", "-c", "python setup_database.py && python server.py"]
+CMD ["sh", "-c", "python setup_database.py && gunicorn --bind 0.0.0.0:5000 --workers 2 --timeout 120 server:app"]
