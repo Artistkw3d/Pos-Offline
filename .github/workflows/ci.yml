@@ -61,9 +61,19 @@ jobs:
           r = client.get('/api/products')
           assert r.status_code == 200, f'Products failed: {r.status_code}'
 
-          # Create test admin user and login for protected routes
-          import sqlite3
+          # Create test tenant and admin user for protected routes
+          import sqlite3, os
           from werkzeug.security import generate_password_hash
+
+          # Create test tenant in master.db
+          master_conn = sqlite3.connect('database/master.db')
+          mc = master_conn.cursor()
+          mc.execute('INSERT OR IGNORE INTO tenants (name, slug, owner_name, db_path, is_active) VALUES (?, ?, ?, ?, 1)',
+              ('Test Store', 'test', 'Test Owner', 'database/pos.db'))
+          master_conn.commit()
+          master_conn.close()
+
+          # Create test admin user in tenant DB
           conn = sqlite3.connect('database/pos.db')
           c = conn.cursor()
           c.execute('INSERT OR IGNORE INTO users (username, password, full_name, role, invoice_prefix, is_active, branch_id) VALUES (?, ?, ?, ?, ?, 1, 1)',
@@ -72,10 +82,12 @@ jobs:
           conn.close()
           r = client.post('/api/login',
               data=json.dumps({'username': 'testadmin', 'password': 'testpass123'}),
-              content_type='application/json')
+              content_type='application/json',
+              headers={'X-Tenant-ID': 'test'})
           assert r.status_code == 200, f'Login failed: {r.status_code}'
-          token = r.get_json().get('token', '')
-          auth = {'Authorization': f'Bearer {token}'}
+          login_data = r.get_json()
+          token = login_data.get('token', '')
+          auth = {'Authorization': f'Bearer {token}', 'X-Tenant-ID': 'test'}
 
           # اختبار تحميل البيانات (protected)
           r = client.get('/api/sync/download?branch_id=1', headers=auth)

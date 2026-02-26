@@ -110,8 +110,11 @@ module.exports = function (app, helpers) {
       const username = data.username;
       const password = data.password;
 
-      // Check tenant subscription via Flask server (remote master.db)
+      // Check tenant subscription — tenant ID is required
       const tenantSlug = req.headers['x-tenant-id'];
+      if (!tenantSlug) {
+        return res.status(400).json({ success: false, error: 'معرف المتجر مطلوب' });
+      }
       if (tenantSlug) {
         const flaskUrl = getFlaskServerUrl();
         if (flaskUrl) {
@@ -220,7 +223,28 @@ module.exports = function (app, helpers) {
           db.close();
           // Generate auth token
           const token = helpers.generateAuthToken(userData, tenantSlug || '');
-          return res.json({ success: true, user: userData, token });
+          // Build offline license data from master.db
+          let licenseData = null;
+          if (tenantSlug) {
+            try {
+              const masterDb = getMasterDb();
+              const tRow = masterDb.prepare('SELECT is_active, expires_at, plan, max_users, max_branches FROM tenants WHERE slug = ?').get(tenantSlug);
+              if (tRow) {
+                const now = Math.floor(Date.now() / 1000);
+                licenseData = {
+                  sub: tenantSlug,
+                  is_active: tRow.is_active,
+                  plan: tRow.plan || 'basic',
+                  max_users: tRow.max_users || 5,
+                  max_branches: tRow.max_branches || 3,
+                  expires_at: tRow.expires_at || '',
+                  iat: now,
+                  exp: now + (7 * 86400),
+                };
+              }
+            } catch (_) {}
+          }
+          return res.json({ success: true, user: userData, token, license: licenseData });
         }
       }
       db.close();

@@ -2204,8 +2204,10 @@ def login():
         username = data.get('username')
         password = data.get('password')
 
-        # التحقق من اشتراك المستأجر
+        # التحقق من معرف المتجر - مطلوب
         tenant_slug = get_tenant_slug()
+        if not tenant_slug:
+            return jsonify({'success': False, 'error': 'معرف المتجر مطلوب'}), 400
         if tenant_slug:
             m_conn = get_master_db()
             m_cursor = m_conn.cursor()
@@ -2261,7 +2263,31 @@ def login():
                 # Generate auth token
                 tenant_slug = request.headers.get('X-Tenant-ID', '')
                 token = generate_auth_token(user_data, tenant_slug=tenant_slug)
-                return jsonify({'success': True, 'user': user_data, 'token': token})
+                # Build offline license data
+                license_data = None
+                if tenant_slug:
+                    try:
+                        m_conn = get_master_db()
+                        m_cur = m_conn.cursor()
+                        m_cur.execute('SELECT is_active, expires_at, plan, max_users, max_branches FROM tenants WHERE slug = ?', (tenant_slug,))
+                        t_row = m_cur.fetchone()
+                        m_conn.close()
+                        if t_row:
+                            t_info = dict_from_row(t_row)
+                            now = int(time.time())
+                            license_data = {
+                                'sub': tenant_slug,
+                                'is_active': t_info.get('is_active', 1),
+                                'plan': t_info.get('plan', 'basic'),
+                                'max_users': t_info.get('max_users', 5),
+                                'max_branches': t_info.get('max_branches', 3),
+                                'expires_at': t_info.get('expires_at', ''),
+                                'iat': now,
+                                'exp': now + (LICENSE_GRACE_DAYS * 86400),
+                            }
+                    except Exception:
+                        pass
+                return jsonify({'success': True, 'user': user_data, 'token': token, 'license': license_data})
 
         conn.close()
         return jsonify({'success': False, 'error': 'اسم المستخدم أو كلمة المرور غير صحيحة'}), 401

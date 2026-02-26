@@ -80,6 +80,16 @@ function checkLicenseGracePeriod() {
         return;
     }
 
+    // Check offline license active flag
+    const licenseActive = localStorage.getItem('pos_license_active');
+    if (licenseActive === '0') {
+        banner.style.display = 'block';
+        banner.style.background = '#e74c3c';
+        banner.style.color = '#fff';
+        text.textContent = '⛔ هذا المتجر معطل. تواصل مع إدارة النظام لتفعيل الاشتراك.';
+        return;
+    }
+
     const expStr = localStorage.getItem('pos_license_exp');
     if (!expStr) {
         // No token yet (first use) - no warning
@@ -518,8 +528,12 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
         }
 
         // === دخول عادي ===
-        // حفظ المستأجر المختار
-        const selectedTenant = document.getElementById('loginTenantSlug')?.value || '';
+        // حفظ المستأجر المختار - مطلوب
+        const selectedTenant = (document.getElementById('loginTenantSlug')?.value || '').trim();
+        if (!selectedTenant) {
+            alert('معرف المتجر مطلوب');
+            return;
+        }
         currentTenantSlug = selectedTenant;
         localStorage.setItem('pos_tenant_slug', selectedTenant);
 
@@ -538,6 +552,14 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
             // حفظ التوكن والمستخدم في localStorage
             if (data.token) localStorage.setItem('pos_auth_token', data.token);
             localStorage.setItem('pos_current_user', JSON.stringify(data.user));
+
+            // حفظ بيانات الترخيص للعمل بدون اتصال
+            if (data.license) {
+                localStorage.setItem('pos_offline_license', JSON.stringify(data.license));
+                if (data.license.exp) localStorage.setItem('pos_license_exp', String(data.license.exp));
+                if (data.license.iat) localStorage.setItem('pos_license_iat', String(data.license.iat));
+                localStorage.setItem('pos_license_active', String(data.license.is_active ? 1 : 0));
+            }
             
             document.getElementById('loginOverlay').classList.add('hidden');
             document.getElementById('mainContainer').style.display = 'block';
