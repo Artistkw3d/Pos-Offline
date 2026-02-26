@@ -155,19 +155,46 @@ let storeLogo = null;
 let currentTenantSlug = localStorage.getItem('pos_tenant_slug') || '';
 let currentSuperAdmin = null;
 
-// إعادة تعريف fetch لإضافة هيدر المستأجر تلقائياً
+// إعادة تعريف fetch لإضافة هيدر المستأجر + التوثيق تلقائياً
 const originalFetch = window.fetch;
 window.fetch = function(url, options = {}) {
-    if (currentTenantSlug && typeof url === 'string' && url.includes('/api/')) {
+    if (typeof url === 'string' && url.includes('/api/')) {
         options.headers = options.headers || {};
         if (options.headers instanceof Headers) {
-            options.headers.set('X-Tenant-ID', currentTenantSlug);
+            if (currentTenantSlug) options.headers.set('X-Tenant-ID', currentTenantSlug);
+            const authToken = localStorage.getItem('pos_auth_token');
+            if (authToken) options.headers.set('Authorization', 'Bearer ' + authToken);
         } else {
-            options.headers['X-Tenant-ID'] = currentTenantSlug;
+            if (currentTenantSlug) options.headers['X-Tenant-ID'] = currentTenantSlug;
+            const authToken = localStorage.getItem('pos_auth_token');
+            if (authToken) options.headers['Authorization'] = 'Bearer ' + authToken;
         }
     }
-    return originalFetch.call(this, url, options);
+    return originalFetch.call(this, url, options).then(response => {
+        // Handle 401 - redirect to login
+        if (response.status === 401 && typeof url === 'string' && url.includes('/api/') && !url.includes('/api/login')) {
+            localStorage.removeItem('pos_auth_token');
+            localStorage.removeItem('pos_current_user');
+            localStorage.removeItem('pos_super_admin');
+            if (currentUser || currentSuperAdmin) {
+                currentUser = null;
+                currentSuperAdmin = null;
+                document.getElementById('loginOverlay').classList.remove('hidden');
+                document.getElementById('mainContainer').style.display = 'none';
+                document.getElementById('superAdminDashboard').style.display = 'none';
+            }
+        }
+        return response;
+    });
 };
+
+// Helper for authenticated API calls (adds auth token to originalFetch)
+function authFetch(url, options = {}) {
+    options.headers = options.headers || {};
+    const authToken = localStorage.getItem('pos_auth_token');
+    if (authToken) options.headers['Authorization'] = 'Bearer ' + authToken;
+    return originalFetch(url, options);
+}
 
 // استعادة معرف المتجر في حقل الإدخال عند فتح الصفحة
 (function() {
@@ -476,6 +503,7 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
             const data = await response.json();
             if (data.success) {
                 currentSuperAdmin = data.admin;
+                if (data.token) localStorage.setItem('pos_auth_token', data.token);
                 localStorage.setItem('pos_super_admin', JSON.stringify(data.admin));
                 document.getElementById('loginOverlay').classList.add('hidden');
                 document.getElementById('mainContainer').style.display = 'none';
@@ -507,7 +535,8 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
         if (data.success) {
             currentUser = data.user;
 
-            // حفظ المستخدم في localStorage
+            // حفظ التوكن والمستخدم في localStorage
+            if (data.token) localStorage.setItem('pos_auth_token', data.token);
             localStorage.setItem('pos_current_user', JSON.stringify(data.user));
             
             document.getElementById('loginOverlay').classList.add('hidden');
@@ -689,8 +718,9 @@ async function logout() {
                 localStorage.removeItem(key);
             }
         });
-        // مسح بيانات المستخدم المحفوظة
+        // مسح بيانات المستخدم والتوكن المحفوظة
         localStorage.removeItem('pos_current_user');
+        localStorage.removeItem('pos_auth_token');
         localStorage.removeItem('pos_tenant_slug');
         currentTenantSlug = '';
     } catch (e) {}
@@ -1584,7 +1614,7 @@ async function completeSale() {
                 // تنبيه المخزون المنخفض
                 if (data.low_stock_warnings && data.low_stock_warnings.length > 0) {
                     const warningLines = data.low_stock_warnings.map(w =>
-                        `• ${w.product_name}: متبقي ${w.stock} فقط`
+                        `• ${escHTML(w.product_name)}: متبقي ${w.stock} فقط`
                     ).join('<br>');
                     setTimeout(() => showWarning(warningLines, 8000), 1500);
                 }
@@ -3388,7 +3418,7 @@ async function loadAttendanceLog() {
                 
                 html += `
                     <tr style="background: ${checkOut ? '#f0fff4' : '#fff5f5'};">
-                        <td><strong>${r.user_name}</strong></td>
+                        <td><strong>${escHTML(r.user_name)}</strong></td>
                         <td>🏢 ${branchName}</td>
                         <td>${dateStr}</td>
                         <td>${statusIcon} ${checkInTime}</td>
@@ -8803,6 +8833,7 @@ console.log('[Tables] Restaurant Tables System Loaded ✅');
 function logoutSuperAdmin() {
     currentSuperAdmin = null;
     localStorage.removeItem('pos_super_admin');
+    localStorage.removeItem('pos_auth_token');
     document.getElementById('superAdminDashboard').style.display = 'none';
     document.getElementById('loginOverlay').classList.remove('hidden');
 }
@@ -8839,7 +8870,7 @@ document.getElementById('superAdminSettingsForm')?.addEventListener('submit', as
     }
 
     try {
-        const response = await originalFetch(`${API_URL}/api/super-admin/change-password`, {
+        const response = await authFetch(`${API_URL}/api/super-admin/change-password`, {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({
@@ -8868,7 +8899,7 @@ document.getElementById('superAdminSettingsForm')?.addEventListener('submit', as
 
 async function loadSuperAdminDashboard() {
     try {
-        const response = await originalFetch(`${API_URL}/api/super-admin/tenants`);
+        const response = await authFetch(`${API_URL}/api/super-admin/tenants`);
         const data = await response.json();
         if (!data.success) return;
 
@@ -9001,7 +9032,7 @@ function showAddTenant() {
 
 async function editTenant(tenantId) {
     try {
-        const response = await originalFetch(`${API_URL}/api/super-admin/tenants/${tenantId}/stats`);
+        const response = await authFetch(`${API_URL}/api/super-admin/tenants/${tenantId}/stats`);
         const data = await response.json();
         if (!data.success) return;
         const t = data.tenant;
@@ -9031,7 +9062,7 @@ document.getElementById('tenantForm')?.addEventListener('submit', async (e) => {
     try {
         if (editingTenantId) {
             // تحديث
-            const response = await originalFetch(`${API_URL}/api/super-admin/tenants/${editingTenantId}`, {
+            const response = await authFetch(`${API_URL}/api/super-admin/tenants/${editingTenantId}`, {
                 method: 'PUT',
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({
@@ -9055,7 +9086,7 @@ document.getElementById('tenantForm')?.addEventListener('submit', async (e) => {
             }
         } else {
             // إنشاء جديد
-            const response = await originalFetch(`${API_URL}/api/super-admin/tenants`, {
+            const response = await authFetch(`${API_URL}/api/super-admin/tenants`, {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({
@@ -9091,7 +9122,7 @@ document.getElementById('tenantForm')?.addEventListener('submit', async (e) => {
 
 async function toggleTenant(tenantId, newState) {
     try {
-        const response = await originalFetch(`${API_URL}/api/super-admin/tenants/${tenantId}`, {
+        const response = await authFetch(`${API_URL}/api/super-admin/tenants/${tenantId}`, {
             method: 'PUT',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({ is_active: newState })
@@ -9109,7 +9140,7 @@ async function toggleTenant(tenantId, newState) {
 async function superAdminBackupTenant(tenantId, tenantName) {
     if (!confirm(`هل تريد إنشاء نسخة احتياطية لمتجر "${tenantName}"؟`)) return;
     try {
-        const response = await originalFetch(`${API_URL}/api/super-admin/backup/tenant/${tenantId}`, { method: 'POST' });
+        const response = await authFetch(`${API_URL}/api/super-admin/backup/tenant/${tenantId}`, { method: 'POST' });
         const data = await response.json();
         if (data.success) {
             const size = (data.backup.size / 1024).toFixed(1);
@@ -9134,7 +9165,7 @@ async function superAdminBackupAll() {
     btn.disabled = true;
 
     try {
-        const response = await originalFetch(`${API_URL}/api/super-admin/backup/all`, { method: 'POST' });
+        const response = await authFetch(`${API_URL}/api/super-admin/backup/all`, { method: 'POST' });
         const data = await response.json();
         if (data.success) {
             let msg = `تم إنشاء ${data.total} نسخة احتياطية بنجاح`;
@@ -9164,7 +9195,7 @@ async function deleteTenantAction(tenantId, tenantName) {
     if (!confirm('تأكيد نهائي: هذا الإجراء لا يمكن التراجع عنه!')) return;
 
     try {
-        const response = await originalFetch(`${API_URL}/api/super-admin/tenants/${tenantId}`, { method: 'DELETE' });
+        const response = await authFetch(`${API_URL}/api/super-admin/tenants/${tenantId}`, { method: 'DELETE' });
         const data = await response.json();
         if (data.success) {
             alert('تم حذف المتجر');
@@ -9179,7 +9210,7 @@ async function deleteTenantAction(tenantId, tenantName) {
 
 async function viewTenantStats(tenantId) {
     try {
-        const response = await originalFetch(`${API_URL}/api/super-admin/tenants/${tenantId}/stats`);
+        const response = await authFetch(`${API_URL}/api/super-admin/tenants/${tenantId}/stats`);
         const data = await response.json();
         if (!data.success) return;
 
@@ -9247,7 +9278,7 @@ async function openSubscriptionModal(tenantId) {
 
     try {
         // جلب بيانات المستأجر
-        const statsRes = await originalFetch(`${API_URL}/api/super-admin/tenants/${tenantId}/stats`);
+        const statsRes = await authFetch(`${API_URL}/api/super-admin/tenants/${tenantId}/stats`);
         const statsData = await statsRes.json();
 
         if (!statsData.success) return;
@@ -9299,7 +9330,7 @@ async function openSubscriptionModal(tenantId) {
         document.getElementById('subscriptionModalTitle').textContent = `💳 اشتراك: ${t.name}`;
 
         // جلب فواتير الاشتراك
-        const invRes = await originalFetch(`${API_URL}/api/super-admin/subscriptions/${tenantId}`);
+        const invRes = await authFetch(`${API_URL}/api/super-admin/subscriptions/${tenantId}`);
         const invData = await invRes.json();
 
         let invHTML = '';
@@ -9354,7 +9385,7 @@ document.getElementById('subscriptionForm')?.addEventListener('submit', async (e
     }
 
     try {
-        const response = await originalFetch(`${API_URL}/api/super-admin/subscriptions`, {
+        const response = await authFetch(`${API_URL}/api/super-admin/subscriptions`, {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({ tenant_id: tenantId, amount, period_days: periodDays, payment_method: paymentMethod, notes })
@@ -9376,7 +9407,7 @@ document.getElementById('subscriptionForm')?.addEventListener('submit', async (e
 async function deleteSubInvoice(invoiceId, tenantId) {
     if (!confirm('هل تريد حذف هذه الفاتورة؟')) return;
     try {
-        const response = await originalFetch(`${API_URL}/api/super-admin/subscriptions/${invoiceId}`, { method: 'DELETE' });
+        const response = await authFetch(`${API_URL}/api/super-admin/subscriptions/${invoiceId}`, { method: 'DELETE' });
         const data = await response.json();
         if (data.success) {
             openSubscriptionModal(tenantId);

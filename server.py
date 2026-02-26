@@ -20,7 +20,10 @@ from datetime import datetime, timedelta
 import json
 import re
 import hashlib
+import secrets
+import html
 import jwt
+from functools import wraps
 from werkzeug.security import generate_password_hash, check_password_hash
 
 app = Flask(__name__, static_folder='frontend')
@@ -34,7 +37,167 @@ if LICENSE_SECRET == 'pos-offline-license-secret-v1' and not os.environ.get('POS
         stacklevel=1
     )
 LICENSE_GRACE_DAYS = 7
-CORS(app)
+
+# === Auth secret for JWT tokens (separate from license secret) ===
+AUTH_SECRET = os.environ.get('POS_AUTH_SECRET', '')
+
+def get_auth_secret():
+    """Get or generate auth secret for JWT auth tokens"""
+    global AUTH_SECRET
+    if AUTH_SECRET:
+        return AUTH_SECRET
+    # Try to load from default DB settings
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        cursor.execute("SELECT value FROM settings WHERE key = 'auth_secret'")
+        row = cursor.fetchone()
+        if row:
+            AUTH_SECRET = row['value']
+        else:
+            AUTH_SECRET = secrets.token_hex(32)
+            cursor.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('auth_secret', ?)", (AUTH_SECRET,))
+            conn.commit()
+        conn.close()
+    except Exception:
+        AUTH_SECRET = secrets.token_hex(32)
+    return AUTH_SECRET
+
+def generate_auth_token(user_data, tenant_slug='', is_super_admin=False):
+    """Generate JWT auth token for authenticated user"""
+    payload = {
+        'user_id': user_data.get('id', 0),
+        'username': user_data.get('username', ''),
+        'role': 'super_admin' if is_super_admin else user_data.get('role', 'user'),
+        'tenant': tenant_slug,
+        'is_super_admin': is_super_admin,
+        'exp': datetime.utcnow() + timedelta(hours=24),
+        'iat': datetime.utcnow()
+    }
+    return jwt.encode(payload, get_auth_secret(), algorithm='HS256')
+
+# Routes that don't require authentication
+PUBLIC_ROUTES = {
+    '/api/login', '/api/super-admin/login', '/api/version',
+    '/api/tenant/check-status', '/api/license/verify'
+}
+
+# Rate limiting for login endpoints
+_login_attempts = {}  # {ip: [(timestamp, ...),]}
+LOGIN_RATE_LIMIT = 5  # max attempts
+LOGIN_RATE_WINDOW = 60  # seconds
+
+def check_rate_limit(ip, endpoint):
+    """Check if IP has exceeded login rate limit"""
+    key = f"{ip}:{endpoint}"
+    now = time.time()
+    attempts = _login_attempts.get(key, [])
+    # Clean old attempts
+    attempts = [t for t in attempts if now - t < LOGIN_RATE_WINDOW]
+    _login_attempts[key] = attempts
+    if len(attempts) >= LOGIN_RATE_LIMIT:
+        return False
+    attempts.append(now)
+    _login_attempts[key] = attempts
+    return True
+
+@app.before_request
+def auth_middleware():
+    """Check JWT auth token on all /api/* routes except public ones"""
+    # Skip non-API routes (frontend static files)
+    if not request.path.startswith('/api/'):
+        return None
+    # Skip CORS preflight
+    if request.method == 'OPTIONS':
+        return None
+    # Skip public routes
+    if request.path in PUBLIC_ROUTES:
+        return None
+    # Rate limit on login routes
+    if request.path in ('/api/login', '/api/super-admin/login'):
+        if not check_rate_limit(request.remote_addr, request.path):
+            return jsonify({'success': False, 'error': 'Too many login attempts. Try again later.'}), 429
+        return None
+
+    # Extract and validate token
+    auth_header = request.headers.get('Authorization', '')
+    token = auth_header.replace('Bearer ', '') if auth_header.startswith('Bearer ') else ''
+    if not token:
+        return jsonify({'success': False, 'error': 'Authentication required'}), 401
+    try:
+        payload = jwt.decode(token, get_auth_secret(), algorithms=['HS256'])
+        request.current_user = payload
+        # Enforce tenant binding: non-super-admin can only access their own tenant
+        if not payload.get('is_super_admin'):
+            req_tenant = request.headers.get('X-Tenant-ID', '')
+            token_tenant = payload.get('tenant', '')
+            if token_tenant and req_tenant and req_tenant != token_tenant:
+                return jsonify({'success': False, 'error': 'Tenant access denied'}), 403
+        # Super admin route protection
+        if request.path.startswith('/api/super-admin/') and not payload.get('is_super_admin'):
+            return jsonify({'success': False, 'error': 'Super admin access required'}), 403
+    except jwt.ExpiredSignatureError:
+        return jsonify({'success': False, 'error': 'Token expired'}), 401
+    except jwt.InvalidTokenError:
+        return jsonify({'success': False, 'error': 'Invalid token'}), 401
+    return None
+
+def require_permission(permission):
+    """Decorator to check server-side permission for the current user"""
+    def decorator(f):
+        @wraps(f)
+        def decorated(*args, **kwargs):
+            user = getattr(request, 'current_user', None)
+            if not user:
+                return jsonify({'success': False, 'error': 'Authentication required'}), 401
+            # Super admin and admin bypass permission checks
+            if user.get('is_super_admin') or user.get('role') == 'admin':
+                return f(*args, **kwargs)
+            # Check specific permission from DB
+            try:
+                conn = get_db()
+                cursor = conn.cursor()
+                cursor.execute(f'SELECT {permission} FROM users WHERE id = ?', (user.get('user_id'),))
+                row = cursor.fetchone()
+                conn.close()
+                if row and row[permission] == 1:
+                    return f(*args, **kwargs)
+            except Exception:
+                pass
+            return jsonify({'success': False, 'error': 'Permission denied'}), 403
+        return decorated
+    return decorator
+
+def require_admin():
+    """Decorator to require admin or super_admin role"""
+    def decorator(f):
+        @wraps(f)
+        def decorated(*args, **kwargs):
+            user = getattr(request, 'current_user', None)
+            if not user:
+                return jsonify({'success': False, 'error': 'Authentication required'}), 401
+            if user.get('is_super_admin') or user.get('role') == 'admin':
+                return f(*args, **kwargs)
+            return jsonify({'success': False, 'error': 'Admin access required'}), 403
+        return decorated
+    return decorator
+
+# === CORS configuration ===
+ALLOWED_ORIGINS = os.environ.get('POS_CORS_ORIGINS', '').split(',') if os.environ.get('POS_CORS_ORIGINS') else []
+if ALLOWED_ORIGINS and ALLOWED_ORIGINS[0]:
+    CORS(app, origins=ALLOWED_ORIGINS, supports_credentials=True)
+else:
+    # Development mode: allow all (warn in logs)
+    CORS(app)
+
+@app.after_request
+def add_security_headers(response):
+    """Add security headers to all responses"""
+    response.headers['Content-Security-Policy'] = "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' *"
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    response.headers['X-Frame-Options'] = 'SAMEORIGIN'
+    return response
 
 # إعدادات قواعد البيانات
 _base_db_dir = os.path.dirname(os.environ['DB_PATH']) if os.environ.get('DB_PATH') else 'database'
@@ -49,6 +212,14 @@ BACKUPS_DIR = 'database/backups'
 os.makedirs(BACKUPS_DIR, exist_ok=True)
 
 # ===== نظام Multi-Tenancy =====
+
+MIN_PASSWORD_LENGTH = 8
+
+def validate_password_strength(password):
+    """Check password meets minimum requirements"""
+    if not password or len(password) < MIN_PASSWORD_LENGTH:
+        return False, f'Password must be at least {MIN_PASSWORD_LENGTH} characters'
+    return True, ''
 
 def hash_password(password):
     """تشفير كلمة المرور باستخدام PBKDF2 (آمن)"""
@@ -2074,9 +2245,9 @@ def login():
         if user:
             stored_pw = user['password']
             # دعم كلمات المرور القديمة (نص عادي + SHA-256) والجديدة (PBKDF2)
-            if verify_password(password, stored_pw) or stored_pw == password:
+            if verify_password(password, stored_pw):
                 # ترقية كلمة المرور القديمة إلى PBKDF2 تلقائياً
-                if needs_rehash(stored_pw) or stored_pw == password:
+                if needs_rehash(stored_pw):
                     new_hash = hash_password(password)
                     cursor.execute('UPDATE users SET password = ? WHERE id = ?', (new_hash, user['id']))
                 # تحديث وقت آخر دخول
@@ -2085,7 +2256,10 @@ def login():
                 conn.close()
                 user_data = dict_from_row(user)
                 user_data.pop('password', None)
-                return jsonify({'success': True, 'user': user_data})
+                # Generate auth token
+                tenant_slug = request.headers.get('X-Tenant-ID', '')
+                token = generate_auth_token(user_data, tenant_slug=tenant_slug)
+                return jsonify({'success': True, 'user': user_data, 'token': token})
 
         conn.close()
         return jsonify({'success': False, 'error': 'اسم المستخدم أو كلمة المرور غير صحيحة'}), 401
@@ -2125,6 +2299,7 @@ def ensure_user_permission_columns(cursor):
             pass
 
 @app.route('/api/users', methods=['POST'])
+@require_admin()
 def add_user():
     """إضافة مستخدم جديد"""
     try:
@@ -2150,6 +2325,13 @@ def add_user():
                 pass  # If master.db unavailable, allow (offline-first)
 
         data = request.json
+
+        # Password complexity check
+        pw = data.get('password', '')
+        valid, msg = validate_password_strength(pw)
+        if not valid:
+            return jsonify({'success': False, 'error': msg}), 400
+
         conn = get_db()
         cursor = conn.cursor()
 
@@ -2393,6 +2575,7 @@ def update_user(user_id):
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/users/<int:user_id>', methods=['DELETE'])
+@require_admin()
 def delete_user(user_id):
     """حذف مستخدم"""
     try:
@@ -3037,6 +3220,7 @@ def get_invoice(invoice_id):
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/invoices/clear-all', methods=['DELETE'])
+@require_admin()
 def clear_all_invoices():
     """حذف جميع الفواتير (Admin فقط)"""
     try:
@@ -3062,9 +3246,24 @@ def create_invoice():
     """إنشاء فاتورة جديدة"""
     try:
         data = request.json
+
+        # Server-side financial validation
+        subtotal = float(data.get('subtotal', 0))
+        discount = float(data.get('discount', 0))
+        total = float(data.get('total', 0))
+        delivery_fee = float(data.get('delivery_fee', 0))
+        if subtotal < 0 or discount < 0 or total < 0 or delivery_fee < 0:
+            return jsonify({'success': False, 'error': 'Invalid financial values: negative amounts not allowed'}), 400
+        if discount > subtotal:
+            return jsonify({'success': False, 'error': 'Discount cannot exceed subtotal'}), 400
+        items = data.get('items', [])
+        for item in items:
+            if float(item.get('price', 0)) < 0 or int(item.get('quantity', 0)) <= 0:
+                return jsonify({'success': False, 'error': 'Invalid item: price must be >= 0 and quantity > 0'}), 400
+
         conn = get_db()
         cursor = conn.cursor()
-        
+
         # الحصول على اسم الفرع
         branch_id = data.get('branch_id', 1)
         cursor.execute('SELECT name FROM branches WHERE id = ?', (branch_id,))
@@ -3787,11 +3986,15 @@ def get_settings():
         cursor.execute('SELECT * FROM settings')
         settings = {row['key']: row['value'] for row in cursor.fetchall()}
         conn.close()
-        return jsonify({'success': True, 'settings': settings})
+        # Filter sensitive keys from response
+        sensitive_prefixes = ('gdrive_access_token', 'gdrive_refresh_token', 'gdrive_client_secret', 'auth_secret', 'license_token')
+        filtered = {k: v for k, v in settings.items() if not k.startswith(sensitive_prefixes)}
+        return jsonify({'success': True, 'settings': filtered})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/settings', methods=['PUT'])
+@require_admin()
 def update_settings():
     """تحديث الإعدادات"""
     try:
@@ -5077,14 +5280,17 @@ def super_admin_login():
                                (hash_password(password), admin['id']))
                 conn.commit()
             conn.close()
+            admin_data = {
+                'id': admin['id'],
+                'username': admin['username'],
+                'full_name': admin['full_name'],
+                'role': 'super_admin'
+            }
+            token = generate_auth_token(admin_data, is_super_admin=True)
             return jsonify({
                 'success': True,
-                'admin': {
-                    'id': admin['id'],
-                    'username': admin['username'],
-                    'full_name': admin['full_name'],
-                    'role': 'super_admin'
-                }
+                'admin': admin_data,
+                'token': token
             })
         conn.close()
         return jsonify({'success': False, 'error': 'بيانات الدخول غير صحيحة'}), 401
@@ -5270,7 +5476,7 @@ def create_tenant():
         t_cursor.execute('''
             INSERT INTO users (username, password, full_name, role, invoice_prefix, is_active, branch_id)
             VALUES (?, ?, ?, 'admin', 'INV', 1, 1)
-        ''', (admin_username, admin_password, owner_name))
+        ''', (admin_username, hash_password(admin_password), owner_name))
         t_conn.commit()
         t_conn.close()
 
@@ -5737,6 +5943,7 @@ def download_backup(filename):
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/backup/delete/<filename>', methods=['DELETE'])
+@require_admin()
 def delete_backup(filename):
     """حذف نسخة احتياطية"""
     try:
@@ -5757,6 +5964,7 @@ def delete_backup(filename):
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/backup/restore', methods=['POST'])
+@require_admin()
 def restore_backup():
     """استعادة نسخة احتياطية"""
     try:
@@ -5967,7 +6175,7 @@ def gdrive_callback():
 <html dir="rtl"><head><meta charset="utf-8"><title>خطأ في ربط Google Drive</title></head>
 <body style="font-family:sans-serif;text-align:center;padding:50px;">
 <h2 style="color:#ef4444;">❌ فشل ربط Google Drive</h2>
-<p>الخطأ: {error}</p>
+<p>الخطأ: {html.escape(error)}</p>
 <p>يمكنك إغلاق هذه النافذة والمحاولة مرة أخرى.</p>
 <script>setTimeout(function(){{ window.close(); }}, 5000);</script>
 </body></html>''', 400
@@ -6001,7 +6209,7 @@ setTimeout(function(){ window.close(); }, 2000);
 <html dir="rtl"><head><meta charset="utf-8"><title>خطأ</title></head>
 <body style="font-family:sans-serif;text-align:center;padding:50px;">
 <h2 style="color:#ef4444;">❌ فشل ربط Google Drive</h2>
-<p>خطأ من Google: {error_body}</p>
+<p>خطأ من Google: {html.escape(error_body)}</p>
 <script>setTimeout(function(){{ window.close(); }}, 8000);</script>
 </body></html>''', 400
     except Exception as e:
@@ -6009,7 +6217,7 @@ setTimeout(function(){ window.close(); }, 2000);
 <html dir="rtl"><head><meta charset="utf-8"><title>خطأ</title></head>
 <body style="font-family:sans-serif;text-align:center;padding:50px;">
 <h2 style="color:#ef4444;">❌ فشل ربط Google Drive</h2>
-<p>{str(e)}</p>
+<p>{html.escape(str(e))}</p>
 <script>setTimeout(function(){{ window.close(); }}, 8000);</script>
 </body></html>''', 400
 

@@ -62,7 +62,7 @@ function createWindow() {
             label: 'النظام',
             submenu: [
                 { label: 'تحديث', accelerator: 'F5', click: () => mainWindow.reload() },
-                { label: 'أدوات المطور', accelerator: 'F12', click: () => mainWindow.webContents.toggleDevTools() },
+                ...(app.isPackaged ? [] : [{ label: 'أدوات المطور', accelerator: 'F12', click: () => mainWindow.webContents.toggleDevTools() }]),
                 { type: 'separator' },
                 { label: 'خروج', accelerator: 'Ctrl+Q', click: () => app.quit() }
             ]
@@ -73,12 +73,12 @@ function createWindow() {
                 {
                     label: 'مزامنة يدوية',
                     accelerator: 'Ctrl+S',
-                    click: () => mainWindow.webContents.executeJavaScript('manualSync()')
+                    click: () => mainWindow.webContents.send('sync-action', 'manual')
                 },
                 {
                     label: 'مزامنة كاملة',
                     accelerator: 'Ctrl+Shift+S',
-                    click: () => mainWindow.webContents.executeJavaScript('fullSync()')
+                    click: () => mainWindow.webContents.send('sync-action', 'full')
                 }
             ]
         }

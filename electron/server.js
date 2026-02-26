@@ -9,6 +9,7 @@ const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
+const jwt = require('jsonwebtoken');
 const Database = require('better-sqlite3');
 const multer = require('multer');
 const { createAllTables, insertDefaultSettings, insertDefaultBranch } = require('../database/schema');
@@ -48,8 +49,8 @@ function verifyPassword(password, storedHash) {
     const hash = crypto.pbkdf2Sync(password, salt, parseInt(iterations, 10), 32, 'sha256').toString('hex');
     return hash === expectedHash;
   }
-  // Plaintext fallback (legacy)
-  return storedHash === password;
+  // No plaintext fallback - removed for security
+  return false;
 }
 
 function needsRehash(storedHash) {
@@ -213,6 +214,109 @@ function migrateDatabase(dbPath) {
   migrateDatabaseModule(Database, dbPath || DB_PATH);
 }
 
+// ===== Auth Helpers =====
+
+const MIN_PASSWORD_LENGTH = 8;
+let _authSecret = '';
+
+function getAuthSecret() {
+  if (_authSecret) return _authSecret;
+  try {
+    const db = new Database(DB_PATH);
+    const row = db.prepare("SELECT value FROM settings WHERE key = 'auth_secret'").get();
+    if (row) {
+      _authSecret = row.value;
+    } else {
+      _authSecret = crypto.randomBytes(32).toString('hex');
+      db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('auth_secret', ?)").run(_authSecret);
+    }
+    db.close();
+  } catch (e) {
+    _authSecret = crypto.randomBytes(32).toString('hex');
+  }
+  return _authSecret;
+}
+
+function generateAuthToken(userData, tenantSlug = '', isSuperAdmin = false) {
+  const payload = {
+    user_id: userData.id || 0,
+    username: userData.username || '',
+    role: isSuperAdmin ? 'super_admin' : (userData.role || 'user'),
+    tenant: tenantSlug,
+    is_super_admin: isSuperAdmin
+  };
+  return jwt.sign(payload, getAuthSecret(), { expiresIn: '24h' });
+}
+
+function validatePasswordStrength(password) {
+  if (!password || password.length < MIN_PASSWORD_LENGTH) {
+    return { valid: false, error: `Password must be at least ${MIN_PASSWORD_LENGTH} characters` };
+  }
+  return { valid: true };
+}
+
+// Rate limiting
+const _loginAttempts = {};
+const LOGIN_RATE_LIMIT = 5;
+const LOGIN_RATE_WINDOW = 60000; // ms
+
+function checkRateLimit(ip, endpoint) {
+  const key = `${ip}:${endpoint}`;
+  const now = Date.now();
+  let attempts = _loginAttempts[key] || [];
+  attempts = attempts.filter(t => now - t < LOGIN_RATE_WINDOW);
+  if (attempts.length >= LOGIN_RATE_LIMIT) return false;
+  attempts.push(now);
+  _loginAttempts[key] = attempts;
+  return true;
+}
+
+const PUBLIC_ROUTES = new Set([
+  '/api/login', '/api/super-admin/login', '/api/version',
+  '/api/tenant/check-status', '/api/license/verify'
+]);
+
+function authMiddleware(req, res, next) {
+  if (!req.path.startsWith('/api/')) return next();
+  if (req.method === 'OPTIONS') return next();
+  if (PUBLIC_ROUTES.has(req.path)) return next();
+
+  // Rate limit login routes
+  if (req.path === '/api/login' || req.path === '/api/super-admin/login') {
+    if (!checkRateLimit(req.ip, req.path)) {
+      return res.status(429).json({ success: false, error: 'Too many login attempts. Try again later.' });
+    }
+    return next();
+  }
+
+  const authHeader = req.headers.authorization || '';
+  const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
+  if (!token) {
+    return res.status(401).json({ success: false, error: 'Authentication required' });
+  }
+  try {
+    const payload = jwt.verify(token, getAuthSecret());
+    req.currentUser = payload;
+    // Tenant binding
+    if (!payload.is_super_admin) {
+      const reqTenant = getTenantSlug(req);
+      if (payload.tenant && reqTenant && reqTenant !== payload.tenant) {
+        return res.status(403).json({ success: false, error: 'Tenant access denied' });
+      }
+    }
+    // Super admin route protection
+    if (req.path.startsWith('/api/super-admin/') && !payload.is_super_admin) {
+      return res.status(403).json({ success: false, error: 'Super admin access required' });
+    }
+    next();
+  } catch (err) {
+    if (err.name === 'TokenExpiredError') {
+      return res.status(401).json({ success: false, error: 'Token expired' });
+    }
+    return res.status(401).json({ success: false, error: 'Invalid token' });
+  }
+}
+
 // ===== Server Setup =====
 
 function startServer(options = {}) {
@@ -274,15 +378,33 @@ function startServer(options = {}) {
 
   // Create Express app
   const app = express();
-  app.use(cors());
+
+  // CORS configuration
+  const allowedOrigins = process.env.POS_CORS_ORIGINS ? process.env.POS_CORS_ORIGINS.split(',') : [];
+  if (allowedOrigins.length > 0 && allowedOrigins[0]) {
+    app.use(cors({ origin: allowedOrigins, credentials: true }));
+  } else {
+    app.use(cors());
+  }
+
   app.use(express.json({ limit: '50mb' }));
   app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+
+  // Auth middleware
+  app.use(authMiddleware);
+
+  // CSP headers
+  app.use((req, res, next) => {
+    res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' *");
+    next();
+  });
 
   // Shared helpers context for route modules
   const helpers = {
     getDb, getMasterDb, hashPassword, verifyPassword, needsRehash, logAction,
     createBackupFile, getBackupDir, createTenantDatabase, migrateDatabase,
     getTenantSlug, getTenantDbPath, getFlaskServerUrl,
+    generateAuthToken, validatePasswordStrength,
     DB_PATH, MASTER_DB_PATH, TENANTS_DB_DIR, BACKUPS_DIR, FRONTEND_DIR,
     upload, Database
   };
@@ -314,8 +436,9 @@ function startServer(options = {}) {
   // ===== Catch-all: serve frontend static files =====
   app.use(express.static(FRONTEND_DIR));
   app.get('*', (req, res) => {
-    const filePath = path.join(FRONTEND_DIR, req.path);
-    if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
+    const filePath = path.resolve(path.join(FRONTEND_DIR, req.path));
+    // Path traversal protection: ensure resolved path stays within FRONTEND_DIR
+    if (filePath.startsWith(path.resolve(FRONTEND_DIR)) && fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
       res.sendFile(filePath);
     } else {
       res.sendFile(path.join(FRONTEND_DIR, 'index.html'));

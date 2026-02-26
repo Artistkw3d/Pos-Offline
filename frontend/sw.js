@@ -2,7 +2,7 @@
 // Service Worker - PWA + Offline Support
 // ========================================
 
-const CACHE_NAME = 'pos-cache-v51';
+const CACHE_NAME = 'pos-cache-v52';
 const STATIC_CACHE = 'pos-static-v40';
 
 // الملفات الأساسية

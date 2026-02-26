@@ -208,9 +208,9 @@ module.exports = function (app, helpers) {
 
       if (user) {
         const storedPw = user.password;
-        if (verifyPassword(password, storedPw) || storedPw === password) {
-          // Upgrade old hash (SHA-256 or plaintext) to PBKDF2
-          if (needsRehash(storedPw) || storedPw === password) {
+        if (verifyPassword(password, storedPw)) {
+          // Upgrade old hash (SHA-256) to PBKDF2
+          if (needsRehash(storedPw)) {
             const newHash = hashPassword(password);
             db.prepare('UPDATE users SET password = ? WHERE id = ?').run(newHash, user.id);
           }
@@ -218,7 +218,9 @@ module.exports = function (app, helpers) {
           const userData = { ...user };
           delete userData.password;
           db.close();
-          return res.json({ success: true, user: userData });
+          // Generate auth token
+          const token = helpers.generateAuthToken(userData, tenantSlug || '');
+          return res.json({ success: true, user: userData, token });
         }
       }
       db.close();
@@ -1126,7 +1128,12 @@ module.exports = function (app, helpers) {
       const db = getDb(req);
       const rows = db.prepare('SELECT * FROM settings').all();
       const settings = {};
-      for (const row of rows) { settings[row.key] = row.value; }
+      const sensitiveKeys = ['gdrive_access_token', 'gdrive_refresh_token', 'gdrive_client_secret', 'auth_secret', 'license_token'];
+      for (const row of rows) {
+        if (!sensitiveKeys.includes(row.key)) {
+          settings[row.key] = row.value;
+        }
+      }
       return res.json({ success: true, settings });
     } catch (e) {
       return res.status(500).json({ success: false, error: e.message });

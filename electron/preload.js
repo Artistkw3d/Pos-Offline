@@ -16,9 +16,18 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
     // استقبال رسائل من العملية الرئيسية
     receive: (channel, func) => {
-        const validChannels = ['sync-result', 'sync-progress', 'server-status'];
+        const validChannels = ['sync-result', 'sync-progress', 'server-status', 'sync-action'];
         if (validChannels.includes(channel)) {
             ipcRenderer.on(channel, (event, ...args) => func(...args));
         }
+    }
+});
+
+// Handle sync-action from main process menu
+ipcRenderer.on('sync-action', (event, action) => {
+    if (action === 'manual' && typeof window.manualSync === 'function') {
+        window.manualSync();
+    } else if (action === 'full' && typeof window.fullSync === 'function') {
+        window.fullSync();
     }
 });
