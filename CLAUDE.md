@@ -8,7 +8,7 @@
 POS Offline is a multi-tenant Point-of-Sale system designed for offline-first operation with manual sync to a server. The UI is Arabic (RTL). It targets four deployment platforms: Docker (Python Flask server), Electron (Windows/Linux desktop), Capacitor (Android), and PWA (browser).
 
 **App ID**: `com.pos.offline`
-**Version**: 1.2.12
+**Version**: 1.2.13
 **Currency**: Kuwaiti Dinar (KD)
 
 ## Repositories
