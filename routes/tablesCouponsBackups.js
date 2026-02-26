@@ -838,53 +838,166 @@ module.exports = function(app, helpers) {
     }
   });
 
-  // PUT /api/super-admin/tenants/:tenant_id
+  // Helper: inject cached Flask super admin token into request for proxying
+  function injectFlaskAuth(req) {
+    if (_flaskSuperAdminToken) {
+      req.headers['authorization'] = 'Bearer ' + _flaskSuperAdminToken;
+    }
+  }
+
+  // PUT /api/super-admin/tenants/:tenant_id (local + Flask)
   app.put('/api/super-admin/tenants/:tenant_id', async (req, res) => {
+    const tenantId = req.params.tenant_id;
+    const body = req.body;
+    // Update local master.db
+    try {
+      const masterDb = getMasterDb();
+      const allowed = ['name', 'owner_name', 'owner_email', 'owner_phone', 'plan', 'max_users', 'max_branches', 'is_active', 'subscription_amount', 'subscription_period'];
+      const fields = [];
+      const values = [];
+      for (const key of allowed) {
+        if (body[key] !== undefined) {
+          fields.push(`${key} = ?`);
+          values.push(body[key]);
+        }
+      }
+      if (fields.length > 0) {
+        values.push(tenantId);
+        masterDb.prepare(`UPDATE tenants SET ${fields.join(', ')} WHERE id = ?`).run(...values);
+      }
+      masterDb.close();
+    } catch (e) {
+      console.warn('[SuperAdmin] Local tenant update error:', e.message);
+    }
+    // Also proxy to Flask if available
     const flaskUrl = getFlaskServerUrl();
-    if (!flaskUrl) return res.status(503).json({ success: false, error: 'لم يتم تعيين عنوان الخادم الرئيسي' });
-    await proxyToFlask(flaskUrl, `/api/super-admin/tenants/${req.params.tenant_id}`, req, res);
+    if (flaskUrl && _flaskSuperAdminToken) {
+      injectFlaskAuth(req);
+      await proxyToFlask(flaskUrl, `/api/super-admin/tenants/${tenantId}`, req, res);
+    } else {
+      return res.json({ success: true, message: 'تم التحديث محلياً' });
+    }
   });
 
-  // DELETE /api/super-admin/tenants/:tenant_id
+  // DELETE /api/super-admin/tenants/:tenant_id (local + Flask)
   app.delete('/api/super-admin/tenants/:tenant_id', async (req, res) => {
+    const tenantId = req.params.tenant_id;
+    // Delete from local master.db
+    try {
+      const masterDb = getMasterDb();
+      const tenant = masterDb.prepare('SELECT db_path FROM tenants WHERE id = ?').get(tenantId);
+      masterDb.prepare('DELETE FROM tenants WHERE id = ?').run(tenantId);
+      masterDb.close();
+      // Delete tenant DB file
+      if (tenant && tenant.db_path) {
+        try { require('fs').unlinkSync(tenant.db_path); } catch (_) {}
+      }
+    } catch (e) {
+      console.warn('[SuperAdmin] Local tenant delete error:', e.message);
+    }
+    // Also proxy to Flask if available
     const flaskUrl = getFlaskServerUrl();
-    if (!flaskUrl) return res.status(503).json({ success: false, error: 'لم يتم تعيين عنوان الخادم الرئيسي' });
-    await proxyToFlask(flaskUrl, `/api/super-admin/tenants/${req.params.tenant_id}`, req, res);
+    if (flaskUrl && _flaskSuperAdminToken) {
+      injectFlaskAuth(req);
+      await proxyToFlask(flaskUrl, `/api/super-admin/tenants/${tenantId}`, req, res);
+    } else {
+      return res.json({ success: true, message: 'تم الحذف محلياً' });
+    }
   });
 
-  // GET /api/super-admin/tenants/:tenant_id/stats
+  // GET /api/super-admin/tenants/:tenant_id/stats (Flask-first, local fallback)
   app.get('/api/super-admin/tenants/:tenant_id/stats', async (req, res) => {
+    const tenantId = req.params.tenant_id;
+    // Try Flask first with cached token
     const flaskUrl = getFlaskServerUrl();
-    if (!flaskUrl) return res.status(503).json({ success: false, error: 'لم يتم تعيين عنوان الخادم الرئيسي' });
-    await proxyToFlask(flaskUrl, `/api/super-admin/tenants/${req.params.tenant_id}/stats`, req, res);
+    if (flaskUrl && _flaskSuperAdminToken) {
+      const result = await fetchFromFlask(flaskUrl, `/api/super-admin/tenants/${tenantId}/stats`, 'GET', null, {
+        'Authorization': 'Bearer ' + _flaskSuperAdminToken
+      });
+      if (result.ok && result.data && result.data.success) {
+        return res.json(result.data);
+      }
+    }
+    // Local fallback: read from master.db + tenant DB
+    try {
+      const masterDb = getMasterDb();
+      const tenant = masterDb.prepare('SELECT * FROM tenants WHERE id = ?').get(tenantId);
+      masterDb.close();
+      if (!tenant) return res.status(404).json({ success: false, error: 'المتجر غير موجود' });
+      const stats = { users_count: 0, branches_count: 0, products_count: 0, invoices_count: 0, customers_count: 0, total_sales: 0 };
+      try {
+        const Database = require('better-sqlite3');
+        const tDb = new Database(tenant.db_path);
+        stats.users_count = tDb.prepare('SELECT COUNT(*) as c FROM users').get().c;
+        stats.branches_count = tDb.prepare('SELECT COUNT(*) as c FROM branches').get().c;
+        stats.products_count = tDb.prepare('SELECT COUNT(*) as c FROM products').get().c;
+        stats.invoices_count = tDb.prepare('SELECT COUNT(*) as c FROM invoices').get().c;
+        stats.customers_count = tDb.prepare('SELECT COUNT(*) as c FROM customers').get().c;
+        const salesRow = tDb.prepare("SELECT COALESCE(SUM(total), 0) as s FROM invoices WHERE status != 'cancelled'").get();
+        stats.total_sales = salesRow ? salesRow.s : 0;
+        tDb.close();
+      } catch (_) {}
+      return res.json({ success: true, tenant, stats });
+    } catch (e) {
+      return res.status(500).json({ success: false, error: e.message });
+    }
   });
 
-  // GET /api/super-admin/subscriptions/:tenant_id
+  // GET /api/super-admin/subscriptions/:tenant_id (Flask with cached token, local fallback)
   app.get('/api/super-admin/subscriptions/:tenant_id', async (req, res) => {
     const flaskUrl = getFlaskServerUrl();
-    if (!flaskUrl) return res.status(503).json({ success: false, error: 'لم يتم تعيين عنوان الخادم الرئيسي' });
-    await proxyToFlask(flaskUrl, `/api/super-admin/subscriptions/${req.params.tenant_id}`, req, res);
+    if (flaskUrl && _flaskSuperAdminToken) {
+      injectFlaskAuth(req);
+      await proxyToFlask(flaskUrl, `/api/super-admin/subscriptions/${req.params.tenant_id}`, req, res);
+    } else {
+      // No Flask — return empty list
+      return res.json({ success: true, invoices: [] });
+    }
   });
 
-  // POST /api/super-admin/subscriptions
+  // POST /api/super-admin/subscriptions (Flask with cached token)
   app.post('/api/super-admin/subscriptions', async (req, res) => {
     const flaskUrl = getFlaskServerUrl();
-    if (!flaskUrl) return res.status(503).json({ success: false, error: 'لم يتم تعيين عنوان الخادم الرئيسي' });
+    if (!flaskUrl || !_flaskSuperAdminToken) return res.status(503).json({ success: false, error: 'يتطلب اتصال بالخادم الرئيسي' });
+    injectFlaskAuth(req);
     await proxyToFlask(flaskUrl, '/api/super-admin/subscriptions', req, res);
   });
 
-  // DELETE /api/super-admin/subscriptions/:invoice_id
+  // DELETE /api/super-admin/subscriptions/:invoice_id (Flask with cached token)
   app.delete('/api/super-admin/subscriptions/:invoice_id', async (req, res) => {
     const flaskUrl = getFlaskServerUrl();
-    if (!flaskUrl) return res.status(503).json({ success: false, error: 'لم يتم تعيين عنوان الخادم الرئيسي' });
+    if (!flaskUrl || !_flaskSuperAdminToken) return res.status(503).json({ success: false, error: 'يتطلب اتصال بالخادم الرئيسي' });
+    injectFlaskAuth(req);
     await proxyToFlask(flaskUrl, `/api/super-admin/subscriptions/${req.params.invoice_id}`, req, res);
   });
 
-  // POST /api/super-admin/change-password
+  // POST /api/super-admin/change-password (local + Flask)
   app.post('/api/super-admin/change-password', async (req, res) => {
+    const { current_password, new_password } = req.body;
+    // Update local master.db
+    let localUpdated = false;
+    try {
+      const masterDb = getMasterDb();
+      const admin = masterDb.prepare('SELECT * FROM super_admins WHERE id = 1').get();
+      if (admin && helpers.verifyPassword(current_password, admin.password)) {
+        const newHash = helpers.hashPassword(new_password);
+        masterDb.prepare('UPDATE super_admins SET password = ? WHERE id = 1').run(newHash);
+        localUpdated = true;
+      }
+      masterDb.close();
+    } catch (e) {
+      console.warn('[SuperAdmin] Local password change error:', e.message);
+    }
+    // Also proxy to Flask if available
     const flaskUrl = getFlaskServerUrl();
-    if (!flaskUrl) return res.status(503).json({ success: false, error: 'لم يتم تعيين عنوان الخادم الرئيسي' });
-    await proxyToFlask(flaskUrl, '/api/super-admin/change-password', req, res);
+    if (flaskUrl && _flaskSuperAdminToken) {
+      injectFlaskAuth(req);
+      await proxyToFlask(flaskUrl, '/api/super-admin/change-password', req, res);
+    } else if (localUpdated) {
+      return res.json({ success: true, message: 'تم تغيير كلمة المرور محلياً' });
+    } else {
+      return res.status(401).json({ success: false, error: 'كلمة المرور الحالية غير صحيحة' });
+    }
   });
 
   // --- 3 hybrid backup routes: fetch tenant info from Flask, perform local backup ---
@@ -896,9 +1009,22 @@ module.exports = function(app, helpers) {
       const flaskUrl = getFlaskServerUrl();
       if (!flaskUrl) return res.status(503).json({ success: false, error: 'لم يتم تعيين عنوان الخادم الرئيسي' });
 
-      // Fetch tenant info from Flask
-      const result = await fetchFromFlask(flaskUrl, `/api/super-admin/tenants/${tenantId}/stats`);
+      // Fetch tenant info from Flask (with cached token)
+      const authHeaders = _flaskSuperAdminToken ? { 'Authorization': 'Bearer ' + _flaskSuperAdminToken } : {};
+      const result = await fetchFromFlask(flaskUrl, `/api/super-admin/tenants/${tenantId}/stats`, 'GET', null, authHeaders);
       if (!result.ok || !result.data || !result.data.tenant) {
+        // Local fallback
+        try {
+          const masterDb = getMasterDb();
+          const tenant = masterDb.prepare('SELECT * FROM tenants WHERE id = ?').get(tenantId);
+          masterDb.close();
+          if (tenant) {
+            const { backupInfo, error } = createBackupFile(getTenantDbPath(tenant.slug), getBackupDir(req), tenant.slug);
+            if (error) return res.status(500).json({ success: false, error });
+            backupInfo.tenant_name = tenant.name;
+            return res.json({ success: true, backup: backupInfo });
+          }
+        } catch (_) {}
         return res.status(404).json({ success: false, error: 'المتجر غير موجود' });
       }
       const tenant = result.data.tenant;
@@ -920,8 +1046,9 @@ module.exports = function(app, helpers) {
       const flaskUrl = getFlaskServerUrl();
       if (!flaskUrl) return res.status(503).json({ success: false, error: 'لم يتم تعيين عنوان الخادم الرئيسي' });
 
-      // Fetch tenant list from Flask
-      const tenantsResult = await fetchFromFlask(flaskUrl, '/api/super-admin/tenants');
+      // Fetch tenant list from Flask (with cached token)
+      const authHeaders = _flaskSuperAdminToken ? { 'Authorization': 'Bearer ' + _flaskSuperAdminToken } : {};
+      const tenantsResult = await fetchFromFlask(flaskUrl, '/api/super-admin/tenants', 'GET', null, authHeaders);
       const tenants = (tenantsResult.ok && tenantsResult.data && tenantsResult.data.tenants)
         ? tenantsResult.data.tenants.filter(t => t.is_active)
         : [];
