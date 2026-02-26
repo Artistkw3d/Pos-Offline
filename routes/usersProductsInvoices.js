@@ -116,40 +116,14 @@ module.exports = function (app, helpers) {
         return res.status(400).json({ success: false, error: 'معرف المتجر مطلوب' });
       }
       if (tenantSlug) {
-        const flaskUrl = getFlaskServerUrl();
-        if (flaskUrl) {
-          // Remote check via Flask server
-          const result = await fetchFromFlask(flaskUrl, `/api/tenant/check-status?slug=${encodeURIComponent(tenantSlug)}`);
-          if (result.ok && result.data) {
-            if (!result.data.success) {
-              return res.status(404).json({ success: false, error: 'معرف المتجر غير صحيح' });
-            }
-            if (!result.data.is_active) {
-              if (result.data.expires_at) {
-                return res.status(403).json({
-                  success: false,
-                  error: `⛔ انتهى اشتراك المتجر "${result.data.name}" بتاريخ ${result.data.expires_at}.\nتواصل مع إدارة النظام لتجديد الاشتراك.`
-                });
-              }
-              return res.status(403).json({ success: false, error: '⛔ هذا المتجر معطل. تواصل مع إدارة النظام' });
-            }
-          }
-          // If Flask reachable, also refresh license token
-          if (result.ok) {
-            try {
-              const tDb = getDb(req);
-              await refreshLicenseToken(tDb, tenantSlug);
-            } catch (_) {}
-          }
-          // If Flask unreachable (result.ok === false), allow login to proceed (offline-first)
-        } else {
-          // No Flask URL configured — fallback to local master.db
-          try {
-            const masterDb = getMasterDb();
-            const tenant = masterDb.prepare('SELECT is_active, expires_at, name FROM tenants WHERE slug = ?').get(tenantSlug);
-            if (!tenant) {
-              return res.status(404).json({ success: false, error: 'معرف المتجر غير صحيح' });
-            }
+        // Check tenant status: local master.db first, then Flask server
+        let tenantVerified = false;
+        // 1) Check local master.db
+        try {
+          const masterDb = getMasterDb();
+          const tenant = masterDb.prepare('SELECT is_active, expires_at, name FROM tenants WHERE slug = ?').get(tenantSlug);
+          if (tenant) {
+            tenantVerified = true;
             if (!tenant.is_active) {
               return res.status(403).json({ success: false, error: '⛔ هذا المتجر معطل. تواصل مع إدارة النظام' });
             }
@@ -165,9 +139,41 @@ module.exports = function (app, helpers) {
                 });
               }
             }
-          } catch (masterErr) {
-            // Local master.db unavailable — allow login to proceed (offline-first)
-            console.warn('[Login] Could not check tenant status locally:', masterErr.message);
+          }
+        } catch (masterErr) {
+          console.warn('[Login] Could not check tenant locally:', masterErr.message);
+        }
+        // 2) If not found locally, try Flask server
+        if (!tenantVerified) {
+          const flaskUrl = getFlaskServerUrl();
+          if (flaskUrl) {
+            const result = await fetchFromFlask(flaskUrl, `/api/tenant/check-status?slug=${encodeURIComponent(tenantSlug)}`);
+            if (result.ok && result.data) {
+              if (!result.data.success) {
+                return res.status(404).json({ success: false, error: 'معرف المتجر غير صحيح' });
+              }
+              tenantVerified = true;
+              if (!result.data.is_active) {
+                if (result.data.expires_at) {
+                  return res.status(403).json({
+                    success: false,
+                    error: `⛔ انتهى اشتراك المتجر "${result.data.name}" بتاريخ ${result.data.expires_at}.\nتواصل مع إدارة النظام لتجديد الاشتراك.`
+                  });
+                }
+                return res.status(403).json({ success: false, error: '⛔ هذا المتجر معطل. تواصل مع إدارة النظام' });
+              }
+            }
+            // If Flask reachable, also refresh license token
+            if (result.ok) {
+              try {
+                const tDb = getDb(req);
+                await refreshLicenseToken(tDb, tenantSlug);
+              } catch (_) {}
+            }
+          }
+          // If neither local nor remote found, reject
+          if (!tenantVerified) {
+            return res.status(404).json({ success: false, error: 'معرف المتجر غير صحيح' });
           }
         }
 
