@@ -729,18 +729,69 @@ module.exports = function(app, helpers) {
     }
   });
 
-  // GET /api/super-admin/tenants
+  // GET /api/super-admin/tenants (local-first, fallback to Flask)
   app.get('/api/super-admin/tenants', async (req, res) => {
+    // Try local master.db first
+    try {
+      const masterDb = getMasterDb();
+      const tenants = masterDb.prepare('SELECT * FROM tenants ORDER BY created_at DESC').all();
+      const tenantsData = tenants.map(t => {
+        let usersCount = 0, invoicesCount = 0;
+        try {
+          const tDb = new (require('better-sqlite3'))(t.db_path);
+          usersCount = tDb.prepare('SELECT COUNT(*) as c FROM users').get().c;
+          invoicesCount = tDb.prepare('SELECT COUNT(*) as c FROM invoices').get().c;
+          tDb.close();
+        } catch (_) {}
+        return { ...t, users_count: usersCount, invoices_count: invoicesCount };
+      });
+      return res.json({ success: true, tenants: tenantsData });
+    } catch (localErr) {
+      console.warn('[SuperAdmin] Local tenants read failed:', localErr.message);
+    }
+    // Fallback to Flask
     const flaskUrl = getFlaskServerUrl();
-    if (!flaskUrl) return res.status(503).json({ success: false, error: 'لم يتم تعيين عنوان الخادم الرئيسي' });
-    await proxyToFlask(flaskUrl, '/api/super-admin/tenants', req, res);
+    if (flaskUrl) return await proxyToFlask(flaskUrl, '/api/super-admin/tenants', req, res);
+    return res.status(503).json({ success: false, error: 'لا يمكن قراءة بيانات المتاجر' });
   });
 
-  // POST /api/super-admin/tenants
+  // POST /api/super-admin/tenants (local + Flask)
   app.post('/api/super-admin/tenants', async (req, res) => {
-    const flaskUrl = getFlaskServerUrl();
-    if (!flaskUrl) return res.status(503).json({ success: false, error: 'لم يتم تعيين عنوان الخادم الرئيسي' });
-    await proxyToFlask(flaskUrl, '/api/super-admin/tenants', req, res);
+    // Create tenant locally in master.db
+    try {
+      const { name, slug, owner_name, owner_email, owner_phone, plan, max_users, max_branches } = req.body;
+      if (!name || !slug || !owner_name) {
+        return res.status(400).json({ success: false, error: 'الاسم والمعرف واسم المالك مطلوبة' });
+      }
+      const safeSlug = slug.replace(/[^a-zA-Z0-9_-]/g, '');
+      if (!safeSlug) return res.status(400).json({ success: false, error: 'معرف المتجر غير صالح' });
+      const dbPath = require('path').join(require('path').dirname(getMasterDb().name), 'tenants', `${safeSlug}.db`);
+      const masterDb = getMasterDb();
+      masterDb.prepare(`INSERT INTO tenants (name, slug, owner_name, owner_email, owner_phone, db_path, plan, max_users, max_branches)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
+        name, safeSlug, owner_name, owner_email || '', owner_phone || '',
+        dbPath, plan || 'basic', max_users || 5, max_branches || 3
+      );
+      // Create tenant database
+      createTenantDatabase(safeSlug);
+      // Create admin user in tenant DB with default password
+      const adminPassword = req.body.admin_password || 'admin123';
+      const tDb = new (require('better-sqlite3'))(dbPath);
+      tDb.prepare(`INSERT OR IGNORE INTO users (username, password, full_name, role, invoice_prefix, is_active, branch_id)
+        VALUES (?, ?, ?, 'admin', 'INV', 1, 1)`).run('admin', hashPassword(adminPassword), owner_name);
+      tDb.close();
+      // Also sync to Flask if available
+      const flaskUrl = getFlaskServerUrl();
+      if (flaskUrl) {
+        try { await fetchFromFlask(flaskUrl, '/api/super-admin/tenants', 'POST', req.body); } catch (_) {}
+      }
+      return res.json({ success: true, message: 'تم إنشاء المتجر بنجاح' });
+    } catch (e) {
+      if (e.message && e.message.includes('UNIQUE')) {
+        return res.status(400).json({ success: false, error: 'معرف المتجر مستخدم بالفعل' });
+      }
+      return res.status(500).json({ success: false, error: e.message });
+    }
   });
 
   // PUT /api/super-admin/tenants/:tenant_id

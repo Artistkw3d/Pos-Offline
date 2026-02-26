@@ -181,17 +181,22 @@ window.fetch = function(url, options = {}) {
         }
     }
     return originalFetch.call(this, url, options).then(response => {
-        // Handle 401 - redirect to login
+        // Handle 401 - only redirect for critical API calls, not background tasks
         if (response.status === 401 && typeof url === 'string' && url.includes('/api/') && !url.includes('/api/login')) {
-            localStorage.removeItem('pos_auth_token');
-            localStorage.removeItem('pos_current_user');
-            localStorage.removeItem('pos_super_admin');
-            if (currentUser || currentSuperAdmin) {
-                currentUser = null;
-                currentSuperAdmin = null;
-                document.getElementById('loginOverlay').classList.remove('hidden');
-                document.getElementById('mainContainer').style.display = 'none';
-                document.getElementById('superAdminDashboard').style.display = 'none';
+            // Don't redirect for background/non-critical calls
+            const skipRedirect = ['/api/attendance/', '/api/system-logs', '/api/sync/', '/api/shifts/'];
+            const isBackground = skipRedirect.some(p => url.includes(p));
+            if (!isBackground) {
+                localStorage.removeItem('pos_auth_token');
+                localStorage.removeItem('pos_current_user');
+                localStorage.removeItem('pos_super_admin');
+                if (currentUser || currentSuperAdmin) {
+                    currentUser = null;
+                    currentSuperAdmin = null;
+                    document.getElementById('loginOverlay').classList.remove('hidden');
+                    document.getElementById('mainContainer').style.display = 'none';
+                    document.getElementById('superAdminDashboard').style.display = 'none';
+                }
             }
         }
         return response;
