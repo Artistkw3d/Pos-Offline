@@ -38,6 +38,10 @@ function proxyToFlask(baseUrl, path, req, res) {
       if (req.headers['x-tenant-id']) {
         headers['X-Tenant-ID'] = req.headers['x-tenant-id'];
       }
+      // Forward Authorization header if present
+      if (req.headers['authorization']) {
+        headers['Authorization'] = req.headers['authorization'];
+      }
 
       let bodyData = null;
       if (req.body && ['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)) {

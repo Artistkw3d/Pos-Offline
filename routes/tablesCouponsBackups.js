@@ -702,24 +702,40 @@ module.exports = function(app, helpers) {
 
   // --- 10 pure proxy routes: forward entirely to Flask server ---
 
-  // POST /api/super-admin/login (local-first, fallback to Flask)
+  // POST /api/super-admin/login (local-first, also get Flask token)
+  let _flaskSuperAdminToken = null;
   app.post('/api/super-admin/login', async (req, res) => {
     try {
       const { username, password } = req.body;
       // Try local master.db first
+      let localSuccess = false;
+      let adminData = null;
+      let localToken = null;
       try {
         const masterDb = getMasterDb();
         const admin = masterDb.prepare('SELECT * FROM super_admins WHERE username = ?').get(username);
         if (admin && verifyPassword(password, admin.password)) {
-          const adminData = { id: admin.id, username: admin.username, full_name: admin.full_name };
-          const token = helpers.generateAuthToken(adminData, '', true);
-          return res.json({ success: true, admin: adminData, token });
+          adminData = { id: admin.id, username: admin.username, full_name: admin.full_name };
+          localToken = helpers.generateAuthToken(adminData, '', true);
+          localSuccess = true;
         }
       } catch (localErr) {
         console.warn('[SuperAdmin] Local master.db check failed:', localErr.message);
       }
-      // Fallback to Flask server
+      // Also login on Flask to get a Flask-valid token (for proxy calls)
       const flaskUrl = getFlaskServerUrl();
+      if (flaskUrl) {
+        try {
+          const flaskResult = await fetchFromFlask(flaskUrl, '/api/super-admin/login', 'POST', { username, password });
+          if (flaskResult.ok && flaskResult.data && flaskResult.data.token) {
+            _flaskSuperAdminToken = flaskResult.data.token;
+          }
+        } catch (_) {}
+      }
+      if (localSuccess) {
+        return res.json({ success: true, admin: adminData, token: localToken });
+      }
+      // If local failed, try Flask response
       if (flaskUrl) {
         return await proxyToFlask(flaskUrl, '/api/super-admin/login', req, res);
       }
@@ -729,13 +745,27 @@ module.exports = function(app, helpers) {
     }
   });
 
-  // GET /api/super-admin/tenants (local-first, fallback to Flask)
+  // GET /api/super-admin/tenants (remote-first, merge with local)
   app.get('/api/super-admin/tenants', async (req, res) => {
-    // Try local master.db first
+    let remoteTenants = null;
+    // 1) Try Flask server first using cached Flask token
+    const flaskUrl = getFlaskServerUrl();
+    if (flaskUrl && _flaskSuperAdminToken) {
+      try {
+        const result = await fetchFromFlask(flaskUrl, '/api/super-admin/tenants', 'GET', null, {
+          'Authorization': 'Bearer ' + _flaskSuperAdminToken
+        });
+        if (result.ok && result.data && result.data.success) {
+          remoteTenants = result.data.tenants || [];
+        }
+      } catch (_) {}
+    }
+    // 2) Read local master.db tenants
+    let localTenants = [];
     try {
       const masterDb = getMasterDb();
-      const tenants = masterDb.prepare('SELECT * FROM tenants ORDER BY created_at DESC').all();
-      const tenantsData = tenants.map(t => {
+      localTenants = masterDb.prepare('SELECT * FROM tenants ORDER BY created_at DESC').all();
+      localTenants = localTenants.map(t => {
         let usersCount = 0, invoicesCount = 0;
         try {
           const tDb = new (require('better-sqlite3'))(t.db_path);
@@ -745,13 +775,18 @@ module.exports = function(app, helpers) {
         } catch (_) {}
         return { ...t, users_count: usersCount, invoices_count: invoicesCount };
       });
-      return res.json({ success: true, tenants: tenantsData });
-    } catch (localErr) {
-      console.warn('[SuperAdmin] Local tenants read failed:', localErr.message);
+    } catch (_) {}
+    // 3) Merge: remote tenants + local-only tenants
+    if (remoteTenants) {
+      const remoteSlugs = new Set(remoteTenants.map(t => t.slug));
+      const localOnly = localTenants.filter(t => !remoteSlugs.has(t.slug));
+      const merged = [...remoteTenants, ...localOnly];
+      return res.json({ success: true, tenants: merged });
     }
-    // Fallback to Flask
-    const flaskUrl = getFlaskServerUrl();
-    if (flaskUrl) return await proxyToFlask(flaskUrl, '/api/super-admin/tenants', req, res);
+    // 4) Offline fallback: local only
+    if (localTenants.length > 0) {
+      return res.json({ success: true, tenants: localTenants });
+    }
     return res.status(503).json({ success: false, error: 'لا يمكن قراءة بيانات المتاجر' });
   });
 
