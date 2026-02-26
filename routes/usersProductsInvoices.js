@@ -869,6 +869,12 @@ module.exports = function (app, helpers) {
       const branchName = branch ? branch.name : 'الفرع الرئيسي';
       const invoiceNumberWithBranch = `${data.invoice_number || ''}-B${branchId}`;
 
+      // التحقق من عدم تكرار الفاتورة
+      const existingInvoice = db.prepare('SELECT id FROM invoices WHERE invoice_number = ?').get(invoiceNumberWithBranch);
+      if (existingInvoice) {
+        return res.json({ success: true, id: -1, invoice_number: invoiceNumberWithBranch, duplicate: true });
+      }
+
       let shiftName = '';
       if (data.shift_id) {
         const shiftRow = db.prepare('SELECT name FROM shifts WHERE id = ?').get(data.shift_id);

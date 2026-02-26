@@ -1400,12 +1400,20 @@ function getPaymentMethods() {
 
 // Complete Sale
 // نسخة مبسطة من completeSale
+let _isProcessingSale = false;
 async function completeSale() {
+    // منع الضغط المزدوج
+    if (_isProcessingSale) return;
     if (cart.length === 0) {
         alert('السلة فارغة!');
         return;
     }
-    
+    _isProcessingSale = true;
+    const completeBtn = document.querySelector('.complete-btn');
+    if (completeBtn) { completeBtn.disabled = true; completeBtn.style.opacity = '0.5'; completeBtn.textContent = '⏳ جاري الحفظ...'; }
+
+    try {
+
     const subtotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
     const discountValue = parseFloat(document.getElementById('discountInput').value) || 0;
     const discountType = document.getElementById('discountType').value;
@@ -1443,8 +1451,9 @@ async function completeSale() {
     document.getElementById('paymentMethod').value = paymentMethod;
     document.getElementById('transactionNumber').value = transactionNumber;
 
-    const timestamp = Date.now().toString().slice(-6);
-    const invoiceNumber = `${currentUser.invoice_prefix || 'INV'}-${timestamp}`;
+    const _ts = Date.now().toString(36).toUpperCase();
+    const _rnd = Math.random().toString(36).substring(2, 5).toUpperCase();
+    const invoiceNumber = `${currentUser.invoice_prefix || 'INV'}-${_ts}${_rnd}`;
 
     const customerName = document.getElementById('customerName').value || '';
     const customerPhone = document.getElementById('customerPhone').value || '';
@@ -1529,6 +1538,11 @@ async function completeSale() {
             const data = await response.json();
             
             if (data.success) {
+                // فحص التكرار
+                if (data.duplicate) {
+                    alert('هذه الفاتورة مسجلة مسبقاً');
+                    return;
+                }
                 // نجح الحفظ - تشغيل صوت النجاح
                 playInvoiceSound();
 
@@ -1615,6 +1629,13 @@ async function completeSale() {
         // Offline: حفظ محلياً مباشرة
         await saveInvoiceOffline(invoiceData, invoiceNumber);
     }
+
+    } finally {
+        // إعادة تفعيل زر الإتمام
+        _isProcessingSale = false;
+        const _btn = document.querySelector('.complete-btn');
+        if (_btn) { _btn.disabled = false; _btn.style.opacity = '1'; _btn.textContent = '✅ إتمام'; }
+    }
 }
 
 // دالة منفصلة لحفظ الفاتورة offline
@@ -1625,18 +1646,27 @@ async function saveInvoiceOffline(invoiceData, invoiceNumber) {
     }
     
     try {
+        // التحقق من عدم وجود فاتورة بنفس الرقم محلياً
+        const existingPending = await localDB.getAll('pending_invoices');
+        const isDuplicate = existingPending.some(p => p.data && p.data.invoice_number === invoiceData.invoice_number);
+        if (isDuplicate) {
+            console.warn('[App] Duplicate invoice prevented:', invoiceData.invoice_number);
+            alert('هذه الفاتورة محفوظة مسبقاً');
+            return;
+        }
+
         const offlineInvoice = {
             ...invoiceData,
             created_at: new Date().toISOString(),
-            id: 'offline_' + Date.now()
+            id: 'offline_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6)
         };
-        
+
         // حفظ في pending_invoices للرفع
         await localDB.add('pending_invoices', {
             data: offlineInvoice,
             timestamp: new Date().toISOString()
         });
-        
+
         // حفظ في local_invoices للعرض
         await localDB.save('local_invoices', offlineInvoice);
         

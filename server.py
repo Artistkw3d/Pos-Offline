@@ -3074,7 +3074,13 @@ def create_invoice():
         # تعديل رقم الفاتورة ليشمل رقم الفرع (مثل: AHM-001-B1)
         original_invoice_number = data.get('invoice_number', '')
         invoice_number_with_branch = f"{original_invoice_number}-B{branch_id}"
-        
+
+        # التحقق من عدم تكرار الفاتورة
+        cursor.execute('SELECT id FROM invoices WHERE invoice_number = ?', (invoice_number_with_branch,))
+        if cursor.fetchone():
+            conn.close()
+            return jsonify({'success': True, 'id': -1, 'invoice_number': invoice_number_with_branch, 'duplicate': True})
+
         # جلب اسم الشفت إن وجد
         shift_id = data.get('shift_id')
         shift_name = ''

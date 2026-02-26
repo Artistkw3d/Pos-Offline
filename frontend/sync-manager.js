@@ -402,7 +402,11 @@ class SyncManager {
                             if (r.success) {
                                 await localDB.delete('pending_invoices', inv.local_id);
                                 if (inv.data?.id) await localDB.delete('local_invoices', inv.data.id);
-                                result.invoices++;
+                                if (r.duplicate) {
+                                    console.log(`[Sync] Duplicate invoice removed: ${inv.local_id}`);
+                                } else {
+                                    result.invoices++;
+                                }
                             }
                         } else {
                             result.errors.push(`invoice ${inv.local_id}: HTTP ${resp.status}`);
