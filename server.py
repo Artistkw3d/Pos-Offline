@@ -303,12 +303,10 @@ def init_master_db():
     except:
         pass
     # إنشاء حساب Super Admin افتراضي إن لم يكن موجوداً
-    cursor.execute("SELECT COUNT(*) FROM super_admins")
-    if cursor.fetchone()[0] == 0:
-        cursor.execute(
-            "INSERT INTO super_admins (username, password, full_name) VALUES (?, ?, ?)",
-            ('superadmin', hash_password('admin123'), 'مدير النظام')
-        )
+    cursor.execute(
+        "INSERT OR IGNORE INTO super_admins (username, password, full_name) VALUES (?, ?, ?)",
+        ('superadmin', hash_password('admin123'), 'مدير النظام')
+    )
     conn.commit()
     conn.close()
 
