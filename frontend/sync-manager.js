@@ -149,7 +149,8 @@ class SyncManager {
             returns: 0,
             expenses: 0,
             coupons: 0,
-            errors: []
+            errors: [],
+            negative_stock: []
         };
 
         try {
@@ -166,6 +167,7 @@ class SyncManager {
             syncResult.invoices_uploaded = uploadResult.invoices;
             syncResult.customers_uploaded = uploadResult.customers;
             if (uploadResult.errors.length) syncResult.errors.push(...uploadResult.errors);
+            if (uploadResult.negative_stock && uploadResult.negative_stock.length) syncResult.negative_stock.push(...uploadResult.negative_stock);
             this.syncProgress.done = 2;
 
             // 3. Download branches
@@ -355,7 +357,7 @@ class SyncManager {
 
     // ========== UPLOAD ==========
     async uploadPendingData() {
-        const result = { invoices: 0, customers: 0, errors: [] };
+        const result = { invoices: 0, customers: 0, errors: [], negative_stock: [] };
 
         try {
             const pendingInvoices = await localDB.getAll('pending_invoices');
@@ -451,6 +453,9 @@ class SyncManager {
 
                 if (uploadResult.results?.errors) {
                     result.errors = uploadResult.results.errors;
+                }
+                if (uploadResult.results?.negative_stock) {
+                    result.negative_stock = uploadResult.results.negative_stock;
                 }
             }
         } catch (error) {

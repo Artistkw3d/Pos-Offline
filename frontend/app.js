@@ -13100,6 +13100,86 @@ console.log('[Subscriptions] Loaded ✅');
 // Sync & Admin Dashboard - المزامنة ولوحة الأدمن
 // ========================================
 
+// عرض ملخص المزامنة في مودال
+function showSyncSummary(result) {
+    const modal = document.getElementById('syncSummaryModal');
+    if (!modal) return;
+
+    // Upload section
+    const uploadDiv = document.getElementById('syncSummaryUpload');
+    if (uploadDiv) {
+        let html = '<div style="font-weight:bold; margin-bottom:6px; color:#60a5fa;">رفع البيانات</div>';
+        html += '<div style="font-size:13px;">';
+        html += 'الفواتير: ' + (result.invoices_uploaded || 0) + ' | ';
+        html += 'العملاء: ' + (result.customers_uploaded || 0);
+        html += '</div>';
+        uploadDiv.innerHTML = html;
+    }
+
+    // Download section
+    const downloadDiv = document.getElementById('syncSummaryDownload');
+    if (downloadDiv) {
+        const counts = result.data_counts || result;
+        let html = '<div style="font-weight:bold; margin-bottom:6px; color:#60a5fa;">تحميل البيانات</div>';
+        html += '<div style="font-size:13px; line-height:1.8;">';
+        const items = [
+            ['المنتجات', counts.products],
+            ['العملاء', counts.customers],
+            ['الفواتير', counts.invoices],
+            ['الفروع', counts.branches],
+            ['الفئات', counts.categories],
+            ['الإعدادات', counts.settings],
+            ['المرتجعات', counts.returns],
+            ['المصروفات', counts.expenses],
+            ['الكوبونات', counts.coupons]
+        ];
+        for (const [label, val] of items) {
+            if (val && val > 0) html += label + ': ' + val + ' | ';
+        }
+        if (html.endsWith(' | ')) html = html.slice(0, -3);
+        html += '</div>';
+        downloadDiv.innerHTML = html;
+    }
+
+    // Negative stock warnings
+    const negDiv = document.getElementById('syncSummaryNegativeStock');
+    if (negDiv) {
+        const negStock = result.negative_stock || [];
+        if (negStock.length > 0) {
+            let html = '<div style="font-weight:bold; margin-bottom:6px; color:#f87171;">تحذير: مخزون سلبي</div>';
+            html += '<div style="font-size:13px;">';
+            for (const item of negStock) {
+                html += '• ' + escHTML(item.product_name) + ': ' + item.stock + '<br>';
+            }
+            html += '</div>';
+            negDiv.innerHTML = html;
+            negDiv.style.display = 'block';
+        } else {
+            negDiv.style.display = 'none';
+        }
+    }
+
+    // Errors
+    const errDiv = document.getElementById('syncSummaryErrors');
+    if (errDiv) {
+        const errors = result.errors || [];
+        if (errors.length > 0) {
+            let html = '<div style="font-weight:bold; margin-bottom:6px; color:#f87171;">أخطاء</div>';
+            html += '<div style="font-size:13px;">';
+            for (const err of errors) {
+                html += '• ' + escHTML(err) + '<br>';
+            }
+            html += '</div>';
+            errDiv.innerHTML = html;
+            errDiv.style.display = 'block';
+        } else {
+            errDiv.style.display = 'none';
+        }
+    }
+
+    modal.style.display = 'flex';
+}
+
 // مزامنة يدوية (زر المزامنة)
 async function manualSync() {
     if (!window.userPermissions?.isAdmin) {
@@ -13108,13 +13188,8 @@ async function manualSync() {
     }
     const result = await syncManager.sync();
     await updateSyncStatsUI();
-
     if (result.success) {
-        let msg = 'تمت المزامنة بنجاح!';
-        if (result.invoices_uploaded > 0) msg += `\nتم رفع ${result.invoices_uploaded} فاتورة`;
-        if (result.customers_uploaded > 0) msg += `\nتم رفع ${result.customers_uploaded} عميل`;
-        if (result.products_downloaded > 0) msg += `\nتم تحديث ${result.products_downloaded} منتج`;
-        alert(msg);
+        showSyncSummary(result);
     }
 }
 
@@ -13128,9 +13203,8 @@ async function fullSync() {
 
     const result = await syncManager.fullSync();
     await updateSyncStatsUI();
-
     if (result.success) {
-        alert(`تمت المزامنة الكاملة!\nالمنتجات: ${result.data_counts?.products || 0}\nالعملاء: ${result.data_counts?.customers || 0}`);
+        showSyncSummary(result);
     } else {
         alert('فشلت المزامنة: ' + (result.error || 'خطأ غير معروف'));
     }

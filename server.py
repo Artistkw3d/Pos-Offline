@@ -8913,7 +8913,7 @@ def sync_upload():
         data = request.json
         conn = get_db()
         cursor = conn.cursor()
-        results = {'invoices_synced': 0, 'customers_synced': 0, 'errors': []}
+        results = {'invoices_synced': 0, 'customers_synced': 0, 'errors': [], 'negative_stock': []}
 
         # 1. مزامنة العملاء الجدد
         for customer in data.get('customers', []):
@@ -8939,8 +8939,9 @@ def sync_upload():
             except Exception as e:
                 results['errors'].append(f"Customer {customer.get('name','')}: {str(e)}")
 
-        # 2. مزامنة الفواتير
-        for invoice in data.get('invoices', []):
+        # 2. مزامنة الفواتير (مرتبة حسب الوقت - الأقدم أولاً)
+        invoices_sorted = sorted(data.get('invoices', []), key=lambda x: x.get('created_at', ''))
+        for invoice in invoices_sorted:
             try:
                 # تحقق من عدم وجود الفاتورة
                 inv_num = invoice.get('invoice_number', '')
@@ -9018,12 +9019,18 @@ def sync_upload():
                         item.get('variant_id'),
                         item.get('variant_name')
                     ))
-                    # تحديث المخزون
+                    # تحديث المخزون + كشف المخزون السلبي
                     if branch_stock_id:
                         cursor.execute('''
                             UPDATE branch_stock SET stock = stock - ?, updated_at = CURRENT_TIMESTAMP
                             WHERE id = ?
                         ''', (item.get('quantity', 0), branch_stock_id))
+                        cursor.execute('SELECT bs.stock, (SELECT name FROM inventory WHERE id = bs.inventory_id) as product_name FROM branch_stock bs WHERE bs.id = ?', (branch_stock_id,))
+                        stock_row = cursor.fetchone()
+                        if stock_row and stock_row['stock'] < 0:
+                            already = any(ns['branch_stock_id'] == branch_stock_id for ns in results['negative_stock'])
+                            if not already:
+                                results['negative_stock'].append({'branch_stock_id': branch_stock_id, 'product_name': stock_row['product_name'] or item.get('product_name', ''), 'stock': stock_row['stock']})
 
                 # حفظ عمليات الدفع
                 payments = invoice.get('payments', [])

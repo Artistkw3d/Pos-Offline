@@ -953,7 +953,7 @@ module.exports = function (app, helpers) {
     try {
       const data = req.body;
       const db = getDb(req);
-      const results = { invoices_synced: 0, customers_synced: 0, errors: [] };
+      const results = { invoices_synced: 0, customers_synced: 0, errors: [], negative_stock: [] };
 
       // 1. Sync new customers
       const customers = data.customers || [];
@@ -982,8 +982,8 @@ module.exports = function (app, helpers) {
         }
       }
 
-      // 2. Sync invoices
-      const invoices = data.invoices || [];
+      // 2. Sync invoices (sorted by timestamp - oldest first)
+      const invoices = (data.invoices || []).sort((a, b) => (a.created_at || '').localeCompare(b.created_at || ''));
       for (const invoice of invoices) {
         try {
           const inv_num = invoice.invoice_number || '';
@@ -1072,9 +1072,16 @@ module.exports = function (app, helpers) {
               item.variant_id || null,
               item.variant_name || null
             );
-            // Update stock
+            // Update stock + detect negative
             if (branch_stock_id) {
               updateStock.run(item.quantity || 0, branch_stock_id);
+              const stockRow = db.prepare('SELECT bs.stock, i.name as product_name FROM branch_stock bs LEFT JOIN inventory i ON bs.inventory_id = i.id WHERE bs.id = ?').get(branch_stock_id);
+              if (stockRow && stockRow.stock < 0) {
+                const alreadyReported = results.negative_stock.some(ns => ns.branch_stock_id === branch_stock_id);
+                if (!alreadyReported) {
+                  results.negative_stock.push({ branch_stock_id, product_name: stockRow.product_name || item.product_name || '', stock: stockRow.stock });
+                }
+              }
             }
           }
 
