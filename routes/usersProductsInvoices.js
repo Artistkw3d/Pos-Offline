@@ -13,7 +13,7 @@ if (LICENSE_SECRET === 'pos-offline-license-secret-v1' && !process.env.POS_ALLOW
 const LICENSE_GRACE_DAYS = 7;
 
 module.exports = function (app, helpers) {
-  const { getDb, getMasterDb, hashPassword, verifyPassword, needsRehash, getFlaskServerUrl } = helpers;
+  const { getDb, getMasterDb, hashPassword, verifyPassword, needsRehash, getFlaskServerUrl, DB_PATH, Database } = helpers;
 
   // === License helpers ===
 
@@ -1243,6 +1243,14 @@ module.exports = function (app, helpers) {
       const stmt = db.prepare("INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)");
       for (const [key, value] of Object.entries(data)) {
         stmt.run(key, value);
+      }
+      // Also save flask_server_url to default DB so getFlaskServerUrl() can find it
+      if (data.flask_server_url) {
+        try {
+          const defaultDb = new Database(DB_PATH);
+          defaultDb.prepare("INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES ('flask_server_url', ?, CURRENT_TIMESTAMP)").run(data.flask_server_url);
+          defaultDb.close();
+        } catch (_) {}
       }
       return res.json({ success: true });
     } catch (e) {
