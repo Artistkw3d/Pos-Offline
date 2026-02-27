@@ -8,7 +8,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
     // إرسال رسائل للعملية الرئيسية
     send: (channel, data) => {
-        const validChannels = ['sync-request', 'app-quit', 'open-external'];
+        const validChannels = ['sync-request', 'app-quit', 'open-external', 'license-save', 'license-clear'];
         if (validChannels.includes(channel)) {
             ipcRenderer.send(channel, data);
         }
@@ -20,6 +20,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
         if (validChannels.includes(channel)) {
             ipcRenderer.on(channel, (event, ...args) => func(...args));
         }
+    },
+
+    // طلب بيانات من العملية الرئيسية (invoke/handle pattern)
+    invoke: (channel, data) => {
+        const validChannels = ['license-load'];
+        if (validChannels.includes(channel)) {
+            return ipcRenderer.invoke(channel, data);
+        }
+        return Promise.resolve(null);
     }
 });
 

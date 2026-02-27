@@ -75,6 +75,177 @@ async function loadAndVerifySetupConfig() {
     }
 }
 
+// === HMAC-signed license storage ===
+async function saveLicenseData(licenseObj) {
+    if (!licenseObj) return;
+    const tenantSlug = localStorage.getItem('pos_tenant_slug') || '';
+    const serialized = _serializeConfig(licenseObj);
+    const sig = await _hmacSign(serialized, tenantSlug);
+    localStorage.setItem('pos_license_data', JSON.stringify({ data: licenseObj, sig: sig }));
+    // Legacy keys for backward compat
+    if (licenseObj.exp) localStorage.setItem('pos_license_exp', String(licenseObj.exp));
+    if (licenseObj.iat) localStorage.setItem('pos_license_iat', String(licenseObj.iat));
+    localStorage.setItem('pos_license_active', String(licenseObj.is_active ? 1 : 0));
+    // Electron AppData persistence
+    if (window.electronAPI && window.electronAPI.send) {
+        try { window.electronAPI.send('license-save', JSON.stringify({ data: licenseObj, sig: sig })); } catch (_) {}
+    }
+}
+
+async function loadAndVerifyLicenseData() {
+    const tenantSlug = localStorage.getItem('pos_tenant_slug') || '';
+    let raw = null;
+    // Electron: try AppData first
+    if (window.electronAPI && window.electronAPI.invoke) {
+        try {
+            const electronData = await window.electronAPI.invoke('license-load');
+            if (electronData) raw = electronData;
+        } catch (_) {}
+    }
+    // Fallback to localStorage
+    if (!raw) raw = localStorage.getItem('pos_license_data');
+    if (!raw) return null;
+    try {
+        const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
+        const { data, sig } = parsed;
+        const serialized = _serializeConfig(data);
+        const valid = await _hmacVerify(serialized, sig, tenantSlug);
+        if (!valid) {
+            console.warn('[License] HMAC verification failed - tampered!');
+            return { _tampered: true };
+        }
+        return data;
+    } catch (e) {
+        console.warn('[License] Parse error:', e);
+        return null;
+    }
+}
+
+// === License check & renewal ===
+async function checkLicense() {
+    const tenantSlug = localStorage.getItem('pos_tenant_slug') || '';
+    if (!tenantSlug) return true; // local-only mode
+
+    const overlay = document.getElementById('licenseExpiredOverlay');
+    const banner = document.getElementById('licenseWarningBanner');
+    const bannerText = document.getElementById('licenseWarningText');
+
+    const licenseData = await loadAndVerifyLicenseData();
+
+    // Tamper detected
+    if (licenseData && licenseData._tampered) {
+        console.error('[License] TAMPER DETECTED - wiping all data');
+        localStorage.clear();
+        if (window.electronAPI && window.electronAPI.send) {
+            try { window.electronAPI.send('license-clear'); } catch (_) {}
+        }
+        try { const dbs = await indexedDB.databases(); for (const db of dbs) { indexedDB.deleteDatabase(db.name); } } catch (_) {}
+        window.location.reload();
+        return false;
+    }
+
+    // No license data - try migrate from legacy
+    if (!licenseData) {
+        const legacyRaw = localStorage.getItem('pos_offline_license');
+        if (legacyRaw) {
+            try {
+                const legacy = JSON.parse(legacyRaw);
+                await saveLicenseData(legacy);
+                console.log('[License] Migrated legacy license to HMAC format');
+                return await checkLicense(); // re-check with migrated data
+            } catch (_) {}
+        }
+        // First use - no license yet, allow
+        return true;
+    }
+
+    const now = Math.floor(Date.now() / 1000);
+
+    // Inactive
+    if (licenseData.is_active === 0 || licenseData.is_active === false) {
+        if (overlay) {
+            overlay.style.display = 'flex';
+            const title = document.getElementById('licenseExpiredTitle');
+            const msg = document.getElementById('licenseExpiredMessage');
+            if (title) title.textContent = 'المتجر معطل';
+            if (msg) msg.textContent = 'هذا المتجر معطل حالياً. تواصل مع إدارة النظام لتفعيل الاشتراك.';
+        }
+        return false;
+    }
+
+    // Expired
+    const exp = licenseData.exp;
+    if (exp && exp <= now) {
+        if (overlay) {
+            overlay.style.display = 'flex';
+            const title = document.getElementById('licenseExpiredTitle');
+            const msg = document.getElementById('licenseExpiredMessage');
+            if (title) title.textContent = 'انتهت صلاحية الترخيص';
+            const expDate = new Date(exp * 1000).toLocaleDateString('ar-EG');
+            if (msg) msg.textContent = 'انتهت صلاحية الترخيص بتاريخ ' + expDate + '. يرجى تجديد الاشتراك للمتابعة.';
+        }
+        return false;
+    }
+
+    // Warning (7 days or less)
+    if (exp) {
+        const remaining = exp - now;
+        const daysLeft = remaining / 86400;
+        if (daysLeft <= 7) {
+            if (banner && bannerText) {
+                banner.style.display = 'block';
+                if (daysLeft <= 1) {
+                    banner.style.background = '#e74c3c';
+                    banner.style.color = '#fff';
+                    const hours = Math.floor(remaining / 3600);
+                    bannerText.textContent = '⚠ ينتهي الترخيص خلال ' + hours + ' ساعة. يرجى تجديد الاشتراك فوراً!';
+                } else {
+                    banner.style.background = '#f39c12';
+                    banner.style.color = '#333';
+                    const days = Math.floor(daysLeft);
+                    bannerText.textContent = '⚠ ينتهي الترخيص خلال ' + days + ' يوم. يرجى تجديد الاشتراك.';
+                }
+            }
+        } else {
+            if (banner) banner.style.display = 'none';
+        }
+    }
+
+    // Valid - hide overlay
+    if (overlay) overlay.style.display = 'none';
+    return true;
+}
+
+async function attemptLicenseRenewal() {
+    const status = document.getElementById('licenseRenewStatus');
+    if (status) status.textContent = 'جاري التحقق من الاتصال...';
+
+    const online = await checkRealConnection();
+    if (!online) {
+        if (status) status.textContent = '⛔ لا يوجد اتصال بالخادم. تأكد من اتصالك بالإنترنت.';
+        return;
+    }
+
+    if (status) status.textContent = 'جاري تجديد الترخيص...';
+    try {
+        const resp = await fetch(API_URL + '/api/license/refresh-token');
+        if (!resp.ok) throw new Error('HTTP ' + resp.status);
+        const data = await resp.json();
+        if (data.success && data.token) {
+            const parts = data.token.split('.');
+            const payload = JSON.parse(atob(parts[1]));
+            await saveLicenseData(payload);
+            if (status) status.textContent = 'تم تجديد الترخيص بنجاح!';
+            await checkLicense();
+            return;
+        }
+        if (status) status.textContent = '⛔ فشل تجديد الترخيص: ' + (data.error || 'خطأ غير معروف');
+    } catch (e) {
+        console.warn('[License] Renewal error:', e);
+        if (status) status.textContent = '⛔ فشل الاتصال بالخادم. حاول مرة أخرى.';
+    }
+}
+
 // حماية من عدم تحميل localDB في وضع أوفلاين
 if (typeof localDB === 'undefined') {
     window.localDB = { isReady: false, init: async()=>{}, save:async()=>{}, saveAll:async()=>{}, getAll:async()=>[], get:async()=>null, add:async()=>{}, delete:async()=>{} };
@@ -126,80 +297,25 @@ setInterval(async () => {
     }
 }, 5000);
 
-// === License grace period check ===
+// === License grace period check (delegates to checkLicense) ===
 function checkLicenseGracePeriod() {
-    const banner = document.getElementById('licenseWarningBanner');
-    const text = document.getElementById('licenseWarningText');
-    if (!banner || !text) return;
-
-    const tenantSlug = localStorage.getItem('pos_tenant_slug') || '';
-    if (!tenantSlug) {
-        banner.style.display = 'none';
-        return;
-    }
-
-    // Check offline license active flag
-    const licenseActive = localStorage.getItem('pos_license_active');
-    if (licenseActive === '0') {
-        banner.style.display = 'block';
-        banner.style.background = '#e74c3c';
-        banner.style.color = '#fff';
-        text.textContent = '⛔ هذا المتجر معطل. تواصل مع إدارة النظام لتفعيل الاشتراك.';
-        return;
-    }
-
-    const expStr = localStorage.getItem('pos_license_exp');
-    if (!expStr) {
-        // No token yet (first use) - no warning
-        banner.style.display = 'none';
-        return;
-    }
-
-    const exp = parseInt(expStr, 10);
-    if (!exp || isNaN(exp)) {
-        banner.style.display = 'none';
-        return;
-    }
-
-    const now = Math.floor(Date.now() / 1000);
-    const remaining = exp - now;
-    const daysLeft = remaining / 86400;
-
-    if (remaining <= 0) {
-        // Token expired
-        banner.style.display = 'block';
-        banner.style.background = '#e74c3c';
-        banner.style.color = '#fff';
-        text.textContent = '⛔ انتهت صلاحية الترخيص! يرجى الاتصال بالخادم الرئيسي لتجديد الترخيص.';
-    } else if (daysLeft <= 2) {
-        // Warning: less than 2 days left
-        banner.style.display = 'block';
-        banner.style.background = '#f39c12';
-        banner.style.color = '#333';
-        const hours = Math.floor(remaining / 3600);
-        text.textContent = `⚠ ينتهي الترخيص خلال ${hours} ساعة. يرجى الاتصال بالخادم لتجديد الترخيص.`;
-    } else {
-        banner.style.display = 'none';
-    }
+    checkLicense().catch(e => console.warn('[License] Check error:', e));
 }
 
 async function forceLicenseRefresh() {
-    const banner = document.getElementById('licenseWarningBanner');
     const text = document.getElementById('licenseWarningText');
     if (text) text.textContent = 'جاري تجديد الترخيص...';
     try {
-        const resp = await fetch(`${API_URL}/api/license/refresh-token`);
+        const resp = await fetch(API_URL + '/api/license/refresh-token');
         if (resp.ok) {
             const data = await resp.json();
             if (data.success && data.token) {
                 try {
                     const parts = data.token.split('.');
                     const payload = JSON.parse(atob(parts[1]));
-                    localStorage.setItem('pos_license_exp', String(payload.exp || ''));
-                    localStorage.setItem('pos_license_iat', String(payload.iat || ''));
-                    localStorage.setItem('pos_license_active', String(payload.is_active));
+                    await saveLicenseData(payload);
                 } catch (_) {}
-                checkLicenseGracePeriod();
+                await checkLicense();
                 return;
             }
         }
@@ -769,12 +885,10 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
             if (data.token) localStorage.setItem('pos_auth_token', data.token);
             localStorage.setItem('pos_current_user', JSON.stringify(data.user));
 
-            // حفظ بيانات الترخيص للعمل بدون اتصال
+            // حفظ بيانات الترخيص للعمل بدون اتصال (HMAC-signed)
             if (data.license) {
                 localStorage.setItem('pos_offline_license', JSON.stringify(data.license));
-                if (data.license.exp) localStorage.setItem('pos_license_exp', String(data.license.exp));
-                if (data.license.iat) localStorage.setItem('pos_license_iat', String(data.license.iat));
-                localStorage.setItem('pos_license_active', String(data.license.is_active ? 1 : 0));
+                await saveLicenseData(data.license);
             }
             
             document.getElementById('loginOverlay').classList.add('hidden');
@@ -6103,6 +6217,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (await checkFirstTimeSetup()) {
         console.log('[App] First-time setup screen shown');
         return;
+    }
+
+    // License check (HMAC-verified)
+    const licenseOk = await checkLicense();
+    if (!licenseOk) {
+        console.log('[App] License check failed - overlay shown');
     }
 
     // Auto-sync on launch if server is configured

@@ -94,6 +94,39 @@ function createWindow() {
     });
 }
 
+// === License file persistence in AppData ===
+const licensePath = () => path.join(app.getPath('userData'), 'license.json');
+
+ipcMain.on('license-save', (event, data) => {
+    try {
+        fs.writeFileSync(licensePath(), data, 'utf8');
+    } catch (e) {
+        console.error('[License] Failed to save license file:', e.message);
+    }
+});
+
+ipcMain.on('license-clear', () => {
+    try {
+        if (fs.existsSync(licensePath())) {
+            fs.unlinkSync(licensePath());
+        }
+    } catch (e) {
+        console.error('[License] Failed to clear license file:', e.message);
+    }
+});
+
+ipcMain.handle('license-load', async () => {
+    try {
+        const lp = licensePath();
+        if (fs.existsSync(lp)) {
+            return fs.readFileSync(lp, 'utf8');
+        }
+    } catch (e) {
+        console.error('[License] Failed to load license file:', e.message);
+    }
+    return null;
+});
+
 // أحداث التطبيق
 app.whenReady().then(() => {
     startLocalServer();
