@@ -3512,8 +3512,90 @@ async function loadSettings() {
             }
         }
 
+        // Load subscription info
+        loadSubscriptionInfo();
+
     } catch (error) {
         console.error('خطأ:', error);
+    }
+}
+
+function loadSubscriptionInfo() {
+    const section = document.getElementById('subscriptionInfoSection');
+    if (!section) return;
+
+    const tenantSlug = localStorage.getItem('pos_tenant_slug');
+    if (!tenantSlug) {
+        section.style.display = 'none';
+        return;
+    }
+
+    section.style.display = 'block';
+
+    // Tenant slug
+    const slugEl = document.getElementById('subInfoSlug');
+    if (slugEl) slugEl.textContent = tenantSlug;
+
+    // Mode
+    const mode = localStorage.getItem('pos_tenant_mode') || 'online';
+    const modeEl = document.getElementById('subInfoMode');
+    if (modeEl) modeEl.textContent = mode === 'offline' ? '📴 أوفلاين (محلي)' : '🌐 أونلاين';
+
+    // License data
+    let plan = '—';
+    let expiry = '—';
+    let isActive = true;
+    let isExpired = false;
+
+    try {
+        const raw = localStorage.getItem('pos_license_data');
+        if (raw) {
+            const parsed = JSON.parse(raw);
+            const licData = parsed.data || parsed;
+
+            // Plan
+            if (licData.plan) {
+                const planNames = { basic: 'أساسي', premium: 'متقدم', enterprise: 'مؤسسي', trial: 'تجريبي' };
+                plan = planNames[licData.plan] || licData.plan;
+            }
+
+            // Expiry
+            if (licData.exp) {
+                const expDate = new Date(licData.exp * 1000);
+                expiry = expDate.toLocaleDateString('ar', { year: 'numeric', month: 'long', day: 'numeric' });
+                isExpired = expDate < new Date();
+            } else if (licData.expires_at) {
+                const expDate = new Date(licData.expires_at);
+                expiry = expDate.toLocaleDateString('ar', { year: 'numeric', month: 'long', day: 'numeric' });
+                isExpired = expDate < new Date();
+            }
+
+            // Active
+            if (licData.is_active !== undefined) {
+                isActive = !!licData.is_active;
+            }
+        }
+    } catch (e) {
+        console.warn('[Settings] Failed to parse license data:', e);
+    }
+
+    const planEl = document.getElementById('subInfoPlan');
+    if (planEl) planEl.textContent = plan;
+
+    const expiryEl = document.getElementById('subInfoExpiry');
+    if (expiryEl) expiryEl.textContent = expiry;
+
+    const statusEl = document.getElementById('subInfoStatus');
+    if (statusEl) {
+        if (!isActive || isExpired) {
+            statusEl.textContent = '❌ منتهي الصلاحية';
+            statusEl.style.background = '#fed7d7';
+            statusEl.style.color = '#c53030';
+        } else {
+            statusEl.textContent = '✅ فعال';
+            statusEl.style.background = '#c6f6d5';
+            statusEl.style.color = '#276749';
+        }
     }
 }
 
@@ -10069,23 +10151,28 @@ async function createBackup() {
 
 async function downloadBackup(filename) {
     try {
-        const response = await fetch(`${API_URL}/api/backup/download/${filename}`, {
-            headers: {}
-        });
-        if (!response.ok) {
-            alert('خطأ في تحميل الملف');
+        const token = localStorage.getItem('pos_auth_token') || '';
+        const tenantSlug = localStorage.getItem('pos_tenant_slug') || '';
+        let url = `${API_URL}/api/backup/download/${encodeURIComponent(filename)}?token=${encodeURIComponent(token)}`;
+        if (tenantSlug) url += `&tenant=${encodeURIComponent(tenantSlug)}`;
+
+        // Capacitor: open in system browser
+        if (window.Capacitor && window.Capacitor.isNativePlatform()) {
+            window.open(url, '_system');
             return;
         }
-        const blob = await response.blob();
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = filename;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        window.URL.revokeObjectURL(url);
+
+        // Electron / Browser: use hidden iframe to trigger native Content-Disposition download
+        let iframe = document.getElementById('_backupDownloadFrame');
+        if (!iframe) {
+            iframe = document.createElement('iframe');
+            iframe.id = '_backupDownloadFrame';
+            iframe.style.display = 'none';
+            document.body.appendChild(iframe);
+        }
+        iframe.src = url;
     } catch (error) {
+        console.error('[Backup] Download error:', error);
         alert('فشل تحميل النسخة الاحتياطية');
     }
 }
@@ -10094,9 +10181,9 @@ async function deleteBackup(filename) {
     if (!confirm(`هل تريد حذف النسخة الاحتياطية ${filename}؟`)) return;
 
     try {
-        const response = await fetch(`${API_URL}/api/backup/delete/${filename}`, {
-            method: 'DELETE',
-            headers: {}
+        const response = await fetch(`${API_URL}/api/backup/delete/${encodeURIComponent(filename)}`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'}
         });
         const data = await response.json();
         if (data.success) {

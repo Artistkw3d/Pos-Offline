@@ -6006,7 +6006,7 @@ def download_backup(filename):
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
-@app.route('/api/backup/delete/<filename>', methods=['DELETE'])
+@app.route('/api/backup/delete/<filename>', methods=['DELETE', 'POST'])
 @require_admin()
 def delete_backup(filename):
     """حذف نسخة احتياطية"""

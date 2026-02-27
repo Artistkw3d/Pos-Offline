@@ -85,6 +85,16 @@ function createWindow() {
     ];
     Menu.setApplicationMenu(Menu.buildFromTemplate(menuTemplate));
 
+    // Handle file downloads (backup, etc.)
+    mainWindow.webContents.session.on('will-download', (event, item) => {
+        // Electron shows native save dialog by default
+        item.on('done', (e, state) => {
+            if (state === 'completed') {
+                console.log('[Download] Saved:', item.getSavePath());
+            }
+        });
+    });
+
     // تحميل الواجهة - مباشرة من الملفات أو من السيرفر المحلي
     const frontendPath = path.join(__dirname, '..', 'frontend', 'index.html');
     mainWindow.loadFile(frontendPath);

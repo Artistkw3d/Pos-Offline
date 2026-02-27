@@ -1222,6 +1222,13 @@ module.exports = function(app, helpers) {
   // GET /api/backup/download/:filename
   app.get('/api/backup/download/:filename', (req, res) => {
     try {
+      // Accept auth token and tenant from query string (for direct/iframe downloads)
+      if (req.query.token && !req.headers['authorization']) {
+        req.headers['authorization'] = 'Bearer ' + req.query.token;
+      }
+      if (req.query.tenant && !req.headers['x-tenant-id']) {
+        req.headers['x-tenant-id'] = req.query.tenant;
+      }
       const filename = req.params.filename;
       // Prevent path traversal
       const safeFilename = filename.replace(/[^a-zA-Z0-9_.\-]/g, '');
@@ -1242,8 +1249,8 @@ module.exports = function(app, helpers) {
     }
   });
 
-  // DELETE /api/backup/delete/:filename
-  app.delete('/api/backup/delete/:filename', (req, res) => {
+  // DELETE/POST /api/backup/delete/:filename
+  function handleDeleteBackup(req, res) {
     try {
       const filename = req.params.filename;
       const safeFilename = filename.replace(/[^a-zA-Z0-9_.\-]/g, '');
@@ -1263,7 +1270,9 @@ module.exports = function(app, helpers) {
     } catch (e) {
       return res.status(500).json({ success: false, error: e.message });
     }
-  });
+  }
+  app.delete('/api/backup/delete/:filename', handleDeleteBackup);
+  app.post('/api/backup/delete/:filename', handleDeleteBackup);
 
   // POST /api/backup/restore (with multer for file upload)
   app.post('/api/backup/restore', upload.single('file'), (req, res) => {
