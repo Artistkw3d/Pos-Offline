@@ -1053,6 +1053,8 @@ module.exports = function (app, helpers) {
 
       const result = { success: true, id: invoiceId, invoice_number: invoiceNumberWithBranch };
       if (lowStockWarnings.length > 0) result.low_stock_warnings = lowStockWarnings;
+      const negStockWarnings = lowStockWarnings.filter(w => w.stock < 0);
+      if (negStockWarnings.length > 0) result.negative_stock_warnings = negStockWarnings;
       return res.json(result);
     } catch (e) {
       return res.status(500).json({ success: false, error: e.message });
@@ -1391,6 +1393,25 @@ module.exports = function (app, helpers) {
       const db = getDb(req);
       const products = db.prepare('SELECT * FROM products WHERE stock <= ? ORDER BY stock ASC').all(threshold);
       return res.json({ success: true, products });
+    } catch (e) {
+      return res.status(500).json({ success: false, error: e.message });
+    }
+  });
+
+  // ===== GET /api/negative-stock =====
+  app.get('/api/negative-stock', (req, res) => {
+    try {
+      const db = getDb(req);
+      const branch_id = req.query.branch_id ? parseInt(req.query.branch_id) : null;
+      let query = `SELECT bs.id, bs.stock, bs.branch_id, i.name as product_name, pv.variant_name
+          FROM branch_stock bs
+          JOIN inventory i ON bs.inventory_id = i.id
+          LEFT JOIN product_variants pv ON bs.variant_id = pv.id
+          WHERE bs.stock < 0`;
+      if (branch_id) query += ` AND bs.branch_id = ?`;
+      query += ` ORDER BY bs.stock ASC`;
+      const items = branch_id ? db.prepare(query).all(branch_id) : db.prepare(query).all();
+      return res.json({ success: true, items });
     } catch (e) {
       return res.status(500).json({ success: false, error: e.message });
     }

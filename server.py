@@ -3446,6 +3446,9 @@ def create_invoice():
         result = {'success': True, 'id': invoice_id, 'invoice_number': invoice_number_with_branch}
         if low_stock_warnings:
             result['low_stock_warnings'] = low_stock_warnings
+            neg_warnings = [w for w in low_stock_warnings if w['stock'] < 0]
+            if neg_warnings:
+                result['negative_stock_warnings'] = neg_warnings
         return jsonify(result)
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
@@ -4005,6 +4008,31 @@ def low_stock_report():
         return jsonify({'success': True, 'products': products})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/negative-stock', methods=['GET'])
+def negative_stock_report():
+    """المنتجات ذات المخزون السلبي"""
+    try:
+        conn = get_db()
+        cursor = conn.cursor()
+        branch_id = request.args.get('branch_id', None, type=int)
+        query = '''SELECT bs.id, bs.stock, bs.branch_id, i.name as product_name, pv.variant_name
+            FROM branch_stock bs
+            JOIN inventory i ON bs.inventory_id = i.id
+            LEFT JOIN product_variants pv ON bs.variant_id = pv.id
+            WHERE bs.stock < 0'''
+        params = []
+        if branch_id:
+            query += ' AND bs.branch_id = ?'
+            params.append(branch_id)
+        query += ' ORDER BY bs.stock ASC'
+        cursor.execute(query, params)
+        items = [dict(row) for row in cursor.fetchall()]
+        conn.close()
+        return jsonify({'success': True, 'items': items})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 
 # ===== API الإعدادات =====
 

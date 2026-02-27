@@ -1982,6 +1982,11 @@ async function completeSale() {
                     setTimeout(() => showWarning(warningLines, 8000), 1500);
                 }
 
+                // تحذير المخزون السلبي بعد حفظ الفاتورة
+                if (data.negative_stock_warnings && data.negative_stock_warnings.length > 0) {
+                    setTimeout(() => showNegativeStockModal(data.negative_stock_warnings), 2000);
+                }
+
                 // تحديث المخزون المحلي
                 if (localDB.isReady) {
                     try {
@@ -6173,6 +6178,35 @@ function showWarning(message, duration = 6000) {
     }, duration);
 }
 
+// === Negative stock modal ===
+function showNegativeStockModal(items) {
+    const modal = document.getElementById('negativeStockModal');
+    const list = document.getElementById('negativeStockList');
+    if (!modal || !list || !items || items.length === 0) return;
+    let html = '';
+    for (const item of items) {
+        let name = escHTML(item.product_name || '');
+        if (item.variant_name) name += ' (' + escHTML(item.variant_name) + ')';
+        html += '<div style="padding:3px 0;">• ' + name + ': <span style="color:#f87171; font-weight:bold;">' + item.stock + '</span></div>';
+    }
+    list.innerHTML = html;
+    modal.style.display = 'flex';
+}
+
+async function checkNegativeStock() {
+    if (window._negStockDismissed) return;
+    try {
+        const branchId = currentUser && currentUser.branch_id ? currentUser.branch_id : '';
+        const url = API_URL + '/api/negative-stock' + (branchId ? '?branch_id=' + branchId : '');
+        const resp = await fetch(url);
+        if (!resp.ok) return;
+        const data = await resp.json();
+        if (data.success && data.items && data.items.length > 0) {
+            showNegativeStockModal(data.items);
+        }
+    } catch (_) {}
+}
+
 /**
  * تشغيل صوت إتمام الفاتورة
  */
@@ -6257,6 +6291,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (restoreUser()) {
         console.log('[App] User found in localStorage, restoring session...');
         initializeUI();
+        // فحص المخزون السلبي بعد تسجيل الدخول
+        checkNegativeStock();
     } else {
         console.log('[App] No saved user, showing login screen');
     }

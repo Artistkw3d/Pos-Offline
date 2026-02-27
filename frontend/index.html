@@ -45,6 +45,19 @@
         </div>
     </div>
 
+    <!-- Negative Stock Warning Modal -->
+    <div id="negativeStockModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); z-index:99996; justify-content:center; align-items:center;" onclick="if(event.target===this)this.style.display='none'">
+        <div style="background:#1e293b; color:#e2e8f0; border-radius:12px; padding:24px; max-width:500px; width:90%; max-height:80vh; overflow-y:auto; direction:rtl;">
+            <h2 style="text-align:center; margin-bottom:16px; font-size:20px; color:#f87171;">تحذير: مخزون سلبي</h2>
+            <p style="text-align:center; font-size:13px; color:#94a3b8; margin-bottom:14px;">المنتجات التالية لديها مخزون أقل من صفر. يرجى مراجعة المخزون وتعديله.</p>
+            <div id="negativeStockList" style="background:#451a1a; border:1px solid #dc2626; border-radius:8px; padding:12px; font-size:13px; line-height:1.8; margin-bottom:16px;"></div>
+            <div style="text-align:center;">
+                <button onclick="document.getElementById('negativeStockModal').style.display='none'" style="padding:10px 32px; border:none; border-radius:8px; background:#3b82f6; color:#fff; font-size:15px; cursor:pointer; margin-left:8px;">إغلاق</button>
+                <button id="negativeStockDismiss" onclick="window._negStockDismissed=true; document.getElementById('negativeStockModal').style.display='none'" style="padding:10px 20px; border:1px solid #475569; border-radius:8px; background:transparent; color:#94a3b8; font-size:13px; cursor:pointer;">عدم الإظهار في هذه الجلسة</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Shift Lock Overlay -->
     <div id="shiftLockOverlay" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.85); z-index:99999; justify-content:center; align-items:center; flex-direction:column;">
         <div style="text-align:center; color:#fff; padding:40px;">
