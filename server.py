@@ -266,7 +266,8 @@ def init_master_db():
             subscription_amount REAL DEFAULT 0,
             subscription_period INTEGER DEFAULT 30,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            expires_at TEXT
+            expires_at TEXT,
+            mode TEXT DEFAULT 'online'
         )
     ''')
     cursor.execute('''
@@ -300,6 +301,8 @@ def init_master_db():
             cursor.execute("ALTER TABLE tenants ADD COLUMN subscription_amount REAL DEFAULT 0")
         if 'subscription_period' not in cols:
             cursor.execute("ALTER TABLE tenants ADD COLUMN subscription_period INTEGER DEFAULT 30")
+        if 'mode' not in cols:
+            cursor.execute("ALTER TABLE tenants ADD COLUMN mode TEXT DEFAULT 'online'")
     except:
         pass
     # إنشاء حساب Super Admin افتراضي إن لم يكن موجوداً
@@ -5336,7 +5339,7 @@ def check_tenant_status():
             return jsonify({'success': False, 'error': 'slug مطلوب'}), 400
         conn = get_master_db()
         cursor = conn.cursor()
-        cursor.execute('SELECT is_active, expires_at, name FROM tenants WHERE slug = ?', (slug,))
+        cursor.execute('SELECT is_active, expires_at, name, plan, mode FROM tenants WHERE slug = ?', (slug,))
         tenant = cursor.fetchone()
         conn.close()
         if not tenant:
@@ -5352,7 +5355,7 @@ def check_tenant_status():
                 conn2.commit()
                 conn2.close()
                 t['is_active'] = 0
-        return jsonify({'success': True, 'is_active': t['is_active'], 'expires_at': t['expires_at'], 'name': t['name']})
+        return jsonify({'success': True, 'is_active': t['is_active'], 'expires_at': t['expires_at'], 'name': t['name'], 'plan': t.get('plan', 'basic'), 'mode': t.get('mode', 'online')})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 

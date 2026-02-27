@@ -19,7 +19,8 @@ const MASTER_TABLES_SQL = `
       subscription_amount REAL DEFAULT 0,
       subscription_period INTEGER DEFAULT 30,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      expires_at TEXT
+      expires_at TEXT,
+      mode TEXT DEFAULT 'online'
     );
     CREATE TABLE IF NOT EXISTS super_admins (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -60,6 +61,9 @@ function initMasterDb(Database, masterDbPath, hashPassword) {
     }
     if (!cols.includes('subscription_period')) {
       db.exec('ALTER TABLE tenants ADD COLUMN subscription_period INTEGER DEFAULT 30');
+    }
+    if (!cols.includes('mode')) {
+      db.exec("ALTER TABLE tenants ADD COLUMN mode TEXT DEFAULT 'online'");
     }
   } catch (_e) { /* ignore */ }
 

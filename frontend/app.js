@@ -17,6 +17,64 @@ function escHTML(str) {
     return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
 
+// === HMAC anti-tamper for setup config ===
+const _POS_APP_SALT = 'pos-offline-2024-anti-tamper';
+
+async function _hmacSign(data, tenantSlug) {
+    const keyStr = (tenantSlug || '') + ':' + _POS_APP_SALT;
+    if (typeof crypto !== 'undefined' && crypto.subtle) {
+        try {
+            const encoder = new TextEncoder();
+            const key = await crypto.subtle.importKey(
+                'raw', encoder.encode(keyStr), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']
+            );
+            const sig = await crypto.subtle.sign('HMAC', key, encoder.encode(data));
+            return Array.from(new Uint8Array(sig)).map(b => b.toString(16).padStart(2, '0')).join('');
+        } catch (_) { /* fallback below */ }
+    }
+    // Fallback for non-secure contexts (file:// without crypto.subtle)
+    let hash = 0;
+    const combined = keyStr + '|' + data;
+    for (let i = 0; i < combined.length; i++) {
+        hash = ((hash << 5) - hash) + combined.charCodeAt(i);
+        hash |= 0;
+    }
+    return 'fb-' + Math.abs(hash).toString(16);
+}
+
+async function _hmacVerify(data, signature, tenantSlug) {
+    const expected = await _hmacSign(data, tenantSlug);
+    return expected === signature;
+}
+
+function _serializeConfig(config) {
+    return JSON.stringify(config, Object.keys(config).sort());
+}
+
+async function saveSetupConfig(config) {
+    const serialized = _serializeConfig(config);
+    const sig = await _hmacSign(serialized, config.tenant_slug || '');
+    localStorage.setItem('pos_setup_config', JSON.stringify({ data: config, sig: sig }));
+}
+
+async function loadAndVerifySetupConfig() {
+    const raw = localStorage.getItem('pos_setup_config');
+    if (!raw) return null;
+    try {
+        const { data, sig } = JSON.parse(raw);
+        const serialized = _serializeConfig(data);
+        const valid = await _hmacVerify(serialized, sig, data.tenant_slug || '');
+        if (!valid) {
+            console.warn('[Setup] Config HMAC verification failed - tampered?');
+            return null;
+        }
+        return data;
+    } catch (e) {
+        console.warn('[Setup] Config parse error:', e);
+        return null;
+    }
+}
+
 // حماية من عدم تحميل localDB في وضع أوفلاين
 if (typeof localDB === 'undefined') {
     window.localDB = { isReady: false, init: async()=>{}, save:async()=>{}, saveAll:async()=>{}, getAll:async()=>[], get:async()=>null, add:async()=>{}, delete:async()=>{} };
@@ -257,71 +315,202 @@ function applyViewMode(mode) {
 })();
 
 // ===== شاشة إعداد الخادم (أول تشغيل) =====
-function checkFirstTimeSetup() {
+let _setupVerified = false;
+let _setupVerifiedData = null;
+
+async function checkFirstTimeSetup() {
+    // 1) Check HMAC-verified config
+    const config = await loadAndVerifySetupConfig();
+    if (config) {
+        // Restore legacy keys for backward compatibility
+        if (config.server_url) {
+            localStorage.setItem('pos_sync_server_url', config.server_url);
+            localStorage.setItem('pos_server_url', config.server_url);
+        }
+        if (config.tenant_slug) {
+            localStorage.setItem('pos_tenant_slug', config.tenant_slug);
+            currentTenantSlug = config.tenant_slug;
+        }
+        return false;
+    }
+    // 2) Legacy check
     const configured = localStorage.getItem('pos_flask_server_url_configured');
     const skipped = localStorage.getItem('pos_setup_skipped');
-    if (!configured && !skipped) {
-        const setupOverlay = document.getElementById('serverSetupOverlay');
-        const loginOverlay = document.getElementById('loginOverlay');
-        if (setupOverlay) {
-            setupOverlay.style.display = '';
-            if (loginOverlay) loginOverlay.style.display = 'none';
-            return true;
+    if (configured || skipped) return false;
+
+    // 3) First run — show setup
+    const setupOverlay = document.getElementById('serverSetupOverlay');
+    const loginOverlay = document.getElementById('loginOverlay');
+    if (setupOverlay) {
+        setupOverlay.style.display = '';
+        if (loginOverlay) loginOverlay.style.display = 'none';
+        // Electron: auto-fill localhost, show skip
+        if (window.location.protocol === 'file:') {
+            const urlInput = document.getElementById('setupServerUrl');
+            if (urlInput) { urlInput.value = 'http://localhost:5050'; urlInput.readOnly = true; urlInput.style.background = '#f1f5f9'; }
+            const skipC = document.getElementById('setupSkipContainer');
+            if (skipC) skipC.style.display = 'block';
         }
+        // Capacitor: auto-fill remote
+        if (window.Capacitor && window.Capacitor.isNativePlatform()) {
+            const urlInput = document.getElementById('setupServerUrl');
+            if (urlInput && !urlInput.value) urlInput.value = 'https://my-pos.org';
+        }
+        return true;
     }
     return false;
 }
 
-function testSetupConnection() {
+async function testSetupConnection() {
     const urlInput = document.getElementById('setupServerUrl');
+    const slugInput = document.getElementById('setupTenantSlug');
     const resultDiv = document.getElementById('setupTestResult');
-    let url = (urlInput.value || '').trim().replace(/\/+$/, '');
+    const subInfoDiv = document.getElementById('setupSubscriptionInfo');
+    const saveBtn = document.getElementById('setupSaveBtn');
+
+    _setupVerified = false;
+    _setupVerifiedData = null;
+    if (saveBtn) { saveBtn.style.opacity = '0.5'; saveBtn.style.pointerEvents = 'none'; }
+    if (subInfoDiv) subInfoDiv.style.display = 'none';
+
+    let url = (urlInput ? urlInput.value : '').trim().replace(/\/+$/, '');
+    let slug = (slugInput ? slugInput.value : '').trim();
+
     if (!url) {
         resultDiv.innerHTML = '<span style="color:#e74c3c;">الرجاء إدخال عنوان الخادم</span>';
         return;
     }
-    resultDiv.innerHTML = '<span style="color:#888;">جاري الاختبار...</span>';
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 5000);
-    fetch(url + '/api/version', { method: 'GET', cache: 'no-store', signal: controller.signal })
-        .then(r => {
-            clearTimeout(timeout);
-            if (r.ok) return r.json();
-            throw new Error('status ' + r.status);
-        })
-        .then(data => {
-            const ver = data.version || data.data || '';
-            resultDiv.innerHTML = '<span style="color:#22c55e;">✓ متصل بنجاح' + (ver ? ' — v' + escHTML(String(ver)) : '') + '</span>';
-        })
-        .catch(err => {
-            clearTimeout(timeout);
-            resultDiv.innerHTML = '<span style="color:#e74c3c;">✗ فشل الاتصال: ' + escHTML(err.message) + '</span>';
-        });
-}
 
-function saveServerSetup() {
-    const urlInput = document.getElementById('setupServerUrl');
-    let url = (urlInput.value || '').trim().replace(/\/+$/, '');
-    if (!url) {
-        document.getElementById('setupTestResult').innerHTML = '<span style="color:#e74c3c;">الرجاء إدخال عنوان الخادم</span>';
+    // Step 1: Test basic connection
+    resultDiv.innerHTML = '<span style="color:#888;">جاري الاتصال بالخادم...</span>';
+    let serverVersion = '';
+    try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 5000);
+        const resp = await fetch(url + '/api/version', { method: 'GET', cache: 'no-store', signal: controller.signal });
+        clearTimeout(timeout);
+        if (!resp.ok) throw new Error('status ' + resp.status);
+        const vData = await resp.json();
+        serverVersion = vData.version || vData.data || '';
+        resultDiv.innerHTML = '<span style="color:#22c55e;">&#10003; متصل بنجاح' + (serverVersion ? ' &mdash; v' + escHTML(String(serverVersion)) : '') + '</span>';
+    } catch (err) {
+        resultDiv.innerHTML = '<span style="color:#e74c3c;">&#10007; فشل الاتصال: ' + escHTML(err.message) + '</span>';
         return;
     }
-    localStorage.setItem('pos_sync_server_url', url);
-    localStorage.setItem('pos_server_url', url);
+
+    // Step 2: Verify tenant subscription
+    if (slug) {
+        resultDiv.innerHTML += '<br><span style="color:#888;">جاري التحقق من المتجر...</span>';
+        try {
+            const controller2 = new AbortController();
+            const timeout2 = setTimeout(() => controller2.abort(), 5000);
+            const resp2 = await fetch(url + '/api/tenant/check-status?slug=' + encodeURIComponent(slug), {
+                method: 'GET', cache: 'no-store', signal: controller2.signal
+            });
+            clearTimeout(timeout2);
+            const tenantData = await resp2.json();
+
+            if (!tenantData.success) {
+                resultDiv.innerHTML = '<span style="color:#e74c3c;">&#10007; ' + escHTML(tenantData.error || 'معرف المتجر غير صحيح') + '</span>';
+                return;
+            }
+            if (!tenantData.is_active) {
+                resultDiv.innerHTML = '<span style="color:#e74c3c;">&#10007; هذا المتجر معطل. تواصل مع إدارة النظام.</span>';
+                return;
+            }
+
+            // Show subscription info
+            const planNames = { 'basic': 'أساسية', 'premium': 'متقدمة', 'enterprise': 'مؤسسات' };
+            if (subInfoDiv) {
+                subInfoDiv.style.display = 'block';
+                subInfoDiv.innerHTML = '<div style="font-weight:bold; margin-bottom:6px; color:#15803d;">&#9989; المتجر: ' + escHTML(tenantData.name) + '</div>'
+                    + '<div>الخطة: <strong>' + escHTML(planNames[tenantData.plan] || tenantData.plan || 'basic') + '</strong></div>'
+                    + '<div>الوضع: <strong>' + (tenantData.mode === 'offline' ? 'أوفلاين' : 'أونلاين') + '</strong></div>'
+                    + (tenantData.expires_at ? '<div>ينتهي: <strong>' + escHTML(tenantData.expires_at.substring(0, 10)) + '</strong></div>' : '');
+            }
+
+            _setupVerifiedData = {
+                server_url: url,
+                tenant_slug: slug,
+                tenant_name: tenantData.name || '',
+                plan: tenantData.plan || 'basic',
+                mode: tenantData.mode || 'online',
+                is_active: tenantData.is_active ? 1 : 0,
+                expires_at: tenantData.expires_at || '',
+                verified_at: new Date().toISOString()
+            };
+            _setupVerified = true;
+            if (saveBtn) { saveBtn.style.opacity = '1'; saveBtn.style.pointerEvents = 'auto'; }
+            resultDiv.innerHTML = '<span style="color:#22c55e;">&#10003; تم التحقق بنجاح! اضغط "حفظ والمتابعة"</span>';
+        } catch (err) {
+            resultDiv.innerHTML = '<span style="color:#e74c3c;">&#10007; فشل التحقق من المتجر: ' + escHTML(err.message) + '</span>';
+        }
+    } else {
+        // No slug — allow save with server URL only
+        _setupVerifiedData = {
+            server_url: url,
+            tenant_slug: '',
+            tenant_name: '',
+            plan: '',
+            mode: '',
+            is_active: 1,
+            expires_at: '',
+            verified_at: new Date().toISOString()
+        };
+        _setupVerified = true;
+        if (saveBtn) { saveBtn.style.opacity = '1'; saveBtn.style.pointerEvents = 'auto'; }
+    }
+}
+
+async function saveServerSetup() {
+    if (!_setupVerified || !_setupVerifiedData) {
+        document.getElementById('setupTestResult').innerHTML = '<span style="color:#e74c3c;">يجب اختبار الاتصال أولاً</span>';
+        return;
+    }
+    const config = _setupVerifiedData;
+    // Save HMAC-signed config
+    await saveSetupConfig(config);
+    // Legacy keys for backward compat
+    localStorage.setItem('pos_sync_server_url', config.server_url);
+    localStorage.setItem('pos_server_url', config.server_url);
     localStorage.setItem('pos_sync_mode', 'server');
     localStorage.setItem('pos_flask_server_url_configured', '1');
-    // Save to server settings (fire-and-forget)
+    if (config.tenant_slug) {
+        localStorage.setItem('pos_tenant_slug', config.tenant_slug);
+        currentTenantSlug = config.tenant_slug;
+    }
+    if (config.expires_at) {
+        localStorage.setItem('pos_license_active', config.is_active ? '1' : '0');
+    }
+    // Fire-and-forget: save to server settings
     fetch(API_URL + '/api/settings', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ flask_server_url: url })
+        body: JSON.stringify({ flask_server_url: config.server_url })
     }).catch(() => {});
-    // Show login
+    // Transition to login
     document.getElementById('serverSetupOverlay').style.display = 'none';
     document.getElementById('loginOverlay').style.display = '';
+    // Pre-fill tenant slug in login form
+    if (config.tenant_slug) {
+        const slugInput = document.getElementById('loginTenantSlug');
+        if (slugInput) slugInput.value = config.tenant_slug;
+    }
 }
 
-function skipServerSetup() {
+async function skipServerSetup() {
+    const config = {
+        server_url: '',
+        tenant_slug: '',
+        tenant_name: '',
+        plan: '',
+        mode: 'local',
+        is_active: 1,
+        expires_at: '',
+        skipped: true,
+        verified_at: new Date().toISOString()
+    };
+    await saveSetupConfig(config);
     localStorage.setItem('pos_setup_skipped', '1');
     document.getElementById('serverSetupOverlay').style.display = 'none';
     document.getElementById('loginOverlay').style.display = '';
@@ -330,12 +519,20 @@ function skipServerSetup() {
 function openServerSetup() {
     const setupOverlay = document.getElementById('serverSetupOverlay');
     const loginOverlay = document.getElementById('loginOverlay');
-    const urlInput = document.getElementById('setupServerUrl');
     if (setupOverlay) {
-        // Pre-fill with current saved URL
         const savedUrl = localStorage.getItem('pos_sync_server_url') || localStorage.getItem('pos_server_url') || '';
+        const savedSlug = localStorage.getItem('pos_tenant_slug') || '';
+        const urlInput = document.getElementById('setupServerUrl');
+        const slugInput = document.getElementById('setupTenantSlug');
         if (urlInput && savedUrl) urlInput.value = savedUrl;
+        if (slugInput && savedSlug) slugInput.value = savedSlug;
         document.getElementById('setupTestResult').innerHTML = '';
+        const subInfoDiv = document.getElementById('setupSubscriptionInfo');
+        if (subInfoDiv) subInfoDiv.style.display = 'none';
+        const saveBtn = document.getElementById('setupSaveBtn');
+        if (saveBtn) { saveBtn.style.opacity = '0.5'; saveBtn.style.pointerEvents = 'none'; }
+        _setupVerified = false;
+        _setupVerifiedData = null;
         setupOverlay.style.display = '';
         if (loginOverlay) loginOverlay.style.display = 'none';
     }
@@ -5899,11 +6096,11 @@ async function fetchVersion() {
 }
 fetchVersion();
 
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
     console.log('[App] DOMContentLoaded - checking for saved user...');
 
-    // First-time setup check
-    if (checkFirstTimeSetup()) {
+    // First-time setup check (async for HMAC verification)
+    if (await checkFirstTimeSetup()) {
         console.log('[App] First-time setup screen shown');
         return;
     }
@@ -8984,6 +9181,7 @@ async function loadSuperAdminDashboard() {
                         <th style="${thStyle}">المالك</th>
                         <th style="${thStyle}">الخطة</th>
                         <th style="${thStyle} text-align: center;">الحالة</th>
+                        <th style="${thStyle} text-align: center;">الوضع</th>
                         <th style="${thStyle} text-align: center;">الاشتراك</th>
                         <th style="${thStyle} text-align: center;">المستخدمين</th>
                         <th style="${thStyle} text-align: center;">الإجراءات</th>
@@ -8993,7 +9191,7 @@ async function loadSuperAdminDashboard() {
         `;
 
         if (tenants.length === 0) {
-            tableHTML += '<tr><td colspan="9" style="padding: 30px; text-align: center; color: #94a3b8;">لا توجد متاجر - اضغط "إضافة متجر جديد" للبدء</td></tr>';
+            tableHTML += '<tr><td colspan="10" style="padding: 30px; text-align: center; color: #94a3b8;">لا توجد متاجر - اضغط "إضافة متجر جديد" للبدء</td></tr>';
         } else {
             tenants.forEach((t, i) => {
                 const planNames = {'basic': 'أساسية', 'premium': 'متقدمة', 'enterprise': 'مؤسسات'};
@@ -9032,6 +9230,7 @@ async function loadSuperAdminDashboard() {
                         <td style="padding: 10px;">${escHTML(t.owner_name)}</td>
                         <td style="padding: 10px;"><span style="background: ${t.plan === 'enterprise' ? '#fef3c7' : t.plan === 'premium' ? '#dbeafe' : '#f1f5f9'}; padding: 3px 8px; border-radius: 6px; font-size: 11px;">${planNames[t.plan] || t.plan}</span></td>
                         <td style="padding: 10px; text-align: center;">${t.is_active ? '<span style="color: #10b981; font-weight: bold;">✅ نشط</span>' : '<span style="color: #ef4444;">❌ معطل</span>'}</td>
+                        <td style="padding: 10px; text-align: center;">${t.mode === 'offline' ? '<span style="background: #fef3c7; color: #92400e; padding: 3px 8px; border-radius: 6px; font-size: 11px;">📴 أوفلاين</span>' : '<span style="background: #d1fae5; color: #065f46; padding: 3px 8px; border-radius: 6px; font-size: 11px;">🌐 أونلاين</span>'}</td>
                         <td style="padding: 10px; text-align: center; font-size: 12px;">${subStatus}</td>
                         <td style="padding: 10px; text-align: center;">${t.users_count || 0}</td>
                         <td style="padding: 10px; text-align: center;">
@@ -9074,6 +9273,7 @@ function showAddTenant() {
     document.getElementById('tenantMaxBranches').value = '3';
     document.getElementById('tenantSubAmount').value = '0';
     document.getElementById('tenantSubPeriod').value = '30';
+    document.getElementById('tenantMode').value = 'online';
     document.getElementById('tenantSlugGroup').style.display = 'block';
     document.getElementById('tenantAdminFields').style.display = 'grid';
     document.getElementById('tenantModalTitle').textContent = '➕ إضافة متجر جديد';
@@ -9098,6 +9298,7 @@ async function editTenant(tenantId) {
         document.getElementById('tenantMaxBranches').value = t.max_branches || 3;
         document.getElementById('tenantSubAmount').value = t.subscription_amount || 0;
         document.getElementById('tenantSubPeriod').value = t.subscription_period || 30;
+        document.getElementById('tenantMode').value = t.mode || 'online';
         document.getElementById('tenantSlugGroup').style.display = 'none'; // لا يمكن تغيير slug
         document.getElementById('tenantAdminFields').style.display = 'none'; // لا يمكن تغيير أدمن من هنا
         document.getElementById('tenantModalTitle').textContent = '✏️ تعديل متجر';
@@ -9124,7 +9325,8 @@ document.getElementById('tenantForm')?.addEventListener('submit', async (e) => {
                     max_users: parseInt(document.getElementById('tenantMaxUsers').value),
                     max_branches: parseInt(document.getElementById('tenantMaxBranches').value),
                     subscription_amount: parseFloat(document.getElementById('tenantSubAmount').value) || 0,
-                    subscription_period: parseInt(document.getElementById('tenantSubPeriod').value) || 30
+                    subscription_period: parseInt(document.getElementById('tenantSubPeriod').value) || 30,
+                    mode: document.getElementById('tenantMode').value
                 })
             });
             const data = await response.json();
@@ -9151,7 +9353,8 @@ document.getElementById('tenantForm')?.addEventListener('submit', async (e) => {
                     max_users: parseInt(document.getElementById('tenantMaxUsers').value),
                     max_branches: parseInt(document.getElementById('tenantMaxBranches').value),
                     subscription_amount: parseFloat(document.getElementById('tenantSubAmount').value) || 0,
-                    subscription_period: parseInt(document.getElementById('tenantSubPeriod').value) || 30
+                    subscription_period: parseInt(document.getElementById('tenantSubPeriod').value) || 30,
+                    mode: document.getElementById('tenantMode').value
                 })
             });
             const data = await response.json();

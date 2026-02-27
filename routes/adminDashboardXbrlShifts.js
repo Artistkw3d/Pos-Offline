@@ -4,7 +4,7 @@
  */
 
 module.exports = function (app, helpers) {
-  const { getDb } = helpers;
+  const { getDb, getMasterDb } = helpers;
 
   // ===== Helper: ensure XBRL tables exist =====
   function ensureXbrlTables(db) {
@@ -812,6 +812,30 @@ ${partnersSection}
       res.json({ success: true, shift_stats: shiftStats, unassigned_employees: unassigned });
     } catch (e) {
       res.status(500).json({ success: false, error: e.message });
+    }
+  });
+
+  // ===== Tenant Mode (online/offline) =====
+
+  // PUT /api/admin/tenants/:id/mode — update tenant mode in master.db
+  app.put('/api/admin/tenants/:id/mode', (req, res) => {
+    try {
+      const tenantId = req.params.id;
+      const { mode } = req.body;
+      if (!mode || !['online', 'offline'].includes(mode)) {
+        return res.status(400).json({ success: false, error: 'الوضع يجب أن يكون online أو offline' });
+      }
+      const masterDb = getMasterDb();
+      const tenant = masterDb.prepare('SELECT id FROM tenants WHERE id = ?').get(tenantId);
+      if (!tenant) {
+        masterDb.close();
+        return res.status(404).json({ success: false, error: 'المتجر غير موجود' });
+      }
+      masterDb.prepare('UPDATE tenants SET mode = ? WHERE id = ?').run(mode, tenantId);
+      masterDb.close();
+      return res.json({ success: true, message: 'تم تحديث وضع المتجر' });
+    } catch (e) {
+      return res.status(500).json({ success: false, error: e.message });
     }
   });
 

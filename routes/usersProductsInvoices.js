@@ -103,6 +103,53 @@ module.exports = function (app, helpers) {
     }
   }
 
+  // ===== GET /api/tenant/check-status =====
+  app.get('/api/tenant/check-status', async (req, res) => {
+    try {
+      const slug = (req.query.slug || '').trim();
+      if (!slug) return res.status(400).json({ success: false, error: 'slug مطلوب' });
+
+      // Try local master.db first
+      let tenant = null;
+      try {
+        const masterDb = getMasterDb();
+        tenant = masterDb.prepare('SELECT is_active, expires_at, name, plan, mode FROM tenants WHERE slug = ?').get(slug);
+        // Auto-deactivate expired tenants
+        if (tenant && tenant.is_active && tenant.expires_at) {
+          const expiry = new Date(tenant.expires_at.substring(0, 10));
+          const today = new Date(); today.setHours(0, 0, 0, 0);
+          if (today > expiry) {
+            masterDb.prepare('UPDATE tenants SET is_active = 0 WHERE slug = ?').run(slug);
+            tenant.is_active = 0;
+          }
+        }
+        masterDb.close();
+      } catch (_e) { /* local lookup failed */ }
+
+      if (tenant) {
+        return res.json({
+          success: true,
+          is_active: tenant.is_active,
+          expires_at: tenant.expires_at || null,
+          name: tenant.name,
+          plan: tenant.plan || 'basic',
+          mode: tenant.mode || 'online'
+        });
+      }
+
+      // Fallback: proxy to Flask
+      const flaskUrl = getFlaskServerUrl();
+      if (flaskUrl) {
+        const result = await fetchFromFlask(flaskUrl, '/api/tenant/check-status?slug=' + encodeURIComponent(slug));
+        if (result.ok && result.data) return res.json(result.data);
+      }
+
+      return res.status(404).json({ success: false, error: 'معرف المتجر غير صحيح' });
+    } catch (e) {
+      return res.status(500).json({ success: false, error: e.message });
+    }
+  });
+
   // ===== POST /api/login =====
   app.post('/api/login', async (req, res) => {
     try {

@@ -852,7 +852,7 @@ module.exports = function(app, helpers) {
     // Update local master.db
     try {
       const masterDb = getMasterDb();
-      const allowed = ['name', 'owner_name', 'owner_email', 'owner_phone', 'plan', 'max_users', 'max_branches', 'is_active', 'subscription_amount', 'subscription_period'];
+      const allowed = ['name', 'owner_name', 'owner_email', 'owner_phone', 'plan', 'max_users', 'max_branches', 'is_active', 'subscription_amount', 'subscription_period', 'mode'];
       const fields = [];
       const values = [];
       for (const key of allowed) {

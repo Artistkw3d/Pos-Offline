@@ -33,18 +33,23 @@
 
     <!-- Server Setup (first-time) -->
     <div class="login-overlay" id="serverSetupOverlay" style="display:none;">
-        <div class="login-box">
-            <div class="login-logo"><img src="icon-192.png" style="width: 100px; height: 100px; border-radius: 20px; object-fit: cover;"></div>
-            <h1 class="login-title">إعداد الخادم</h1>
-            <p style="text-align:center; color:#666; margin-bottom:18px; font-size:14px;">أدخل عنوان خادم Flask للمزامنة وإدارة المتاجر</p>
+        <div class="login-box" style="max-width: 440px;">
+            <div class="login-logo"><img src="icon-192.png" style="width: 80px; height: 80px; border-radius: 16px; object-fit: cover;"></div>
+            <h1 class="login-title">إعداد النظام</h1>
+            <p style="text-align:center; color:#666; margin-bottom:18px; font-size:14px;">قم بربط النظام بالخادم لتفعيل المتجر</p>
             <div class="login-form-group">
                 <label>عنوان الخادم (Server URL)</label>
-                <input type="text" id="setupServerUrl" placeholder="http://192.168.1.5:5000" style="direction:ltr; text-align:center; font-size:16px;">
+                <input type="text" id="setupServerUrl" placeholder="https://my-pos.org" style="direction:ltr; text-align:center; font-size:16px;">
+            </div>
+            <div class="login-form-group">
+                <label>معرف المتجر (Tenant ID)</label>
+                <input type="text" id="setupTenantSlug" placeholder="my-store" style="direction:ltr; text-align:center; font-size:16px;">
             </div>
             <div id="setupTestResult" style="min-height:28px; text-align:center; font-size:13px; margin-bottom:8px;"></div>
+            <div id="setupSubscriptionInfo" style="display:none; background:#f0fdf4; border:1px solid #bbf7d0; border-radius:8px; padding:10px; margin-bottom:12px; font-size:13px; text-align:right;"></div>
             <button type="button" class="login-btn" style="background:#3b82f6; margin-bottom:10px;" onclick="testSetupConnection()">اختبار الاتصال</button>
-            <button type="button" class="login-btn" onclick="saveServerSetup()">حفظ والمتابعة</button>
-            <div style="text-align:center; margin-top:14px;">
+            <button type="button" class="login-btn" id="setupSaveBtn" onclick="saveServerSetup()" style="opacity:0.5; pointer-events:none;">حفظ والمتابعة</button>
+            <div id="setupSkipContainer" style="text-align:center; margin-top:14px; display:none;">
                 <a href="#" onclick="skipServerSetup(); return false;" style="color:#999; font-size:13px; text-decoration:underline;">تخطي (استخدام محلي فقط)</a>
             </div>
         </div>
@@ -182,7 +187,7 @@
                         <input type="number" id="tenantMaxBranches" value="3" min="1">
                     </div>
                 </div>
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px;">
                     <div class="form-group">
                         <label>💰 قيمة الاشتراك (د.ك):</label>
                         <input type="number" id="tenantSubAmount" value="0" min="0" step="0.001">
@@ -190,6 +195,13 @@
                     <div class="form-group">
                         <label>📅 مدة الاشتراك (يوم):</label>
                         <input type="number" id="tenantSubPeriod" value="30" min="1">
+                    </div>
+                    <div class="form-group">
+                        <label>🌐 وضع التشغيل:</label>
+                        <select id="tenantMode">
+                            <option value="online">أونلاين (Online)</option>
+                            <option value="offline">أوفلاين (Offline)</option>
+                        </select>
                     </div>
                 </div>
                 <button type="submit" class="btn" style="width: 100%; padding: 12px;">💾 حفظ</button>

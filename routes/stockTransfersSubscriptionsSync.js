@@ -11,7 +11,7 @@ const fs = require('fs');
  *   - logAction(db, actionType, description, userId, userName, branchId, targetId, details)
  */
 module.exports = function (app, helpers) {
-  const { getDb, logAction } = helpers;
+  const { getDb, logAction, getMasterDb, getTenantSlug } = helpers;
 
   // ===== Stock Transfers =====
 
@@ -363,6 +363,29 @@ module.exports = function (app, helpers) {
       db.prepare('DELETE FROM stock_transfers WHERE id = ?').run(transfer_id);
 
       return res.json({ success: true });
+    } catch (e) {
+      return res.status(500).json({ success: false, error: e.message });
+    }
+  });
+
+  // ===== Tenant Subscription Info (from master.db) =====
+
+  // GET /api/subscription/info — returns current tenant's subscription info including expires_at and mode
+  app.get('/api/subscription/info', (req, res) => {
+    try {
+      const slug = getTenantSlug(req);
+      if (!slug) {
+        return res.json({ success: false, error: 'لم يتم تحديد المتجر' });
+      }
+      const masterDb = getMasterDb();
+      const tenant = masterDb.prepare(
+        'SELECT name, slug, plan, max_users, max_branches, subscription_amount, subscription_period, expires_at, mode, is_active FROM tenants WHERE slug = ?'
+      ).get(slug);
+      masterDb.close();
+      if (!tenant) {
+        return res.json({ success: false, error: 'المتجر غير موجود' });
+      }
+      return res.json({ success: true, subscription: tenant });
     } catch (e) {
       return res.status(500).json({ success: false, error: e.message });
     }
