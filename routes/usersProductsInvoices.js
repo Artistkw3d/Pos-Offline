@@ -313,6 +313,58 @@ module.exports = function (app, helpers) {
           extraHeaders
         );
         if (flaskResult.ok && flaskResult.data && flaskResult.data.success) {
+          // Sync user to local tenant DB for future offline logins
+          if (tenantSlug && flaskResult.data.user) {
+            try {
+              const localDb = getDb(req);
+              ensureUserPermissionColumns(localDb);
+              const flaskUser = flaskResult.data.user;
+              const existingLocal = localDb.prepare('SELECT id FROM users WHERE username = ?').get(username);
+              if (existingLocal) {
+                localDb.prepare('UPDATE users SET password = ?, full_name = ?, role = ?, invoice_prefix = ?, branch_id = ?, is_active = 1 WHERE id = ?')
+                  .run(hashPassword(password), flaskUser.full_name || '', flaskUser.role || 'employee',
+                    flaskUser.invoice_prefix || 'INV', flaskUser.branch_id || 1, existingLocal.id);
+              } else {
+                localDb.prepare('INSERT INTO users (username, password, full_name, role, invoice_prefix, branch_id, is_active) VALUES (?, ?, ?, ?, ?, ?, 1)')
+                  .run(username, hashPassword(password), flaskUser.full_name || '', flaskUser.role || 'employee',
+                    flaskUser.invoice_prefix || 'INV', flaskUser.branch_id || 1);
+              }
+              localDb.close();
+              console.log('[Login] User synced to local tenant DB:', username);
+            } catch (syncErr) {
+              console.error('[Login] Failed to sync user locally:', syncErr.message);
+            }
+            // Sync tenant to local master.db
+            try {
+              const masterDb = getMasterDb();
+              const existingTenant = masterDb.prepare('SELECT id FROM tenants WHERE slug = ?').get(tenantSlug);
+              if (!existingTenant) {
+                const tenantInfo = await fetchFromFlask(flaskUrl,
+                  `/api/tenant/check-status?slug=${encodeURIComponent(tenantSlug)}`, 'GET', null, extraHeaders);
+                if (tenantInfo.ok && tenantInfo.data && tenantInfo.data.success) {
+                  const t = tenantInfo.data;
+                  masterDb.prepare(`INSERT INTO tenants (name, slug, owner_name, db_path, is_active, plan, mode, expires_at, max_users, max_branches)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
+                    t.name || tenantSlug, tenantSlug, '', helpers.getTenantDbPath(tenantSlug),
+                    t.is_active ? 1 : 0, t.plan || 'basic', t.mode || 'online',
+                    t.expires_at || null, 5, 3);
+                  console.log('[Login] Tenant synced to local master.db:', tenantSlug);
+                }
+              } else {
+                // Update existing tenant info
+                const tenantInfo = await fetchFromFlask(flaskUrl,
+                  `/api/tenant/check-status?slug=${encodeURIComponent(tenantSlug)}`, 'GET', null, extraHeaders);
+                if (tenantInfo.ok && tenantInfo.data && tenantInfo.data.success) {
+                  const t = tenantInfo.data;
+                  masterDb.prepare('UPDATE tenants SET is_active = ?, mode = ?, expires_at = ?, plan = ?, name = ? WHERE slug = ?')
+                    .run(t.is_active ? 1 : 0, t.mode || 'online', t.expires_at || null, t.plan || 'basic', t.name || tenantSlug, tenantSlug);
+                }
+              }
+              masterDb.close();
+            } catch (masterErr) {
+              console.error('[Login] Failed to sync tenant to master.db:', masterErr.message);
+            }
+          }
           return res.json(flaskResult.data);
         }
       }

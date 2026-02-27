@@ -880,6 +880,50 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
         currentTenantSlug = selectedTenant;
         localStorage.setItem('pos_tenant_slug', selectedTenant);
 
+        // === Offline login fallback (Capacitor/Android when no connection) ===
+        if (!_realOnlineStatus && window.Capacitor && window.Capacitor.isNativePlatform()) {
+            try {
+                if (localDB.isReady) {
+                    const cached = await localDB.get('user_credentials', rawUsername);
+                    if (cached && cached.tenant_slug === selectedTenant) {
+                        // Verify password hash
+                        const encoder = new TextEncoder();
+                        const hashBuf = await crypto.subtle.digest('SHA-256', encoder.encode(password));
+                        const hashHex = Array.from(new Uint8Array(hashBuf)).map(b => b.toString(16).padStart(2, '0')).join('');
+                        if (hashHex === cached.password_hash) {
+                            // Check license before allowing offline access
+                            const licenseOk = await checkLicense();
+                            if (!licenseOk) return;
+                            // Restore session from cached data
+                            currentUser = cached.user_data;
+                            if (cached.token) localStorage.setItem('pos_auth_token', cached.token);
+                            localStorage.setItem('pos_current_user', JSON.stringify(cached.user_data));
+                            // Continue to normal post-login flow below
+                            const data = { success: true, user: cached.user_data };
+                            document.getElementById('loginOverlay').classList.add('hidden');
+                            document.getElementById('mainContainer').style.display = 'block';
+                            const branchText = currentUser.branch_name ? ` - ${currentUser.branch_name}` : '';
+                            document.getElementById('userInfo').textContent = `${currentUser.full_name} (${currentUser.invoice_prefix || 'INV'})${branchText}`;
+                            await loadProducts();
+                            await loadSettings();
+                            loadUserCart();
+                            showTab('pos');
+                            startShiftLockChecker();
+                            checkLicenseGracePeriod();
+                            console.log('[Login] Offline login successful (Capacitor)');
+                            return;
+                        }
+                    }
+                }
+                alert('لا يوجد اتصال بالإنترنت ولم يتم العثور على بيانات مخزنة');
+                return;
+            } catch (offErr) {
+                console.error('[Login] Offline login error:', offErr);
+                alert('فشل تسجيل الدخول بدون اتصال');
+                return;
+            }
+        }
+
         const response = await fetch(`${API_URL}/api/login`, {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
@@ -901,7 +945,73 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
                 localStorage.setItem('pos_offline_license', JSON.stringify(data.license));
                 await saveLicenseData(data.license);
             }
-            
+
+            // Save tenant mode from server response
+            if (data.license && data.license.mode) {
+                localStorage.setItem('pos_tenant_mode', data.license.mode);
+            }
+
+            // === Step 6: Save credentials to IndexedDB for offline login (Capacitor) ===
+            if (localDB.isReady) {
+                try {
+                    const encoder = new TextEncoder();
+                    const hashBuf = await crypto.subtle.digest('SHA-256', encoder.encode(password));
+                    const hashHex = Array.from(new Uint8Array(hashBuf)).map(b => b.toString(16).padStart(2, '0')).join('');
+                    await localDB.save('user_credentials', {
+                        username: rawUsername,
+                        password_hash: hashHex,
+                        user_data: data.user,
+                        token: data.token || '',
+                        tenant_slug: selectedTenant,
+                        saved_at: new Date().toISOString()
+                    });
+                    console.log('[Login] Credentials saved to IndexedDB for offline use');
+                } catch (credErr) {
+                    console.warn('[Login] Failed to save credentials to IndexedDB:', credErr);
+                }
+            }
+
+            // === Step 5: Auto-trigger initial data download for offline tenants ===
+            if (isOfflineMode() && !localStorage.getItem('pos_offline_initial_sync')) {
+                try {
+                    const syncStatusEl = document.getElementById('loginOverlay');
+                    // Show a loading message
+                    const syncMsg = document.createElement('div');
+                    syncMsg.id = 'initialSyncMsg';
+                    syncMsg.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#1a1a2e;color:#fff;padding:30px 50px;border-radius:12px;z-index:10000;font-size:18px;text-align:center;box-shadow:0 4px 20px rgba(0,0,0,0.5);';
+                    syncMsg.innerHTML = '⏳ جاري تحميل بيانات المتجر...<br><small>هذه العملية تتم مرة واحدة فقط</small>';
+                    document.body.appendChild(syncMsg);
+
+                    if (window.Capacitor && window.Capacitor.isNativePlatform()) {
+                        // Capacitor: use sync-manager's fullSync
+                        if (typeof syncManager !== 'undefined' && syncManager.fullSync) {
+                            await syncManager.fullSync();
+                        }
+                    } else {
+                        // Electron: call local Express endpoint to pull from Flask
+                        const branch_id = data.user.branch_id || 1;
+                        const pullResp = await fetch(`${API_URL}/api/sync/pull-from-server?branch_id=${branch_id}`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' }
+                        });
+                        const pullData = await pullResp.json();
+                        if (pullData.success) {
+                            console.log('[Sync] Initial data pull completed:', pullData.counts);
+                        } else {
+                            console.error('[Sync] Initial data pull failed:', pullData.error);
+                        }
+                    }
+                    localStorage.setItem('pos_offline_initial_sync', '1');
+                    // Remove loading message
+                    const msgEl = document.getElementById('initialSyncMsg');
+                    if (msgEl) msgEl.remove();
+                } catch (syncErr) {
+                    console.error('[Sync] Initial download error:', syncErr);
+                    const msgEl = document.getElementById('initialSyncMsg');
+                    if (msgEl) msgEl.remove();
+                }
+            }
+
             document.getElementById('loginOverlay').classList.add('hidden');
             document.getElementById('mainContainer').style.display = 'block';
             

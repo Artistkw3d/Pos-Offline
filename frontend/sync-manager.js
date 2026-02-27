@@ -64,7 +64,7 @@ class SyncManager {
     // Helper: fetch with tenant header
     async _fetch(url, options = {}) {
         const headers = options.headers || {};
-        const tenantId = localStorage.getItem('pos_tenant_id') || '';
+        const tenantId = localStorage.getItem('pos_tenant_slug') || '';
         if (tenantId) {
             headers['X-Tenant-ID'] = tenantId;
         }

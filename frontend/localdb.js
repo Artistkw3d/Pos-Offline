@@ -5,7 +5,7 @@
 class LocalDB {
     constructor() {
         this.dbName = 'POS_DB';
-        this.version = 6; // v6: دعم مزامنة الفروع والفواتير
+        this.version = 7; // v7: user_credentials for offline login
         this.db = null;
         this.isReady = false;
     }
@@ -99,7 +99,12 @@ class LocalDB {
                     db.createObjectStore('expenses', { keyPath: 'id' });
                 }
 
-                console.log('[LocalDB] All stores created (v6)');
+                // User Credentials - بيانات تسجيل الدخول للوضع أوفلاين
+                if (!db.objectStoreNames.contains('user_credentials')) {
+                    db.createObjectStore('user_credentials', { keyPath: 'username' });
+                }
+
+                console.log('[LocalDB] All stores created (v7)');
             };
         });
     }
@@ -277,4 +282,4 @@ class LocalDB {
 // Instance
 const localDB = new LocalDB();
 
-console.log('[LocalDB] Loaded v6');
+console.log('[LocalDB] Loaded v7');

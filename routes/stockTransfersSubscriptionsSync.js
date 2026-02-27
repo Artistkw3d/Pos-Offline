@@ -11,7 +11,8 @@ const fs = require('fs');
  *   - logAction(db, actionType, description, userId, userName, branchId, targetId, details)
  */
 module.exports = function (app, helpers) {
-  const { getDb, logAction, getMasterDb, getTenantSlug } = helpers;
+  const { getDb, logAction, getMasterDb, getTenantSlug, getFlaskServerUrl } = helpers;
+  const { fetchFromFlask } = require('./proxyToFlask');
 
   // ===== Stock Transfers =====
 
@@ -1282,6 +1283,189 @@ module.exports = function (app, helpers) {
         full_sync: true
       });
     } catch (e) {
+      return res.status(500).json({ success: false, error: e.message });
+    }
+  });
+
+  // POST /api/sync/pull-from-server
+  // Pulls all data from Flask server and populates local tenant SQLite DB
+  app.post('/api/sync/pull-from-server', async (req, res) => {
+    try {
+      const flaskUrl = getFlaskServerUrl();
+      if (!flaskUrl) {
+        return res.status(400).json({ success: false, error: 'Flask server URL not configured' });
+      }
+
+      const tenantSlug = getTenantSlug(req);
+      const branch_id = parseInt(req.query.branch_id) || 1;
+
+      // Build headers for Flask request
+      const extraHeaders = {};
+      if (tenantSlug) {
+        extraHeaders['X-Tenant-ID'] = tenantSlug;
+      }
+      const authHeader = req.headers['authorization'];
+      if (authHeader) {
+        extraHeaders['Authorization'] = authHeader;
+      }
+
+      // Fetch full download from Flask (with users included)
+      const result = await fetchFromFlask(
+        flaskUrl,
+        `/api/sync/full-download?branch_id=${branch_id}&include_users=1`,
+        'GET',
+        null,
+        extraHeaders
+      );
+
+      if (!result.ok || !result.data || !result.data.success) {
+        return res.status(502).json({
+          success: false,
+          error: 'Failed to fetch data from server: ' + (result.error || (result.data && result.data.error) || 'Unknown error')
+        });
+      }
+
+      const serverData = result.data.data;
+      const db = getDb(req);
+      const counts = {};
+
+      // Use a transaction for atomicity
+      const insertAll = db.transaction(() => {
+        // 1. Products - clear and insert
+        if (serverData.products && serverData.products.length) {
+          db.prepare('DELETE FROM products').run();
+          const prodCols = ['id', 'name', 'barcode', 'price', 'cost', 'stock', 'category', 'image', 'unit', 'is_active'];
+          for (const p of serverData.products) {
+            // Map branch_stock format (product_name) to products format (name)
+            const name = p.name || p.product_name || '';
+            db.prepare(`INSERT OR REPLACE INTO products (id, name, barcode, price, cost, stock, category, image, unit, is_active)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+              .run(
+                p.id || null, name, p.barcode || '', p.price || 0, p.cost || 0,
+                p.stock || 0, p.category || '', p.image || '', p.unit || '', p.is_active !== undefined ? p.is_active : 1
+              );
+          }
+          counts.products = serverData.products.length;
+        }
+
+        // 2. Inventory - clear and insert
+        if (serverData.inventory && serverData.inventory.length) {
+          db.prepare('DELETE FROM inventory').run();
+          for (const inv of serverData.inventory) {
+            db.prepare(`INSERT OR REPLACE INTO inventory (id, name, barcode, category, image, unit, is_active)
+              VALUES (?, ?, ?, ?, ?, ?, ?)`)
+              .run(inv.id, inv.name || '', inv.barcode || '', inv.category || '', inv.image || '', inv.unit || '', inv.is_active !== undefined ? inv.is_active : 1);
+          }
+          counts.inventory = serverData.inventory.length;
+        }
+
+        // 3. Branch stock - clear for this branch and insert
+        if (serverData.branch_stock && serverData.branch_stock.length) {
+          db.prepare('DELETE FROM branch_stock WHERE branch_id = ?').run(branch_id);
+          for (const bs of serverData.branch_stock) {
+            db.prepare(`INSERT OR REPLACE INTO branch_stock (id, inventory_id, branch_id, stock, price, cost)
+              VALUES (?, ?, ?, ?, ?, ?)`)
+              .run(bs.id, bs.inventory_id, bs.branch_id || branch_id, bs.stock || 0, bs.price || 0, bs.cost || 0);
+          }
+          counts.branch_stock = serverData.branch_stock.length;
+        }
+
+        // 4. Customers - clear and insert
+        if (serverData.customers && serverData.customers.length) {
+          db.prepare('DELETE FROM customers').run();
+          for (const c of serverData.customers) {
+            db.prepare(`INSERT OR REPLACE INTO customers (id, name, phone, email, address, notes, balance, total_purchases, created_at)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+              .run(c.id, c.name || '', c.phone || '', c.email || '', c.address || '', c.notes || '', c.balance || 0, c.total_purchases || 0, c.created_at || '');
+          }
+          counts.customers = serverData.customers.length;
+        }
+
+        // 5. Settings - clear and insert
+        if (serverData.settings && typeof serverData.settings === 'object') {
+          // Don't clear flask_server_url setting
+          const existingFlaskUrl = db.prepare("SELECT value FROM settings WHERE key = 'flask_server_url'").get();
+          db.prepare('DELETE FROM settings').run();
+          const entries = Object.entries(serverData.settings);
+          for (const [key, value] of entries) {
+            db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run(key, value || '');
+          }
+          // Restore flask_server_url if it existed locally
+          if (existingFlaskUrl) {
+            db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run('flask_server_url', existingFlaskUrl.value);
+          }
+          counts.settings = entries.length;
+        }
+
+        // 6. Branches - clear and insert
+        if (serverData.branches && serverData.branches.length) {
+          db.prepare('DELETE FROM branches').run();
+          for (const b of serverData.branches) {
+            db.prepare(`INSERT OR REPLACE INTO branches (id, name, address, phone, is_active)
+              VALUES (?, ?, ?, ?, ?)`)
+              .run(b.id, b.name || '', b.address || '', b.phone || '', b.is_active !== undefined ? b.is_active : 1);
+          }
+          counts.branches = serverData.branches.length;
+        }
+
+        // 7. Categories - stored as distinct values in products, no separate table insert needed
+        if (serverData.categories) {
+          counts.categories = serverData.categories.length;
+        }
+
+        // 8. Coupons - clear and insert
+        if (serverData.coupons && serverData.coupons.length) {
+          db.prepare('DELETE FROM coupons').run();
+          for (const cp of serverData.coupons) {
+            db.prepare(`INSERT OR REPLACE INTO coupons (id, code, discount_type, discount_value, min_purchase, max_uses, used_count, is_active, expires_at)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+              .run(cp.id, cp.code || '', cp.discount_type || 'percentage', cp.discount_value || 0,
+                cp.min_purchase || 0, cp.max_uses || 0, cp.used_count || 0, cp.is_active !== undefined ? cp.is_active : 1, cp.expires_at || null);
+          }
+          counts.coupons = serverData.coupons.length;
+        }
+
+        // 9. Product variants - clear and insert
+        if (serverData.variants && serverData.variants.length) {
+          db.prepare('DELETE FROM product_variants').run();
+          for (const v of serverData.variants) {
+            db.prepare(`INSERT OR REPLACE INTO product_variants (id, product_id, name, price, cost, barcode, stock)
+              VALUES (?, ?, ?, ?, ?, ?, ?)`)
+              .run(v.id, v.product_id, v.name || '', v.price || 0, v.cost || 0, v.barcode || '', v.stock || 0);
+          }
+          counts.variants = serverData.variants.length;
+        }
+
+        // 10. Users - insert/update with their original password hashes
+        if (serverData.users && serverData.users.length) {
+          for (const u of serverData.users) {
+            const existing = db.prepare('SELECT id FROM users WHERE username = ?').get(u.username);
+            if (existing) {
+              db.prepare(`UPDATE users SET password = ?, full_name = ?, role = ?, invoice_prefix = ?, branch_id = ?, is_active = 1
+                WHERE id = ?`)
+                .run(u.password || '', u.full_name || '', u.role || 'employee', u.invoice_prefix || 'INV', u.branch_id || 1, existing.id);
+            } else {
+              db.prepare(`INSERT INTO users (username, password, full_name, role, invoice_prefix, branch_id, is_active)
+                VALUES (?, ?, ?, ?, ?, ?, 1)`)
+                .run(u.username, u.password || '', u.full_name || '', u.role || 'employee', u.invoice_prefix || 'INV', u.branch_id || 1);
+            }
+          }
+          counts.users = serverData.users.length;
+        }
+      });
+
+      insertAll();
+      db.close();
+
+      console.log('[Sync] Pull from server completed:', counts);
+      return res.json({
+        success: true,
+        message: 'Data pulled from server successfully',
+        counts,
+        synced_at: new Date().toISOString().slice(0, 19).replace('T', ' ')
+      });
+    } catch (e) {
+      console.error('[Sync] Pull from server error:', e.message);
       return res.status(500).json({ success: false, error: e.message });
     }
   });

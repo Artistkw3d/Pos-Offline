@@ -9250,6 +9250,28 @@ def sync_full_download():
         except:
             result['variants'] = []
 
+        # المستخدمون (للمزامنة المحلية فقط)
+        if request.args.get('include_users', '0') == '1':
+            try:
+                cursor.execute('SELECT * FROM users WHERE is_active = 1')
+                result['users'] = [dict(row) for row in cursor.fetchall()]
+            except:
+                result['users'] = []
+
+        # المخزون (inventory)
+        try:
+            cursor.execute('SELECT * FROM inventory')
+            result['inventory'] = [dict(row) for row in cursor.fetchall()]
+        except:
+            result['inventory'] = []
+
+        # مخزون الفروع (branch_stock)
+        try:
+            cursor.execute('SELECT * FROM branch_stock WHERE branch_id = ?', (branch_id,))
+            result['branch_stock'] = [dict(row) for row in cursor.fetchall()]
+        except:
+            result['branch_stock'] = []
+
         conn.close()
         return jsonify({
             'success': True,
