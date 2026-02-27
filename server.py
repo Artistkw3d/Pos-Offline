@@ -5566,7 +5566,7 @@ def update_tenant(tenant_id):
         cursor = conn.cursor()
         fields = []
         values = []
-        for key in ['name', 'owner_name', 'owner_email', 'owner_phone', 'is_active', 'plan', 'max_users', 'max_branches', 'expires_at', 'subscription_amount', 'subscription_period']:
+        for key in ['name', 'owner_name', 'owner_email', 'owner_phone', 'is_active', 'plan', 'max_users', 'max_branches', 'expires_at', 'subscription_amount', 'subscription_period', 'mode']:
             if key in data:
                 fields.append(f'{key} = ?')
                 values.append(data[key])
