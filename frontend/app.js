@@ -246,6 +246,11 @@ async function attemptLicenseRenewal() {
     }
 }
 
+// === Offline mode check ===
+function isOfflineMode() {
+    return localStorage.getItem('pos_tenant_mode') === 'offline';
+}
+
 // حماية من عدم تحميل localDB في وضع أوفلاين
 if (typeof localDB === 'undefined') {
     window.localDB = { isReady: false, init: async()=>{}, save:async()=>{}, saveAll:async()=>{}, getAll:async()=>[], get:async()=>null, add:async()=>{}, delete:async()=>{} };
@@ -595,6 +600,7 @@ async function saveServerSetup() {
         localStorage.setItem('pos_tenant_slug', config.tenant_slug);
         currentTenantSlug = config.tenant_slug;
     }
+    if (config.mode) localStorage.setItem('pos_tenant_mode', config.mode);
     if (config.expires_at) {
         localStorage.setItem('pos_license_active', config.is_active ? '1' : '0');
     }
@@ -752,6 +758,11 @@ async function initializeUI() {
     document.getElementById('subscriptionsBtn').style.display = window.userPermissions.canViewSubscriptions ? 'inline-block' : 'none';
     const _mpBtn = document.getElementById('managePlansBtn');
     if (_mpBtn) _mpBtn.style.display = window.userPermissions.canManageSubscriptions ? 'inline-block' : 'none';
+    // Offline mode: hide multi-branch features
+    if (isOfflineMode()) {
+        document.getElementById('branchesBtn').style.display = 'none';
+        document.getElementById('transfersBtn').style.display = 'none';
+    }
     // عرض خانة اختيار الطاولة في نقطة البيع
     loadTablesDropdown();
 
@@ -3613,6 +3624,11 @@ function closeAddBranch() {
 document.getElementById('branchForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     const branchId = document.getElementById('branchId').value;
+    // Block new branch creation in offline mode
+    if (!branchId && isOfflineMode()) {
+        alert('لا يمكن إضافة فروع في وضع أوفلاين');
+        return;
+    }
     const branchData = {
         name: document.getElementById('branchName').value,
         location: document.getElementById('branchLocation').value,

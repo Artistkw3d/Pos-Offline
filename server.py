@@ -4065,22 +4065,27 @@ def get_branches():
 def add_branch():
     """إضافة فرع جديد"""
     try:
-        # License enforcement: check max_branches
+        # License enforcement: check max_branches + offline mode
         tenant_slug = get_tenant_slug()
         if tenant_slug:
             try:
                 m_conn = get_master_db()
                 m_cursor = m_conn.cursor()
-                m_cursor.execute('SELECT max_branches FROM tenants WHERE slug = ?', (tenant_slug,))
+                m_cursor.execute('SELECT max_branches, mode FROM tenants WHERE slug = ?', (tenant_slug,))
                 t_row = m_cursor.fetchone()
                 m_conn.close()
                 if t_row:
-                    max_branches = t_row['max_branches'] or 999
                     conn_check = get_db()
                     cur_check = conn_check.cursor()
                     cur_check.execute('SELECT COUNT(*) as c FROM branches WHERE is_active = 1')
                     active_count = cur_check.fetchone()['c']
                     conn_check.close()
+                    # Offline mode: max 1 branch
+                    t_mode = t_row['mode'] if 'mode' in t_row.keys() else 'online'
+                    if t_mode == 'offline' and active_count >= 1:
+                        return jsonify({'success': False, 'error': 'لا يمكن إضافة فروع في وضع أوفلاين. فرع واحد فقط مسموح.'}), 403
+                    # License max_branches check
+                    max_branches = t_row['max_branches'] or 999
                     if active_count >= max_branches:
                         return jsonify({'success': False, 'error': f'تم الوصول للحد الأقصى من الفروع ({max_branches}). قم بترقية الاشتراك لإضافة المزيد.'}), 403
             except Exception:
@@ -8113,6 +8118,22 @@ def get_stock_transfer(transfer_id):
 def create_stock_transfer():
     """إنشاء طلب نقل مخزني جديد"""
     try:
+        # Offline mode: block stock transfers
+        tenant_slug = get_tenant_slug()
+        if tenant_slug:
+            try:
+                m_conn = get_master_db()
+                m_cursor = m_conn.cursor()
+                m_cursor.execute('SELECT mode FROM tenants WHERE slug = ?', (tenant_slug,))
+                t_row = m_cursor.fetchone()
+                m_conn.close()
+                if t_row:
+                    t_mode = t_row['mode'] if 'mode' in t_row.keys() else 'online'
+                    if t_mode == 'offline':
+                        return jsonify({'success': False, 'error': 'نقل المخزون غير متاح في وضع أوفلاين.'}), 403
+            except Exception:
+                pass
+
         data = request.json
         conn = get_db()
         cursor = conn.cursor()

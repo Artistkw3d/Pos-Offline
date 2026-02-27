@@ -71,6 +71,22 @@ module.exports = function (app, helpers) {
   // POST /api/stock-transfers
   app.post('/api/stock-transfers', (req, res) => {
     try {
+      // Offline mode: block stock transfers
+      const tenantSlug = getTenantSlug(req);
+      if (tenantSlug) {
+        try {
+          const masterDb = getMasterDb();
+          const tenant = masterDb.prepare('SELECT mode FROM tenants WHERE slug = ?').get(tenantSlug);
+          masterDb.close();
+          if (tenant && tenant.mode === 'offline') {
+            return res.status(403).json({
+              success: false,
+              error: 'نقل المخزون غير متاح في وضع أوفلاين.'
+            });
+          }
+        } catch (_) {}
+      }
+
       const data = req.body;
       const db = getDb(req);
 

@@ -800,6 +800,22 @@ module.exports = function (app, helpers) {
             });
           }
         }
+
+        // Offline mode: block branch creation if already has 1 branch
+        try {
+          const masterDb = getMasterDb();
+          const tenant = masterDb.prepare('SELECT mode FROM tenants WHERE slug = ?').get(tenantSlug);
+          masterDb.close();
+          if (tenant && tenant.mode === 'offline') {
+            const activeCount2 = db.prepare('SELECT COUNT(*) as c FROM branches WHERE is_active = 1').get().c;
+            if (activeCount2 >= 1) {
+              return res.status(403).json({
+                success: false,
+                error: 'لا يمكن إضافة فروع في وضع أوفلاين. فرع واحد فقط مسموح.'
+              });
+            }
+          }
+        } catch (_) {}
       }
 
       const result = db.prepare('INSERT INTO branches (name, location, phone) VALUES (?, ?, ?)').run(
