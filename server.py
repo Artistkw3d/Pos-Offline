@@ -5609,6 +5609,30 @@ def update_tenant(tenant_id):
             values.append(tenant_id)
             cursor.execute(f'UPDATE tenants SET {", ".join(fields)} WHERE id = ?', values)
             conn.commit()
+
+        # تحديث اسم المستخدم أو كلمة المرور للأدمن في قاعدة بيانات المستأجر
+        new_admin_user = data.get('admin_username', '').strip()
+        new_admin_pass = data.get('admin_password', '').strip()
+        if new_admin_user or new_admin_pass:
+            cursor.execute('SELECT slug FROM tenants WHERE id = ?', (tenant_id,))
+            row = cursor.fetchone()
+            if row:
+                tenant_slug = row['slug']
+                tenant_db_path = get_tenant_db_path(tenant_slug)
+                t_conn = sqlite3.connect(tenant_db_path)
+                t_conn.row_factory = sqlite3.Row
+                t_cur = t_conn.cursor()
+                t_cur.execute("SELECT id FROM users WHERE role = 'admin' ORDER BY id ASC LIMIT 1")
+                admin_row = t_cur.fetchone()
+                if admin_row:
+                    admin_id = admin_row['id']
+                    if new_admin_user:
+                        t_cur.execute('UPDATE users SET username = ? WHERE id = ?', (new_admin_user, admin_id))
+                    if new_admin_pass:
+                        t_cur.execute('UPDATE users SET password = ? WHERE id = ?', (hash_password(new_admin_pass), admin_id))
+                    t_conn.commit()
+                t_conn.close()
+
         conn.close()
         return jsonify({'success': True})
     except Exception as e:

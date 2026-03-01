@@ -9695,7 +9695,11 @@ async function editTenant(tenantId) {
         document.getElementById('tenantSubPeriod').value = t.subscription_period || 30;
         document.getElementById('tenantMode').value = t.mode || 'online';
         document.getElementById('tenantSlugGroup').style.display = 'none'; // لا يمكن تغيير slug
-        document.getElementById('tenantAdminFields').style.display = 'none'; // لا يمكن تغيير أدمن من هنا
+        document.getElementById('tenantAdminFields').style.display = 'grid';
+        document.getElementById('tenantAdminUsername').value = '';
+        document.getElementById('tenantAdminUsername').placeholder = 'اتركه فارغ إذا لا تريد التغيير';
+        document.getElementById('tenantAdminPassword').value = '';
+        document.getElementById('tenantAdminPassword').placeholder = 'اتركه فارغ إذا لا تريد التغيير';
         document.getElementById('tenantModalTitle').textContent = '✏️ تعديل متجر';
         document.getElementById('addTenantModal').classList.add('active');
     } catch (e) {
@@ -9708,10 +9712,7 @@ document.getElementById('tenantForm')?.addEventListener('submit', async (e) => {
     try {
         if (editingTenantId) {
             // تحديث
-            const response = await authFetch(`${API_URL}/api/super-admin/tenants/${editingTenantId}`, {
-                method: 'PUT',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({
+            const updateData = {
                     name: document.getElementById('tenantName').value,
                     owner_name: document.getElementById('tenantOwnerName').value,
                     owner_email: document.getElementById('tenantOwnerEmail').value,
@@ -9722,7 +9723,15 @@ document.getElementById('tenantForm')?.addEventListener('submit', async (e) => {
                     subscription_amount: parseFloat(document.getElementById('tenantSubAmount').value) || 0,
                     subscription_period: parseInt(document.getElementById('tenantSubPeriod').value) || 30,
                     mode: document.getElementById('tenantMode').value
-                })
+                };
+            const newAdminUser = document.getElementById('tenantAdminUsername').value.trim();
+            const newAdminPass = document.getElementById('tenantAdminPassword').value.trim();
+            if (newAdminUser) updateData.admin_username = newAdminUser;
+            if (newAdminPass) updateData.admin_password = newAdminPass;
+            const response = await authFetch(`${API_URL}/api/super-admin/tenants/${editingTenantId}`, {
+                method: 'PUT',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(updateData)
             });
             const data = await response.json();
             if (data.success) {
