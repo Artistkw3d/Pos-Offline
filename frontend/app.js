@@ -216,26 +216,26 @@ async function checkLicense() {
         return false;
     }
 
-    // Warning (7 days or less)
+    // Always show subscription remaining duration
     const remaining = exp - now;
     const daysLeft = remaining / 86400;
-    if (daysLeft <= 7) {
-        if (banner && bannerText) {
-            banner.style.display = 'block';
-            if (daysLeft <= 1) {
-                banner.style.background = '#e74c3c';
-                banner.style.color = '#fff';
-                const hours = Math.floor(remaining / 3600);
-                bannerText.textContent = '⚠ ينتهي الترخيص خلال ' + hours + ' ساعة. يرجى تجديد الاشتراك فوراً!';
-            } else {
-                banner.style.background = '#f39c12';
-                banner.style.color = '#fff';
-                const days = Math.floor(daysLeft);
-                bannerText.textContent = '⚠ ينتهي الترخيص خلال ' + days + ' يوم. يرجى تجديد الاشتراك.';
-            }
+    if (banner && bannerText) {
+        banner.style.display = 'block';
+        const days = Math.floor(daysLeft);
+        if (daysLeft <= 1) {
+            banner.style.background = '#e74c3c';
+            banner.style.color = '#fff';
+            const hours = Math.floor(remaining / 3600);
+            bannerText.textContent = '⚠ متبقي على الاشتراك ' + hours + ' ساعة — يرجى التجديد فوراً!';
+        } else if (daysLeft <= 7) {
+            banner.style.background = '#f39c12';
+            banner.style.color = '#fff';
+            bannerText.textContent = '⚠ متبقي على الاشتراك ' + days + ' يوم — يرجى التجديد.';
+        } else {
+            banner.style.background = 'var(--gold-bg)';
+            banner.style.color = 'var(--gold)';
+            bannerText.textContent = 'مدة الاشتراك: متبقي ' + days + ' يوم';
         }
-    } else {
-        if (banner) banner.style.display = 'none';
     }
 
     // Valid - hide overlay
