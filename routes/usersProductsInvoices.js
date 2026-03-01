@@ -6,14 +6,31 @@
 const { fetchFromFlask } = require('./proxyToFlask');
 const jwt = require('jsonwebtoken');
 
-const LICENSE_SECRET = process.env.POS_LICENSE_SECRET || 'pos-offline-license-secret-v1';
-if (LICENSE_SECRET === 'pos-offline-license-secret-v1' && !process.env.POS_ALLOW_DEFAULT_SECRET) {
-  console.warn('WARNING: Using default LICENSE_SECRET. Set POS_LICENSE_SECRET environment variable for production security.');
-}
+const _LICENSE_SECRET_ENV = process.env.POS_LICENSE_SECRET || '';
+let _licenseSecret = '';
 const LICENSE_GRACE_DAYS = 7;
 
 module.exports = function (app, helpers) {
   const { getDb, getMasterDb, hashPassword, verifyPassword, needsRehash, getFlaskServerUrl, DB_PATH, Database } = helpers;
+
+  function getLicenseSecret() {
+    if (_licenseSecret) return _licenseSecret;
+    if (_LICENSE_SECRET_ENV) { _licenseSecret = _LICENSE_SECRET_ENV; return _licenseSecret; }
+    try {
+      const db = new Database(DB_PATH);
+      const row = db.prepare("SELECT value FROM settings WHERE key = 'license_secret'").get();
+      if (row) {
+        _licenseSecret = row.value;
+      } else {
+        _licenseSecret = require('crypto').randomBytes(32).toString('hex');
+        db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('license_secret', ?)").run(_licenseSecret);
+      }
+      db.close();
+    } catch (e) {
+      _licenseSecret = require('crypto').randomBytes(32).toString('hex');
+    }
+    return _licenseSecret;
+  }
 
   // === License helpers ===
 
@@ -27,7 +44,7 @@ module.exports = function (app, helpers) {
       const row = db.prepare("SELECT value FROM settings WHERE key = 'license_token'").get();
       if (!row || !row.value) return null;
       tokenStr = row.value;
-      return jwt.verify(tokenStr, LICENSE_SECRET, { issuer: 'pos-offline-flask' });
+      return jwt.verify(tokenStr, getLicenseSecret(), { issuer: 'pos-offline-flask' });
     } catch (e) {
       // Token expired or invalid signature
       if (e.name === 'TokenExpiredError' && tokenStr) {

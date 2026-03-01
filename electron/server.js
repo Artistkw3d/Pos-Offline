@@ -260,6 +260,12 @@ const _loginAttempts = {};
 const LOGIN_RATE_LIMIT = 5;
 const LOGIN_RATE_WINDOW = 60000; // ms
 
+function getClientIp(req) {
+  const forwarded = req.headers['x-forwarded-for'];
+  if (forwarded) return forwarded.split(',')[0].trim();
+  return req.ip;
+}
+
 function checkRateLimit(ip, endpoint) {
   const key = `${ip}:${endpoint}`;
   const now = Date.now();
@@ -284,7 +290,7 @@ function authMiddleware(req, res, next) {
 
   // Rate limit login routes
   if (req.path === '/api/login' || req.path === '/api/super-admin/login') {
-    if (!checkRateLimit(req.ip, req.path)) {
+    if (!checkRateLimit(getClientIp(req), req.path)) {
       return res.status(429).json({ success: false, error: 'Too many login attempts. Try again later.' });
     }
     return next();
@@ -354,8 +360,17 @@ function startServer(options = {}) {
     }
   });
 
-  // Reinitialize multer with correct path
-  upload = multer({ dest: UPLOADS_DIR });
+  // Reinitialize multer with correct path, file size limit, and type filter
+  upload = multer({
+    dest: UPLOADS_DIR,
+    limits: { fileSize: 100 * 1024 * 1024 }, // 100MB max
+    fileFilter: (req, file, cb) => {
+      const allowed = ['.db', '.sqlite', '.sqlite3', '.json'];
+      const ext = path.extname(file.originalname).toLowerCase();
+      if (allowed.includes(ext)) cb(null, true);
+      else cb(new Error('File type not allowed'));
+    }
+  });
 
   // Initialize databases
   // Skip local master.db init if Flask server URL is configured (shared master.db)
