@@ -11,6 +11,27 @@ const API_URL = (function() {
     return window.location.origin;
 })();
 
+// === Theme Toggle ===
+function toggleTheme() {
+    const isLight = document.body.classList.toggle('light-mode');
+    localStorage.setItem('pos_theme_mode', isLight ? 'light' : 'dark');
+    _updateThemeButton(isLight);
+}
+
+function _updateThemeButton(isLight) {
+    const icon = document.getElementById('themeIcon');
+    const label = document.getElementById('themeLabel');
+    if (icon) icon.textContent = isLight ? '🌙' : '☀️';
+    if (label) label.textContent = isLight ? 'مظهر داكن' : 'مظهر فاتح';
+}
+
+// Restore theme immediately (before DOM renders)
+(function() {
+    if (localStorage.getItem('pos_theme_mode') === 'light') {
+        document.body.classList.add('light-mode');
+    }
+})();
+
 // === دالة حماية من XSS - تنظيف النصوص قبل إدراجها في HTML ===
 function escHTML(str) {
     if (str === null || str === undefined) return '';
@@ -127,7 +148,7 @@ async function checkLicense() {
     if (!tenantSlug) return true; // local-only mode
 
     const overlay = document.getElementById('licenseExpiredOverlay');
-    const banner = document.getElementById('licenseWarningBanner');
+    const banner = document.getElementById('licenseWarningBannerSidebar');
     const bannerText = document.getElementById('licenseWarningText');
 
     const licenseData = await loadAndVerifyLicenseData();
@@ -201,7 +222,7 @@ async function checkLicense() {
                     bannerText.textContent = '⚠ ينتهي الترخيص خلال ' + hours + ' ساعة. يرجى تجديد الاشتراك فوراً!';
                 } else {
                     banner.style.background = '#f39c12';
-                    banner.style.color = '#333';
+                    banner.style.color = '#fff';
                     const days = Math.floor(daysLeft);
                     bannerText.textContent = '⚠ ينتهي الترخيص خلال ' + days + ' يوم. يرجى تجديد الاشتراك.';
                 }
@@ -468,7 +489,7 @@ async function checkFirstTimeSetup() {
         // Electron: auto-fill localhost, show skip
         if (window.location.protocol === 'file:') {
             const urlInput = document.getElementById('setupServerUrl');
-            if (urlInput) { urlInput.value = 'http://localhost:5050'; urlInput.readOnly = true; urlInput.style.background = '#f1f5f9'; }
+            if (urlInput) { urlInput.value = 'http://localhost:5050'; urlInput.readOnly = true; urlInput.style.background = 'var(--raised)'; }
             const skipC = document.getElementById('setupSkipContainer');
             if (skipC) skipC.style.display = 'block';
         }
@@ -1599,10 +1620,10 @@ function showVariantSelectModal(product) {
 
     // خيار السعر الأساسي
     let html = `
-        <button onclick="selectVariantAndAdd(${product.id}, null)" style="display: flex; justify-content: space-between; align-items: center; width: 100%; padding: 15px; background: white; border: 2px solid #e2e8f0; border-radius: 10px; cursor: pointer; font-size: 16px; transition: all 0.2s;"
-            onmouseover="this.style.borderColor='#667eea'; this.style.background='#f0f4ff';"
-            onmouseout="this.style.borderColor='#e2e8f0'; this.style.background='white';">
-            <span style="font-weight: bold;">الأساسي</span>
+        <button onclick="selectVariantAndAdd(${product.id}, null)" style="display: flex; justify-content: space-between; align-items: center; width: 100%; padding: 15px; background: #16161f; border: 2px solid rgba(212,168,83,0.12); border-radius: 10px; cursor: pointer; font-size: 16px; transition: all 0.2s;"
+            onmouseover="this.style.borderColor='#667eea'; this.style.background='rgba(91,141,239,0.08)';"
+            onmouseout="this.style.borderColor='rgba(212,168,83,0.12)'; this.style.background='var(--card)';">
+            <span style="font-weight: bold; color:var(--t1);">الأساسي</span>
             <span style="color: #667eea; font-weight: bold;">${product.price.toFixed(3)} د.ك</span>
         </button>
     `;
@@ -1610,9 +1631,10 @@ function showVariantSelectModal(product) {
     // خيارات المتغيرات
     product.variants.forEach(v => {
         html += `
-        <button onclick="selectVariantAndAdd(${product.id}, ${v.id})" style="display: flex; justify-content: space-between; align-items: center; width: 100%; padding: 15px; background: white; border: 2px solid #c6f6d5; border-radius: 10px; cursor: pointer; font-size: 16px; transition: all 0.2s;"
-            onmouseover="this.style.borderColor='#38a169'; this.style.background='#f0fff4';"
-            onmouseout="this.style.borderColor='#c6f6d5'; this.style.background='white';">
+        <button onclick="selectVariantAndAdd(${product.id}, ${v.id})" style="display: flex; justify-content: space-between; align-items: center; width: 100%; padding: 15px; background: #16161f; border: 2px solid rgba(78,203,113,0.2); border-radius: 10px; cursor: pointer; font-size: 16px; transition: all 0.2s;"
+            onmouseover="this.style.borderColor='#38a169'; this.style.background='rgba(78,203,113,0.08)';"
+            onmouseout="this.style.borderColor='rgba(78,203,113,0.2)'; this.style.background='var(--card)';">
+
             <span style="font-weight: bold;">📐 ${v.variant_name}</span>
             <span style="color: #38a169; font-weight: bold;">${v.price.toFixed(3)} د.ك</span>
         </button>
@@ -1705,9 +1727,9 @@ function updateCart() {
                     <div class="cart-item-price">${item.price.toFixed(3)} × ${item.quantity} = ${(item.price * item.quantity).toFixed(3)} د.ك</div>
                 </div>
                 <div style="display: flex; gap: 4px; align-items: center;">
-                    <button onclick="updateQuantity('${escHTML(key)}', -1)" style="background: #e2e8f0; border: none; border-radius: 4px; width: 24px; height: 24px; cursor: pointer; font-weight: bold;">-</button>
+                    <button onclick="updateQuantity('${escHTML(key)}', -1)" style="background: #1e1e2a; border: none; border-radius: 4px; width: 24px; height: 24px; cursor: pointer; font-weight: bold;">-</button>
                     <span style="min-width: 20px; text-align: center;">${item.quantity}</span>
-                    <button onclick="updateQuantity('${escHTML(key)}', 1)" style="background: #e2e8f0; border: none; border-radius: 4px; width: 24px; height: 24px; cursor: pointer; font-weight: bold;">+</button>
+                    <button onclick="updateQuantity('${escHTML(key)}', 1)" style="background: #1e1e2a; border: none; border-radius: 4px; width: 24px; height: 24px; cursor: pointer; font-weight: bold;">+</button>
                     <button onclick="removeFromCart('${escHTML(key)}')" style="background: #dc3545; color: white; border: none; border-radius: 4px; width: 24px; height: 24px; cursor: pointer; font-size: 12px;">✕</button>
                 </div>
             </div>`;
@@ -2283,7 +2305,7 @@ function displayInvoiceView(inv) {
                 ${inv.table_name ? `<div><strong>🍽️ الطاولة:</strong> ${escHTML(inv.table_name)}</div>` : ''}
                 ${inv.shift_name ? `<div><strong>🕐 الشفت:</strong> ${escHTML(inv.shift_name)}</div>` : ''}
                 ${inv.edit_count > 0 ? `<div style="grid-column: 1/-1; color: #e67e22;"><strong>✏️ معدّلة:</strong> ${inv.edit_count} مرة - آخر تعديل: ${inv.edited_by || ''} ${inv.edited_at ? new Date(inv.edited_at).toLocaleDateString('ar') : ''}</div>` : ''}
-                ${inv.notes ? `<div style="grid-column: 1/-1; background: #fff3cd; border-right: 4px solid #ffc107; padding: 10px !important;"><strong>📝 ملاحظات:</strong> ${escHTML(inv.notes)}</div>` : ''}
+                ${inv.notes ? `<div style="grid-column: 1/-1; background: rgba(245,158,11,0.1); border-right: 4px solid #ffc107; padding: 10px !important;"><strong>📝 ملاحظات:</strong> ${escHTML(inv.notes)}</div>` : ''}
             </div>
             <table style="width:100%; border-collapse:collapse; font-size:11px; margin:15px 0;">
                 <thead><tr style="background:#667eea; color:white;">
@@ -2314,7 +2336,7 @@ function displayInvoiceView(inv) {
                 ${inv.delivery_fee > 0 ? `<div style="display:flex; justify-content:space-between; margin:5px 0;"><span>رسوم التوصيل:</span><span>${inv.delivery_fee.toFixed(3)} د.ك</span></div>` : ''}
                 <div style="display:flex; justify-content:space-between; margin-top:10px; padding-top:10px; border-top:2px solid #667eea; font-size:16px; font-weight:bold; color:#667eea;"><span>الإجمالي:</span><span>${inv.total.toFixed(3)} د.ك</span></div>
             </div>
-            <div style="text-align:center; margin-top:20px; font-size:11px; color:#6c757d;"><p>شكراً لتعاملكم معنا 🌟</p></div>
+            <div style="text-align:center; margin-top:20px; font-size:11px; color:#9a96a6;"><p>شكراً لتعاملكم معنا 🌟</p></div>
         </div>
     `;
 }
@@ -2426,7 +2448,7 @@ function generateThermalInvoiceHTML(inv) {
 @media print {
     .toolbar { display: none !important; }
     .preview-wrapper { box-shadow: none !important; border: none !important; margin: 0 !important; }
-    body { background: white !important; padding: 0 !important; }
+    body { background: #16161f !important; padding: 0 !important; }
     .receipt { width: 55mm; font-size: 7px; padding: 1mm; }
     .receipt table th, .receipt table td { font-size: 6.5px; padding: 0.5mm 0; }
     .receipt .r-header { font-size: 9px; }
@@ -2446,7 +2468,7 @@ function generateThermalInvoiceHTML(inv) {
     .btn-print:hover { background: #218838; }
     .btn-close { background: #dc3545; color: white; }
     .btn-close:hover { background: #c82333; }
-    .preview-wrapper { max-width: 280px; margin: 80px auto 20px; background: white; border: 2px solid #ccc; border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.15); padding: 15px; }
+    .preview-wrapper { max-width: 280px; margin: 80px auto 20px; background: #16161f; border: 2px solid #ccc; border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.15); padding: 15px; }
     .receipt { width: 100%; font-size: 13px; line-height: 1.5; }
     .receipt .r-header { font-size: 18px; font-weight: bold; }
     .receipt .r-sub { font-size: 11px; }
@@ -2525,15 +2547,15 @@ body{font-family:Arial;padding:20px;font-size:13px;}
 .header h1{font-size:24px;margin:8px 0;color:#2d3748;}
 .header p{font-size:15px;color:#667eea;margin:5px 0;}
 .info{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:15px 0;font-size:13px;}
-.info div{padding:8px;background:#f8f9fa;border-radius:6px;}
+.info div{padding:8px;background:#1e1e2a;border-radius:6px;}
 table{width:100%;border-collapse:collapse;margin:15px 0;}
 th,td{border:1px solid #ddd;padding:10px;text-align:right;font-size:13px;}
 th{background:#667eea;color:white;font-weight:bold;}
-tbody tr:nth-child(even){background:#f8f9fa;}
+tbody tr:nth-child(even){background:#1e1e2a;}
 .totals{margin-top:15px;font-size:14px;}
 .totals div{display:flex;justify-content:space-between;margin:8px 0;padding:5px 0;}
 .total-final{font-size:18px;font-weight:bold;border-top:3px solid #667eea;padding-top:10px;margin-top:10px;color:#667eea;}
-.footer{text-align:center;margin-top:25px;font-size:12px;color:#6c757d;border-top:2px solid #dee2e6;padding-top:15px;}
+.footer{text-align:center;margin-top:25px;font-size:12px;color:#9a96a6;border-top:2px solid #dee2e6;padding-top:15px;}
 </style>
 </head>
 <body>
@@ -2550,9 +2572,9 @@ ${storeLogo ? `<img src="${storeLogo}">` : ''}
 <div><b>العنوان:</b> ${escHTML(inv.customer_address) || '-'}</div>
 <div><b>طريقة الدفع:</b> ${inv.payments && inv.payments.length > 0 ? inv.payments.map(p => `${paymentMethods[p.method] || escHTML(p.method)} (${parseFloat(p.amount).toFixed(3)})`).join(' + ') : paymentMethods[inv.payment_method]}</div>
 ${inv.payments && inv.payments.length > 0 ? inv.payments.filter(p => p.transaction_number).map(p => `<div><b>رقم العملية (${paymentMethods[p.method]}):</b> ${escHTML(p.transaction_number)}</div>`).join('') : (inv.transaction_number ? `<div style="grid-column:1/-1;"><b>رقم العملية:</b> ${escHTML(inv.transaction_number)}</div>` : '')}
-<div style="grid-column:1/-1;"><b>حالة الطلب:</b> <span style="padding:4px 12px; border-radius:12px; font-weight:bold; ${(inv.order_status || 'قيد التنفيذ') === 'قيد التنفيذ' ? 'background:#fff3cd; color:#856404;' : inv.order_status === 'قيد التوصيل' ? 'background:#cce5ff; color:#004085;' : 'background:#d4edda; color:#155724;'}">${inv.order_status === 'قيد التنفيذ' ? '⏳' : inv.order_status === 'قيد التوصيل' ? '🚚' : '✅'} ${escHTML(inv.order_status) || 'قيد التنفيذ'}</span></div>
+<div style="grid-column:1/-1;"><b>حالة الطلب:</b> <span style="padding:4px 12px; border-radius:12px; font-weight:bold; ${(inv.order_status || 'قيد التنفيذ') === 'قيد التنفيذ' ? 'background:rgba(245,158,11,0.1); color:#856404;' : inv.order_status === 'قيد التوصيل' ? 'background:#cce5ff; color:#004085;' : 'background:#d4edda; color:#155724;'}">${inv.order_status === 'قيد التنفيذ' ? '⏳' : inv.order_status === 'قيد التوصيل' ? '🚚' : '✅'} ${escHTML(inv.order_status) || 'قيد التنفيذ'}</span></div>
 ${inv.table_name ? `<div><b>🍽️ الطاولة:</b> ${escHTML(inv.table_name)}</div>` : ''}
-${inv.notes ? `<div style="grid-column:1/-1; background:#fff3cd; border-right:4px solid #ffc107; padding:10px !important;"><b>📝 ملاحظات:</b> ${escHTML(inv.notes)}</div>` : ''}
+${inv.notes ? `<div style="grid-column:1/-1; background:rgba(245,158,11,0.1); border-right:4px solid #ffc107; padding:10px !important;"><b>📝 ملاحظات:</b> ${escHTML(inv.notes)}</div>` : ''}
 </div>
 <table>
 <thead><tr><th style="width:40px;">#</th><th>المنتج</th><th style="width:80px;">الكمية</th><th style="width:100px;">السعر</th><th style="width:100px;">الإجمالي</th></tr></thead>
@@ -2622,18 +2644,18 @@ async function loadProductsTable() {
                                     }
                                 }
                                 return `
-                                    <div style="border:2px solid #e2e8f0; padding:15px; border-radius:12px; background:white; text-align:center; transition:all 0.3s; cursor:pointer;" 
+                                    <div style="border:2px solid rgba(212,168,83,0.12); padding:15px; border-radius:12px; background:#16161f; text-align:center; transition:all 0.3s; cursor:pointer;" 
                                          onmouseover="this.style.boxShadow='0 4px 12px rgba(102,126,234,0.3)'; this.style.transform='translateY(-2px)';"
                                          onmouseout="this.style.boxShadow='none'; this.style.transform='translateY(0)';">
                                         <div style="margin-bottom:10px;">${imgDisplay}</div>
                                         <div style="font-weight:bold; margin-bottom:5px; color:#2d3748;">${escHTML(p.name)}</div>
                                         <div style="color:#667eea; font-size:18px; font-weight:bold; margin:8px 0;">${p.price.toFixed(3)} د.ك</div>
-                                        <div style="color:#6c757d; font-size:13px; margin-bottom:10px;">المخزون: ${p.stock}</div>
-                                        ${p.barcode ? `<div style="color:#6c757d; font-size:11px; margin-bottom:10px;">📊 ${escHTML(p.barcode)}</div>` : ''}
+                                        <div style="color:#9a96a6; font-size:13px; margin-bottom:10px;">المخزون: ${p.stock}</div>
+                                        ${p.barcode ? `<div style="color:#9a96a6; font-size:11px; margin-bottom:10px;">📊 ${escHTML(p.barcode)}</div>` : ''}
                                         
                                         <!-- عرض إجمالي التكلفة فقط -->
                                         ${p.cost && p.cost > 0 ? `
-                                            <div style="background:#f0f9ff; padding:10px; border-radius:6px; margin:10px 0; border:1px solid #bae6fd;">
+                                            <div style="background:rgba(91,141,239,0.06); padding:10px; border-radius:6px; margin:10px 0; border:1px solid rgba(91,141,239,0.2);">
                                                 <div style="display:flex; justify-content:space-between; align-items:center; font-size:13px;">
                                                     <span style="color:#0369a1; font-weight:600;">💰 التكلفة:</span>
                                                     <span style="color:#0c4a6e; font-weight:700;">${p.cost.toFixed(3)} د.ك</span>
@@ -2645,7 +2667,7 @@ async function loadProductsTable() {
                                         ` : ''}
 
                                         ${p.variants && p.variants.length > 0 ? `
-                                            <div style="background:#f0fff4; padding:8px; border-radius:6px; margin:8px 0; border:1px solid #c6f6d5;">
+                                            <div style="background:rgba(78,203,113,0.06); padding:8px; border-radius:6px; margin:8px 0; border:1px solid rgba(78,203,113,0.2);">
                                                 <div style="font-size:12px; color:#38a169; font-weight:bold; margin-bottom:5px;">📐 ${p.variants.length} خاصية</div>
                                                 ${p.variants.map(v => `
                                                     <div style="display:flex; justify-content:space-between; font-size:11px; padding:2px 0; border-bottom:1px solid #e8f5e9;">
@@ -2693,7 +2715,7 @@ function advancedSearchProducts() {
 
     const container = document.getElementById('productsTableContainer');
     if (filtered.length === 0) {
-        container.innerHTML = '<p style="text-align:center; padding:40px; color:#6c757d;">لا توجد نتائج</p>';
+        container.innerHTML = '<p style="text-align:center; padding:40px; color:#9a96a6;">لا توجد نتائج</p>';
         return;
     }
 
@@ -2716,12 +2738,12 @@ function advancedSearchProducts() {
                             ? `<img src="${p.image_data}" style="width:60px; height:60px; object-fit:cover; border-radius:8px;">`
                             : `<div style="font-size:50px;">${p.image_data}</div>`;
                     }
-                    return `<div style="border:2px solid #e2e8f0; padding:15px; border-radius:12px; background:white; text-align:center;">
+                    return `<div style="border:2px solid rgba(212,168,83,0.12); padding:15px; border-radius:12px; background:#16161f; text-align:center;">
                         <div style="margin-bottom:10px;">${imgDisplay}</div>
                         <div style="font-weight:bold; margin-bottom:5px; color:#2d3748;">${escHTML(p.name)}</div>
                         <div style="color:#667eea; font-size:18px; font-weight:bold; margin:8px 0;">${p.price.toFixed(3)} د.ك</div>
-                        <div style="color:#6c757d; font-size:13px; margin-bottom:10px;">المخزون: ${p.stock}</div>
-                        ${p.barcode ? `<div style="color:#6c757d; font-size:11px; margin-bottom:10px;">📊 ${escHTML(p.barcode)}</div>` : ''}
+                        <div style="color:#9a96a6; font-size:13px; margin-bottom:10px;">المخزون: ${p.stock}</div>
+                        ${p.barcode ? `<div style="color:#9a96a6; font-size:11px; margin-bottom:10px;">📊 ${escHTML(p.barcode)}</div>` : ''}
                         <div style="display:flex; gap:5px; justify-content:center; margin-top:10px;">
                             <button onclick="editProduct(${p.id})" class="btn-sm" style="flex:1;">✏️ تعديل</button>
                             <button onclick="deleteProduct(${p.id})" class="btn-sm btn-danger" style="flex:1;">🗑️</button>
@@ -2978,7 +3000,7 @@ async function loadInvoicesTable() {
                         const isCancelled = inv.cancelled;
                         const status = inv.order_status || 'قيد التنفيذ';
                         return `
-                        <tr style="${isCancelled ? 'opacity:0.5; background:#fff5f5;' : ''}">
+                        <tr style="${isCancelled ? 'opacity:0.5; background:rgba(232,93,93,0.08);' : ''}">
                             <td>
                                 <strong${isCancelled ? ' style="text-decoration:line-through;"' : ''}>${escHTML(inv.invoice_number)}</strong>
                                 ${isCancelled ? ' <span style="background:#dc3545; color:white; padding:2px 6px; border-radius:4px; font-size:10px;">🚫 ملغية</span>' : ''}
@@ -3170,27 +3192,27 @@ function displayReports(report, topProducts) {
                                 <div>
                                     <div style="display:flex; justify-content:space-between; margin-bottom:5px;"><span>${getPaymentMethodName(pm.payment_method)}</span><span style="color:#28a745; font-weight:bold;">${pm.total.toFixed(3)} د.ك</span></div>
                                     <div style="display:flex; align-items:center; gap:10px;">
-                                        <div style="flex:1; height:8px; background:#e2e8f0; border-radius:4px; overflow:hidden;"><div style="width:${pct}%; height:100%; background:linear-gradient(90deg, #667eea, #764ba2);"></div></div>
-                                        <span style="font-size:11px; color:#6c757d;">${pm.count} (${pct}%)</span>
+                                        <div style="flex:1; height:8px; background:#1e1e2a; border-radius:4px; overflow:hidden;"><div style="width:${pct}%; height:100%; background:linear-gradient(90deg, #667eea, #764ba2);"></div></div>
+                                        <span style="font-size:11px; color:#9a96a6;">${pm.count} (${pct}%)</span>
                                     </div>
                                 </div>
                             `;
                         }).join('')}
                     </div>
-                ` : '<p style="text-align:center; color:#6c757d;">لا توجد بيانات</p>'}
+                ` : '<p style="text-align:center; color:#9a96a6;">لا توجد بيانات</p>'}
             </div>
             <div class="report-card">
                 <h3>🏆 أفضل المنتجات</h3>
                 ${topProducts && topProducts.length > 0 ? `
                     <div style="margin-top:15px;">
                         ${topProducts.map((p, i) => `
-                            <div style="display:flex; justify-content:space-between; align-items:center; padding:8px; margin-bottom:5px; background:#f8f9fa; border-radius:6px;">
+                            <div style="display:flex; justify-content:space-between; align-items:center; padding:8px; margin-bottom:5px; background:#1e1e2a; border-radius:6px;">
                                 <div style="display:flex; align-items:center; gap:8px;"><span style="font-weight:bold; color:#667eea; font-size:16px;">#${i+1}</span><span style="font-size:13px;">${escHTML(p.product_name)}</span></div>
-                                <div style="text-align:left;"><div style="font-weight:bold; color:#28a745; font-size:13px;">${p.total_sales.toFixed(3)} د.ك</div><div style="font-size:10px; color:#6c757d;">${p.total_quantity} قطعة</div></div>
+                                <div style="text-align:left;"><div style="font-weight:bold; color:#28a745; font-size:13px;">${p.total_sales.toFixed(3)} د.ك</div><div style="font-size:10px; color:#9a96a6;">${p.total_quantity} قطعة</div></div>
                             </div>
                         `).join('')}
                     </div>
-                ` : '<p style="text-align:center; color:#6c757d;">لا توجد بيانات</p>'}
+                ` : '<p style="text-align:center; color:#9a96a6;">لا توجد بيانات</p>'}
             </div>
         </div>
     `;
@@ -3252,7 +3274,7 @@ async function loadUsersTable() {
                                 <td>${escHTML(u.full_name)}</td>
                                 <td>${u.role === 'admin' ? '👑 مدير' : '💼 كاشير'}</td>
                                 <td><span style="background:#38a169; color:white; padding:4px 8px; border-radius:4px;">${escHTML(branchesMap[u.branch_id] || 'الفرع الرئيسي')}</span></td>
-                                <td>${u.shift_id ? `<span style="background:#e67e22; color:white; padding:4px 8px; border-radius:4px;">🕐 ${escHTML(shiftsMap[u.shift_id] || '-')}</span>` : '<span style="color:#a0aec0;">-</span>'}</td>
+                                <td>${u.shift_id ? `<span style="background:#e67e22; color:white; padding:4px 8px; border-radius:4px;">🕐 ${escHTML(shiftsMap[u.shift_id] || '-')}</span>` : '<span style="color:#e0dce8;">-</span>'}</td>
                                 <td><span style="background:#667eea; color:white; padding:4px 8px; border-radius:4px; font-weight:bold;">${escHTML(u.invoice_prefix || '-')}</span></td>
                                 <td>${u.is_active ? '✅' : '❌'}</td>
                                 <td>
@@ -3982,7 +4004,7 @@ async function loadAttendanceLog() {
                 const branchName = branches[r.branch_id] || 'غير محدد';
                 
                 html += `
-                    <tr style="background: ${checkOut ? '#f0fff4' : '#fff5f5'};">
+                    <tr style="background: ${checkOut ? 'rgba(78,203,113,0.06)' : 'rgba(232,93,93,0.06)'};">
                         <td><strong>${escHTML(r.user_name)}</strong></td>
                         <td>🏢 ${branchName}</td>
                         <td>${dateStr}</td>
@@ -3996,7 +4018,7 @@ async function loadAttendanceLog() {
             html += '</tbody></table>';
             
             if (data.records.length === 0) {
-                html = '<p style="text-align: center; padding: 40px; color: #6c757d;">لا توجد سجلات</p>';
+                html = '<p style="text-align: center; padding: 40px; color: #9a96a6;">لا توجد سجلات</p>';
             }
             
             container.innerHTML = html;
@@ -4059,7 +4081,7 @@ async function loadInventory() {
 async function displayInventory() {
     const container = document.getElementById('inventoryTableContainer');
     if (allInventory.length === 0) {
-        container.innerHTML = '<p style="text-align: center; padding: 40px; color: #6c757d;">لا توجد منتجات في المخزون</p>';
+        container.innerHTML = '<p style="text-align: center; padding: 40px; color: #9a96a6;">لا توجد منتجات في المخزون</p>';
         return;
     }
     
@@ -4167,11 +4189,11 @@ async function displayInventory() {
             : `<span style="color: #999;">0</span>`;
 
         const soldDisplay = sold > 0
-            ? `<span style="background: #fff3cd; padding: 5px 10px; border-radius: 5px; font-weight: bold;">${sold}</span>`
+            ? `<span style="background: rgba(245,158,11,0.1); padding: 5px 10px; border-radius: 5px; font-weight: bold;">${sold}</span>`
             : `<span style="color: #999;">0</span>`;
 
         const damagedDisplay = damaged > 0
-            ? `<span style="background: #f8d7da; padding: 5px 10px; border-radius: 5px; font-weight: bold;">${damaged}</span>`
+            ? `<span style="background: rgba(232,93,93,0.12); padding: 5px 10px; border-radius: 5px; font-weight: bold;">${damaged}</span>`
             : `<span style="color: #999;">0</span>`;
         
         const hasVariants = item.variants && item.variants.length > 0;
@@ -4204,7 +4226,7 @@ async function displayInventory() {
             html += `
             <tr id="invVariants_${item.id}" style="display: none;">
                 <td colspan="11" style="padding: 0;">
-                    <div style="background: #f0fff4; padding: 12px; border-radius: 8px; margin: 5px;">
+                    <div style="background: rgba(78,203,113,0.06); padding: 12px; border-radius: 8px; margin: 5px;">
                         <table style="width: 100%; border-collapse: collapse;">
                             <thead>
                                 <tr style="background: #38a169; color: white;">
@@ -4252,7 +4274,7 @@ function addVariantRow(data = {}) {
 
     const row = document.createElement('div');
     row.id = `variantRow_${variantRowCounter}`;
-    row.style.cssText = 'display: grid; grid-template-columns: 2fr 1fr 1fr 1fr auto; gap: 8px; align-items: center; margin-bottom: 8px; background: white; padding: 10px; border-radius: 8px; border: 1px solid #c6f6d5;';
+    row.style.cssText = 'display: grid; grid-template-columns: 2fr 1fr 1fr 1fr auto; gap: 8px; align-items: center; margin-bottom: 8px; background: #16161f; padding: 10px; border-radius: 8px; border: 1px solid rgba(78,203,113,0.2);';
     row.innerHTML = `
         <input type="text" placeholder="الاسم (مثل: صغير، وسط، كبير، 500مل)" value="${data.variant_name || ''}" class="variant-name" style="padding: 8px; border: 1px solid #ddd; border-radius: 6px; text-align: right;">
         <input type="number" placeholder="السعر" step="0.001" value="${data.price || ''}" class="variant-price" style="padding: 8px; border: 1px solid #ddd; border-radius: 6px; text-align: right;">
@@ -4499,7 +4521,7 @@ async function distributeToBranch(inventoryId) {
     let variantsInfo = '';
     if (product.variants && product.variants.length > 0) {
         variantsInfo = `
-            <div style="margin-top: 10px; background: #f0fff4; padding: 10px; border-radius: 8px; border: 1px solid #c6f6d5;">
+            <div style="margin-top: 10px; background: rgba(78,203,113,0.06); padding: 10px; border-radius: 8px; border: 1px solid rgba(78,203,113,0.2);">
                 <strong style="color: #38a169;">📐 الخصائص:</strong>
                 <div style="display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px;">
                     ${product.variants.map(v => `<span style="background: #38a169; color: white; padding: 4px 10px; border-radius: 20px; font-size: 12px;">${escHTML(v.variant_name)} - ${v.price.toFixed(3)} د.ك</span>`).join('')}
@@ -4584,7 +4606,7 @@ async function loadCurrentDistributions(inventoryId) {
                         <td>🏢 ${branchName}</td>
                         <td>${variantLabel}</td>
                         <td><strong>${s.stock}</strong></td>
-                        <td style="max-width:250px;">${s.notes ? `<div style="font-size:11px; line-height:1.6; max-height:80px; overflow-y:auto; white-space:pre-line; background:#f8f9fa; padding:5px 8px; border-radius:6px; border:1px solid #e0e0e0;">${escHTML(s.notes)}</div>` : '<span style="color:#999;">-</span>'}</td>
+                        <td style="max-width:250px;">${s.notes ? `<div style="font-size:11px; line-height:1.6; max-height:80px; overflow-y:auto; white-space:pre-line; background:#1e1e2a; padding:5px 8px; border-radius:6px; border:1px solid #e0e0e0;">${escHTML(s.notes)}</div>` : '<span style="color:#999;">-</span>'}</td>
                         <td>
                             <button onclick="editDistribution(${s.id}, ${s.stock})" class="btn-sm">✏️ تعديل</button>
                             <button onclick="deleteDistribution(${s.id})" class="btn-sm btn-danger">🗑️ حذف</button>
@@ -5220,12 +5242,12 @@ async function loadSystemLogs(page) {
 
                 // لون الخلفية حسب نوع العملية
                 let rowColor = '';
-                if (log.action_type === 'login') rowColor = 'background:#e8f5e9;';
-                else if (log.action_type === 'logout') rowColor = 'background:#fff3e0;';
-                else if (log.action_type === 'sale') rowColor = 'background:#e3f2fd;';
-                else if (log.action_type.includes('delete') || log.action_type === 'cancel_invoice') rowColor = 'background:#ffebee;';
-                else if (log.action_type === 'edit_invoice') rowColor = 'background:#fff8e1;';
-                else if (log.action_type === 'shift_lock') rowColor = 'background:#f3e5f5;';
+                if (log.action_type === 'login') rowColor = 'background:rgba(78,203,113,0.08);';
+                else if (log.action_type === 'logout') rowColor = 'background:rgba(212,168,83,0.08);';
+                else if (log.action_type === 'sale') rowColor = 'background:rgba(91,141,239,0.08);';
+                else if (log.action_type.includes('delete') || log.action_type === 'cancel_invoice') rowColor = 'background:rgba(232,93,93,0.08);';
+                else if (log.action_type === 'edit_invoice') rowColor = 'background:rgba(212,168,83,0.06);';
+                else if (log.action_type === 'shift_lock') rowColor = 'background:rgba(167,139,250,0.08);';
 
                 html += `
                     <tr style="${rowColor}">
@@ -5241,7 +5263,7 @@ async function loadSystemLogs(page) {
             html += '</tbody></table>';
 
             if (logs.length === 0) {
-                html = '<p style="text-align: center; padding: 40px; color: #999;">لا توجد سجلات</p>';
+                html = '<p style="text-align: center; padding: 40px; color: var(--t2);">لا توجد سجلات</p>';
             }
 
             container.innerHTML = html;
@@ -5250,11 +5272,11 @@ async function loadSystemLogs(page) {
             if (paginationEl && totalPages > 1) {
                 let pagHtml = '';
                 if (_systemLogsPage > 1) {
-                    pagHtml += `<button onclick="loadSystemLogs(${_systemLogsPage - 1})" style="margin:0 3px; padding:6px 12px; border-radius:6px; border:1px solid #ddd; cursor:pointer;">السابق</button>`;
+                    pagHtml += `<button onclick="loadSystemLogs(${_systemLogsPage - 1})" style="margin:0 3px; padding:6px 12px; border-radius:6px; border:1px solid rgba(212,168,83,0.2); background:var(--card); color:var(--t1); cursor:pointer;">السابق</button>`;
                 }
-                pagHtml += `<span style="margin:0 10px; font-size:14px;">صفحة ${_systemLogsPage} من ${totalPages}</span>`;
+                pagHtml += `<span style="margin:0 10px; font-size:14px; color:var(--t2);">صفحة ${_systemLogsPage} من ${totalPages}</span>`;
                 if (_systemLogsPage < totalPages) {
-                    pagHtml += `<button onclick="loadSystemLogs(${_systemLogsPage + 1})" style="margin:0 3px; padding:6px 12px; border-radius:6px; border:1px solid #ddd; cursor:pointer;">التالي</button>`;
+                    pagHtml += `<button onclick="loadSystemLogs(${_systemLogsPage + 1})" style="margin:0 3px; padding:6px 12px; border-radius:6px; border:1px solid rgba(212,168,83,0.2); background:var(--card); color:var(--t1); cursor:pointer;">التالي</button>`;
                 }
                 paginationEl.innerHTML = pagHtml;
             } else if (paginationEl) {
@@ -5436,7 +5458,7 @@ function displayExpenses(expenses) {
     const container = document.getElementById('expensesContainer');
 
     if (expenses.length === 0) {
-        container.innerHTML = '<div style="text-align: center; padding: 40px; color: #6c757d;">لا توجد تكاليف</div>';
+        container.innerHTML = '<div style="text-align: center; padding: 40px; color: #9a96a6;">لا توجد تكاليف</div>';
         return;
     }
 
@@ -5479,7 +5501,7 @@ function displayExpenses(expenses) {
                         row += `
                     <tr id="salaryExpand_${e.id}" style="display: none;">
                         <td colspan="6" style="padding: 0;">
-                            <div style="background: #f0f4ff; padding: 12px; border-radius: 8px; margin: 5px;">
+                            <div style="background: rgba(91,141,239,0.06); padding: 12px; border-radius: 8px; margin: 5px;">
                                 <table style="width: 100%; border-collapse: collapse;">
                                     <thead>
                                         <tr style="background: #667eea; color: white;">
@@ -5489,7 +5511,7 @@ function displayExpenses(expenses) {
                                     </thead>
                                     <tbody>
                                         ${e.salary_details.map(s => `
-                                        <tr style="border-bottom: 1px solid #e2e8f0;">
+                                        <tr style="border-bottom: 1px solid rgba(212,168,83,0.15);">
                                             <td style="padding: 8px; text-align: center;">${escHTML(s.employee_name)}</td>
                                             <td style="padding: 8px; text-align: center; color: #dc3545; font-weight: bold;">${s.monthly_salary.toFixed(3)} د.ك</td>
                                         </tr>`).join('')}
@@ -5543,7 +5565,7 @@ function addSalaryRow() {
     const container = document.getElementById('salaryRowsContainer');
     const row = document.createElement('div');
     row.id = `salaryRow_${salaryRowCounter}`;
-    row.style.cssText = 'display: flex; gap: 8px; align-items: center; margin-bottom: 8px; background: white; padding: 10px; border-radius: 8px; border: 1px solid #e2e8f0;';
+    row.style.cssText = 'display: flex; gap: 8px; align-items: center; margin-bottom: 8px; background: #16161f; padding: 10px; border-radius: 8px; border: 1px solid #e2e8f0;';
     row.innerHTML = `
         <div style="flex: 1;">
             <input type="text" placeholder="اسم الموظف" class="salary-emp-name" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 6px; text-align: right;">
@@ -5734,7 +5756,7 @@ function displayProductReport(data) {
             </div>
         </div>
         
-        <div style="background: white; padding: 20px; border-radius: 12px; margin-bottom: 30px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+        <div style="background: #16161f; padding: 20px; border-radius: 12px; margin-bottom: 30px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
             <canvas id="productChart" style="max-height: 400px;"></canvas>
         </div>
         
@@ -5832,7 +5854,7 @@ function displayBranchReport(data) {
             </div>
         </div>
         
-        <div style="background: white; padding: 20px; border-radius: 12px; margin-bottom: 30px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+        <div style="background: #16161f; padding: 20px; border-radius: 12px; margin-bottom: 30px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
             <canvas id="branchChart" style="max-height: 400px;"></canvas>
         </div>
         
@@ -5950,7 +5972,7 @@ function displayProfitLossReport(report) {
             </div>
         </div>
         
-        <div style="background: white; padding: 30px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+        <div style="background: #16161f; padding: 30px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
             <canvas id="profitChart" style="max-height: 400px;"></canvas>
         </div>
     `;
@@ -6129,7 +6151,7 @@ function searchCustomerInPOS(query) {
     }).slice(0, 15);
 
     if (filtered.length === 0) {
-        container.innerHTML = '<div style="padding:10px; text-align:center; color:#6c757d; font-size:13px;">لا توجد نتائج</div>';
+        container.innerHTML = '<div style="padding:10px; text-align:center; color:#9a96a6; font-size:13px;">لا توجد نتائج</div>';
         container.style.display = 'block';
         return;
     }
@@ -6139,10 +6161,10 @@ function searchCustomerInPOS(query) {
 }
 
 function customerResultItem(c) {
-    return `<div onclick="pickCustomerFromSearch('${c.id}')" style="padding:10px 12px; cursor:pointer; border-bottom:1px solid #eee; font-size:13px; display:flex; justify-content:space-between; align-items:center;"
-        onmouseover="this.style.background='#f0f0ff'" onmouseout="this.style.background='white'">
+    return `<div onclick="pickCustomerFromSearch('${c.id}')" style="padding:10px 12px; cursor:pointer; border-bottom:1px solid rgba(212,168,83,0.1); font-size:13px; display:flex; justify-content:space-between; align-items:center; color:var(--t1);"
+        onmouseover="this.style.background='rgba(91,141,239,0.08)'" onmouseout="this.style.background='transparent'">
         <span><strong>${escHTML(c.name)}</strong></span>
-        <span style="color:#667eea; font-size:12px; direction:ltr;">${escHTML(c.phone) || ''}</span>
+        <span style="color:var(--blue); font-size:12px; direction:ltr;">${escHTML(c.phone) || ''}</span>
     </div>`;
 }
 
@@ -6455,6 +6477,9 @@ fetchVersion();
 document.addEventListener('DOMContentLoaded', async () => {
     console.log('[App] DOMContentLoaded - checking for saved user...');
 
+    // Restore theme button state
+    _updateThemeButton(document.body.classList.contains('light-mode'));
+
     // First-time setup check (async for HMAC verification)
     if (await checkFirstTimeSetup()) {
         console.log('[App] First-time setup screen shown');
@@ -6603,7 +6628,7 @@ function displayDCFResults(totalValue, pvCashFlows, pvTerminalValue, cashFlows, 
     // إضافة القيمة المتبقية
     const years = cashFlows.length;
     tableHTML += `
-        <tr style="background: #f7fafc; font-weight: bold;">
+        <tr style="background: #1e1e2a; font-weight: bold;">
             <td style="padding: 10px; text-align: center;">${years}+</td>
             <td style="padding: 10px; text-align: center;">${terminalValue.toLocaleString('ar', {minimumFractionDigits: 2})}</td>
             <td style="padding: 10px; text-align: center;">${(1 / Math.pow(1 + parseFloat(document.getElementById('dcf_discount_rate').value) / 100, years)).toFixed(4)}</td>
@@ -6779,7 +6804,7 @@ function addCostRow(name = '', value = 0) {
     const rowDiv = document.createElement('div');
     rowDiv.className = 'cost-row';
     rowDiv.id = `costRow${costRowCounter}`;
-    rowDiv.style.cssText = 'display: grid; grid-template-columns: 1fr 1fr auto; gap: 10px; margin-bottom: 10px; padding: 12px; background: white; border-radius: 8px; border: 1px solid #e2e8f0;';
+    rowDiv.style.cssText = 'display: grid; grid-template-columns: 1fr 1fr auto; gap: 10px; margin-bottom: 10px; padding: 12px; background: #16161f; border-radius: 8px; border: 1px solid #e2e8f0;';
     
     rowDiv.innerHTML = `
         <div class="form-group" style="margin: 0;">
@@ -6916,7 +6941,7 @@ function addInventoryCostRow(name = '', value = 0) {
     const rowDiv = document.createElement('div');
     rowDiv.className = 'inventory-cost-row';
     rowDiv.id = `inventoryCostRow${inventoryCostCounter}`;
-    rowDiv.style.cssText = 'display: grid; grid-template-columns: 1fr 1fr auto; gap: 10px; margin-bottom: 10px; padding: 12px; background: white; border-radius: 8px; border: 1px solid #e2e8f0;';
+    rowDiv.style.cssText = 'display: grid; grid-template-columns: 1fr 1fr auto; gap: 10px; margin-bottom: 10px; padding: 12px; background: #16161f; border-radius: 8px; border: 1px solid #e2e8f0;';
     
     rowDiv.innerHTML = `
         <div class="form-group" style="margin: 0;">
@@ -7284,7 +7309,7 @@ async function viewCustomerDetails(id) {
                         <div><strong>عدد الطلبات:</strong> ${c.total_orders || 0}</div>
                         <div><strong>تاريخ التسجيل:</strong> ${c.created_at ? new Date(c.created_at).toLocaleDateString('ar') : '-'}</div>
                     </div>
-                    ${c.notes ? `<div style="margin-top: 15px; padding: 10px; background: #f8f9fa; border-radius: 8px;"><strong>ملاحظات:</strong> ${c.notes}</div>` : ''}
+                    ${c.notes ? `<div style="margin-top: 15px; padding: 10px; background: #1e1e2a; border-radius: 8px;"><strong>ملاحظات:</strong> ${c.notes}</div>` : ''}
                 </div>
             `;
             document.getElementById('invoiceViewContent').innerHTML = html;
@@ -7966,7 +7991,7 @@ async function printThermalReturn(id) {
 @media print {
     .toolbar { display: none !important; }
     .preview-wrapper { box-shadow: none !important; border: none !important; margin: 0 !important; }
-    body { background: white !important; padding: 0 !important; }
+    body { background: #16161f !important; padding: 0 !important; }
     .receipt { width: 55mm; font-size: 7px; padding: 1mm; }
     .receipt .r-header { font-size: 9px; }
     .receipt .r-sub { font-size: 7px; }
@@ -7984,7 +8009,7 @@ async function printThermalReturn(id) {
     .btn-print:hover { background: #218838; }
     .btn-close { background: #dc3545; color: white; }
     .btn-close:hover { background: #c82333; }
-    .preview-wrapper { max-width: 280px; margin: 80px auto 20px; background: white; border: 2px solid #ccc; border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.15); padding: 15px; }
+    .preview-wrapper { max-width: 280px; margin: 80px auto 20px; background: #16161f; border: 2px solid #ccc; border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.15); padding: 15px; }
     .receipt { width: 100%; font-size: 14px; line-height: 1.5; }
     .receipt .r-header { font-size: 18px; font-weight: bold; }
     .receipt .r-sub { font-size: 14px; }
@@ -8124,7 +8149,7 @@ function filterInvoicesByStatus() {
                     const isCancelled = inv.cancelled;
                     const st = inv.order_status || 'قيد التنفيذ';
                     return `
-                    <tr style="${isCancelled ? 'opacity:0.5; background:#fff5f5;' : ''}">
+                    <tr style="${isCancelled ? 'opacity:0.5; background:rgba(232,93,93,0.08);' : ''}">
                         <td>
                             <strong${isCancelled ? ' style="text-decoration:line-through;"' : ''}>${escHTML(inv.invoice_number)}</strong>
                             ${isCancelled ? ' <span style="background:#dc3545; color:white; padding:2px 6px; border-radius:4px; font-size:10px;">🚫 ملغية</span>' : ''}
@@ -8544,11 +8569,11 @@ function displayCouponsTable(coupons) {
     if (!container) return;
 
     if (coupons.length === 0) {
-        container.innerHTML = '<div style="text-align:center; padding:40px; color:#6c757d;"><div style="font-size:48px; margin-bottom:10px;">🎟️</div><p>لا توجد كوبونات بعد</p></div>';
+        container.innerHTML = '<div style="text-align:center; padding:40px; color:#9a96a6;"><div style="font-size:48px; margin-bottom:10px;">🎟️</div><p>لا توجد كوبونات بعد</p></div>';
         return;
     }
 
-    let html = '<div style="overflow-x:auto;"><table style="width:100%; border-collapse:collapse; background:white; border-radius:12px; overflow:hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">';
+    let html = '<div style="overflow-x:auto;"><table style="width:100%; border-collapse:collapse; background:#16161f; border-radius:12px; overflow:hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">';
     html += `<thead><tr style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
         <th style="padding:12px; text-align:right;">الكود</th>
         <th style="padding:12px; text-align:center;">نوع الخصم</th>
@@ -8810,7 +8835,7 @@ function displayAdditionalOperations() {
     let html = '';
     additionalOperations.forEach(op => {
         html += `
-            <div style="display: flex; justify-content: space-between; align-items: center; padding: 5px; background: #f8f9fa; border-radius: 4px; margin-bottom: 5px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; padding: 5px; background: #1e1e2a; border-radius: 4px; margin-bottom: 5px;">
                 <span style="font-size: 12px;">${escHTML(op.name)}</span>
                 <div>
                     <span style="font-weight: bold; margin-right: 10px;">${op.amount.toFixed(3)} د.ك</span>
@@ -9283,7 +9308,7 @@ async function viewTableInvoice(tableId) {
 
             content.innerHTML = `
                 <div style="padding: 15px;">
-                    <div style="background: #f0fdf4; padding: 12px; border-radius: 8px; margin-bottom: 15px; border: 1px solid #86efac;">
+                    <div style="background: rgba(78,203,113,0.08); padding: 12px; border-radius: 8px; margin-bottom: 15px; border: 1px solid rgba(78,203,113,0.2);">
                         <strong>🍽️ ${escHTML(table.name)}</strong> | <strong>📄 فاتورة: ${escHTML(inv.invoice_number)}</strong>
                     </div>
                     <div style="font-size: 13px; margin-bottom: 10px;">
@@ -9538,7 +9563,7 @@ async function loadSuperAdminDashboard() {
             <div style="overflow-x: auto;">
             <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
                 <thead>
-                    <tr style="background: #f1f5f9;">
+                    <tr style="background: #1e1e2a;">
                         <th style="${thStyle}">#</th>
                         <th style="${thStyle}">المتجر</th>
                         <th style="${thStyle}">المعرف</th>
@@ -9562,7 +9587,7 @@ async function loadSuperAdminDashboard() {
                 // Source badge (local / remote / both)
                 let sourceBadge = '';
                 if (t.source === 'remote') {
-                    sourceBadge = '<span style="background: #fef3c7; color: #92400e; padding: 2px 6px; border-radius: 4px; font-size: 10px; margin-right: 5px;" title="سيرفر فقط - البيانات غير متوفرة محلياً">☁️ سيرفر</span>';
+                    sourceBadge = '<span style="background: rgba(245,158,11,0.1); color: #92400e; padding: 2px 6px; border-radius: 4px; font-size: 10px; margin-right: 5px;" title="سيرفر فقط - البيانات غير متوفرة محلياً">☁️ سيرفر</span>';
                 } else if (t.source === 'local') {
                     sourceBadge = '<span style="background: #dbeafe; color: #1e40af; padding: 2px 6px; border-radius: 4px; font-size: 10px; margin-right: 5px;" title="محلي فقط - غير موجود بالسيرفر">💻 محلي</span>';
                 } else if (t.source === 'both') {
@@ -9587,14 +9612,14 @@ async function loadSuperAdminDashboard() {
                 }
 
                 tableHTML += `
-                    <tr style="border-bottom: 1px solid #f1f5f9;">
+                    <tr style="border-bottom: 1px solid rgba(212,168,83,0.1);">
                         <td style="padding: 10px;">${i + 1}</td>
                         <td style="padding: 10px; font-weight: bold;">${escHTML(t.name)} ${sourceBadge}</td>
                         <td style="padding: 10px; direction: ltr; color: #64748b;">${escHTML(t.slug)}</td>
                         <td style="padding: 10px;">${escHTML(t.owner_name)}</td>
-                        <td style="padding: 10px;"><span style="background: ${t.plan === 'enterprise' ? '#fef3c7' : t.plan === 'premium' ? '#dbeafe' : '#f1f5f9'}; padding: 3px 8px; border-radius: 6px; font-size: 11px;">${planNames[t.plan] || t.plan}</span></td>
+                        <td style="padding: 10px;"><span style="background: ${t.plan === 'enterprise' ? 'rgba(245,158,11,0.15)' : t.plan === 'premium' ? 'rgba(91,141,239,0.15)' : 'rgba(154,150,166,0.15)'}; padding: 3px 8px; border-radius: 6px; font-size: 11px; color: var(--t1);">${planNames[t.plan] || t.plan}</span></td>
                         <td style="padding: 10px; text-align: center;">${t.is_active ? '<span style="color: #10b981; font-weight: bold;">✅ نشط</span>' : '<span style="color: #ef4444;">❌ معطل</span>'}</td>
-                        <td style="padding: 10px; text-align: center;">${t.mode === 'offline' ? '<span style="background: #fef3c7; color: #92400e; padding: 3px 8px; border-radius: 6px; font-size: 11px;">📴 أوفلاين</span>' : '<span style="background: #d1fae5; color: #065f46; padding: 3px 8px; border-radius: 6px; font-size: 11px;">🌐 أونلاين</span>'}</td>
+                        <td style="padding: 10px; text-align: center;">${t.mode === 'offline' ? '<span style="background: rgba(245,158,11,0.1); color: #f59e0b; padding: 3px 8px; border-radius: 6px; font-size: 11px;">📴 أوفلاين</span>' : '<span style="background: rgba(78,203,113,0.1); color: var(--green); padding: 3px 8px; border-radius: 6px; font-size: 11px;">🌐 أونلاين</span>'}</td>
                         <td style="padding: 10px; text-align: center; font-size: 12px;">${subStatus}</td>
                         <td style="padding: 10px; text-align: center;">${t.users_count || 0}</td>
                         <td style="padding: 10px; text-align: center;">
@@ -9838,20 +9863,20 @@ async function viewTenantStats(tenantId) {
         document.getElementById('tenantStatsTitle').textContent = `📊 إحصائيات: ${t.name}`;
         document.getElementById('tenantStatsContent').innerHTML = `
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 20px;">
-                <div style="background: #f8fafc; padding: 12px; border-radius: 8px;">
-                    <div style="color: #64748b; font-size: 12px;">المعرف</div>
+                <div style="background: var(--raised); padding: 12px; border-radius: 8px;">
+                    <div style="color: var(--t3); font-size: 12px;">المعرف</div>
                     <div style="font-weight: bold; direction: ltr;">${t.slug}</div>
                 </div>
-                <div style="background: #f8fafc; padding: 12px; border-radius: 8px;">
-                    <div style="color: #64748b; font-size: 12px;">الخطة</div>
+                <div style="background: var(--raised); padding: 12px; border-radius: 8px;">
+                    <div style="color: var(--t3); font-size: 12px;">الخطة</div>
                     <div style="font-weight: bold;">${planNames[t.plan] || t.plan}</div>
                 </div>
-                <div style="background: #f8fafc; padding: 12px; border-radius: 8px;">
-                    <div style="color: #64748b; font-size: 12px;">المالك</div>
+                <div style="background: var(--raised); padding: 12px; border-radius: 8px;">
+                    <div style="color: var(--t3); font-size: 12px;">المالك</div>
                     <div style="font-weight: bold;">${t.owner_name}</div>
                 </div>
-                <div style="background: #f8fafc; padding: 12px; border-radius: 8px;">
-                    <div style="color: #64748b; font-size: 12px;">تاريخ الإنشاء</div>
+                <div style="background: var(--raised); padding: 12px; border-radius: 8px;">
+                    <div style="color: var(--t3); font-size: 12px;">تاريخ الإنشاء</div>
                     <div style="font-weight: bold;">${new Date(t.created_at).toLocaleDateString('ar')}</div>
                 </div>
             </div>
@@ -9913,7 +9938,7 @@ async function openSubscriptionModal(tenantId) {
             const daysLeft = Math.ceil((expiry - today) / (1000 * 60 * 60 * 24));
             const isExpired = daysLeft < 0;
             infoHTML = `
-                <div style="background: ${isExpired ? '#fef2f2' : daysLeft <= 7 ? '#fffbeb' : '#f0fdf4'}; padding: 15px; border-radius: 10px; border: 2px solid ${isExpired ? '#fca5a5' : daysLeft <= 7 ? '#fcd34d' : '#86efac'};">
+                <div style="background: ${isExpired ? 'rgba(232,93,93,0.08)' : daysLeft <= 7 ? 'rgba(245,158,11,0.08)' : 'rgba(78,203,113,0.08)'}; padding: 15px; border-radius: 10px; border: 2px solid ${isExpired ? 'rgba(232,93,93,0.3)' : daysLeft <= 7 ? 'rgba(245,158,11,0.3)' : 'rgba(78,203,113,0.3)'};">
                     <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; text-align: center;">
                         <div>
                             <div style="font-size: 12px; color: #64748b;">المتجر</div>
@@ -9932,7 +9957,7 @@ async function openSubscriptionModal(tenantId) {
             `;
         } else {
             infoHTML = `
-                <div style="background: #f1f5f9; padding: 15px; border-radius: 10px; text-align: center; color: #64748b;">
+                <div style="background: #1e1e2a; padding: 15px; border-radius: 10px; text-align: center; color: #64748b;">
                     <strong>${t.name}</strong> - لم يتم تحديد فترة اشتراك بعد
                 </div>
             `;
@@ -9954,7 +9979,7 @@ async function openSubscriptionModal(tenantId) {
         if (invData.success && invData.invoices && invData.invoices.length > 0) {
             const payNames = {'cash': '💵 نقداً', 'knet': '💳 كي نت', 'bank': '🏦 تحويل بنكي'};
             invHTML = `<table style="width: 100%; border-collapse: collapse; font-size: 12px;">
-                <thead><tr style="background: #f1f5f9;">
+                <thead><tr style="background: #1e1e2a;">
                     <th style="padding: 8px; text-align: right;">#</th>
                     <th style="padding: 8px; text-align: right;">المبلغ</th>
                     <th style="padding: 8px; text-align: right;">المدة</th>
@@ -9964,7 +9989,7 @@ async function openSubscriptionModal(tenantId) {
                     <th style="padding: 8px; text-align: center;">حذف</th>
                 </tr></thead><tbody>`;
             invData.invoices.forEach((inv, i) => {
-                invHTML += `<tr style="border-bottom: 1px solid #f1f5f9;">
+                invHTML += `<tr style="border-bottom: 1px solid rgba(212,168,83,0.1);">
                     <td style="padding: 6px;">${i+1}</td>
                     <td style="padding: 6px; font-weight: bold;">${parseFloat(inv.amount).toFixed(3)} د.ك</td>
                     <td style="padding: 6px;">${inv.period_days} يوم</td>
@@ -10079,7 +10104,7 @@ async function loadBackupsList() {
 
         const container = document.getElementById('backupsList');
         if (!data.backups || data.backups.length === 0) {
-            container.innerHTML = '<div style="padding: 30px; text-align: center; color: #a0aec0;">لا توجد نسخ احتياطية بعد</div>';
+            container.innerHTML = '<div style="padding: 30px; text-align: center; color: #e0dce8;">لا توجد نسخ احتياطية بعد</div>';
             return;
         }
 
@@ -10089,7 +10114,7 @@ async function loadBackupsList() {
             const dateStr = date.toLocaleDateString('ar', {year: 'numeric', month: 'long', day: 'numeric'});
             const timeStr = date.toLocaleTimeString('ar', {hour: '2-digit', minute: '2-digit'});
             html += `
-                <div style="padding: 15px; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center;">
+                <div style="padding: 15px; border-bottom: 1px solid rgba(212,168,83,0.15); display: flex; justify-content: space-between; align-items: center;">
                     <div>
                         <div style="font-weight: bold; color: #2d3748;">${b.filename}</div>
                         <div style="font-size: 13px; color: #718096;">${dateStr} - ${timeStr} | ${formatFileSize(b.size)}</div>
@@ -10464,7 +10489,7 @@ async function loadGDriveFiles() {
         const container = document.getElementById('gdriveFilesList');
 
         if (!data.success || !data.files || data.files.length === 0) {
-            container.innerHTML = '<div style="padding: 30px; text-align: center; color: #a0aec0;">لا توجد نسخ في Google Drive</div>';
+            container.innerHTML = '<div style="padding: 30px; text-align: center; color: #e0dce8;">لا توجد نسخ في Google Drive</div>';
             return;
         }
 
@@ -10474,7 +10499,7 @@ async function loadGDriveFiles() {
             const dateStr = date.toLocaleDateString('ar', {year: 'numeric', month: 'long', day: 'numeric'});
             const timeStr = date.toLocaleTimeString('ar', {hour: '2-digit', minute: '2-digit'});
             html += `
-                <div style="padding: 15px; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center;">
+                <div style="padding: 15px; border-bottom: 1px solid rgba(212,168,83,0.15); display: flex; justify-content: space-between; align-items: center;">
                     <div>
                         <div style="font-weight: bold; color: #2d3748; font-size: 13px;">${escHTML(f.name)}</div>
                         <div style="font-size: 12px; color: #718096;">${dateStr} - ${timeStr} | ${formatFileSize(f.size)}</div>
@@ -10501,7 +10526,7 @@ async function loadAdminDashboard() {
     // هذه الصفحة أونلاين فقط
     if (!_realOnlineStatus) {
         document.getElementById('adminDashOverallStats').innerHTML = `
-            <div style="grid-column: 1 / -1; background: #fff3cd; padding: 20px; border-radius: 12px; text-align: center; color: #856404; font-size: 16px;">
+            <div style="grid-column: 1 / -1; background: rgba(245,158,11,0.1); padding: 20px; border-radius: 12px; text-align: center; color: #856404; font-size: 16px;">
                 ⚠️ هذه الصفحة تعمل أونلاين فقط. يرجى الاتصال بالإنترنت.
             </div>`;
         document.getElementById('adminDashInvoicesTable').innerHTML = '';
@@ -10552,34 +10577,34 @@ async function loadAdminDashInvoices() {
 
         // جدول الفواتير حسب الفروع
         if (branches.length === 0) {
-            document.getElementById('adminDashInvoicesTable').innerHTML = '<div style="padding: 20px; text-align: center; color: #a0aec0;">لا توجد فروع</div>';
+            document.getElementById('adminDashInvoicesTable').innerHTML = '<div style="padding: 20px; text-align: center; color: #e0dce8;">لا توجد فروع</div>';
             return;
         }
 
         let tableHtml = `
             <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
                 <thead>
-                    <tr style="background: #f7fafc;">
-                        <th style="padding: 12px 15px; text-align: right; border-bottom: 2px solid #e2e8f0; color: #4a5568;">الفرع</th>
-                        <th style="padding: 12px 15px; text-align: center; border-bottom: 2px solid #e2e8f0; color: #4a5568;">إجمالي الفواتير</th>
-                        <th style="padding: 12px 15px; text-align: center; border-bottom: 2px solid #e2e8f0; color: #4a5568;">إجمالي المبيعات</th>
-                        <th style="padding: 12px 15px; text-align: center; border-bottom: 2px solid #e2e8f0; color: #4a5568;">فواتير اليوم</th>
-                        <th style="padding: 12px 15px; text-align: center; border-bottom: 2px solid #e2e8f0; color: #4a5568;">مبيعات اليوم</th>
-                        <th style="padding: 12px 15px; text-align: center; border-bottom: 2px solid #e2e8f0; color: #4a5568;">الملغية</th>
+                    <tr style="background: var(--raised);">
+                        <th style="padding: 12px 15px; text-align: right; border-bottom: 2px solid rgba(212,168,83,0.2); color: var(--gold);">الفرع</th>
+                        <th style="padding: 12px 15px; text-align: center; border-bottom: 2px solid rgba(212,168,83,0.2); color: var(--gold);">إجمالي الفواتير</th>
+                        <th style="padding: 12px 15px; text-align: center; border-bottom: 2px solid rgba(212,168,83,0.2); color: var(--gold);">إجمالي المبيعات</th>
+                        <th style="padding: 12px 15px; text-align: center; border-bottom: 2px solid rgba(212,168,83,0.2); color: var(--gold);">فواتير اليوم</th>
+                        <th style="padding: 12px 15px; text-align: center; border-bottom: 2px solid rgba(212,168,83,0.2); color: var(--gold);">مبيعات اليوم</th>
+                        <th style="padding: 12px 15px; text-align: center; border-bottom: 2px solid rgba(212,168,83,0.2); color: var(--gold);">الملغية</th>
                     </tr>
                 </thead>
                 <tbody>`;
 
         branches.forEach((b, idx) => {
-            const bgColor = idx % 2 === 0 ? '#ffffff' : '#f7fafc';
+            const bgColor = idx % 2 === 0 ? 'var(--card)' : 'var(--raised)';
             tableHtml += `
                 <tr style="background: ${bgColor};">
-                    <td style="padding: 12px 15px; border-bottom: 1px solid #e2e8f0; font-weight: bold; color: #2d3748;">🏢 ${escHTML(b.branch_name)}</td>
-                    <td style="padding: 12px 15px; text-align: center; border-bottom: 1px solid #e2e8f0; color: #4a5568;">${b.total_invoices}</td>
-                    <td style="padding: 12px 15px; text-align: center; border-bottom: 1px solid #e2e8f0; color: #38a169; font-weight: bold;">${Number(b.total_sales).toFixed(2)}</td>
-                    <td style="padding: 12px 15px; text-align: center; border-bottom: 1px solid #e2e8f0; color: #667eea; font-weight: bold;">${b.today_invoices}</td>
-                    <td style="padding: 12px 15px; text-align: center; border-bottom: 1px solid #e2e8f0; color: #38a169;">${Number(b.today_sales).toFixed(2)}</td>
-                    <td style="padding: 12px 15px; text-align: center; border-bottom: 1px solid #e2e8f0; color: ${b.cancelled_invoices > 0 ? '#e53e3e' : '#a0aec0'};">${b.cancelled_invoices}</td>
+                    <td style="padding: 12px 15px; border-bottom: 1px solid rgba(212,168,83,0.1); font-weight: bold; color: var(--t1);">🏢 ${escHTML(b.branch_name)}</td>
+                    <td style="padding: 12px 15px; text-align: center; border-bottom: 1px solid rgba(212,168,83,0.1); color: var(--t2);">${b.total_invoices}</td>
+                    <td style="padding: 12px 15px; text-align: center; border-bottom: 1px solid rgba(212,168,83,0.1); color: var(--green); font-weight: bold;">${Number(b.total_sales).toFixed(2)}</td>
+                    <td style="padding: 12px 15px; text-align: center; border-bottom: 1px solid rgba(212,168,83,0.1); color: var(--blue); font-weight: bold;">${b.today_invoices}</td>
+                    <td style="padding: 12px 15px; text-align: center; border-bottom: 1px solid rgba(212,168,83,0.1); color: var(--green);">${Number(b.today_sales).toFixed(2)}</td>
+                    <td style="padding: 12px 15px; text-align: center; border-bottom: 1px solid rgba(212,168,83,0.1); color: ${b.cancelled_invoices > 0 ? 'var(--red)' : 'var(--t3)'};">${b.cancelled_invoices}</td>
                 </tr>`;
         });
 
@@ -10609,57 +10634,57 @@ async function loadAdminDashStock() {
 
 function renderAdminDashStockTable(branches, products) {
     if (!branches || branches.length === 0) {
-        document.getElementById('adminDashStockTable').innerHTML = '<div style="padding: 20px; text-align: center; color: #a0aec0;">لا توجد فروع</div>';
+        document.getElementById('adminDashStockTable').innerHTML = '<div style="padding: 20px; text-align: center; color: #e0dce8;">لا توجد فروع</div>';
         return;
     }
     if (!products || products.length === 0) {
-        document.getElementById('adminDashStockTable').innerHTML = '<div style="padding: 20px; text-align: center; color: #a0aec0;">لا توجد منتجات</div>';
+        document.getElementById('adminDashStockTable').innerHTML = '<div style="padding: 20px; text-align: center; color: #e0dce8;">لا توجد منتجات</div>';
         return;
     }
 
     let html = `
         <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
             <thead>
-                <tr style="background: #f7fafc;">
-                    <th style="padding: 12px 15px; text-align: right; border-bottom: 2px solid #e2e8f0; color: #4a5568; position: sticky; right: 0; background: #f7fafc; min-width: 180px;">المنتج</th>
-                    <th style="padding: 12px 15px; text-align: right; border-bottom: 2px solid #e2e8f0; color: #4a5568; min-width: 100px;">التصنيف</th>`;
+                <tr style="background: var(--raised);">
+                    <th style="padding: 12px 15px; text-align: right; border-bottom: 2px solid rgba(212,168,83,0.2); color: var(--gold); position: sticky; right: 0; background: var(--raised); min-width: 180px;">المنتج</th>
+                    <th style="padding: 12px 15px; text-align: right; border-bottom: 2px solid rgba(212,168,83,0.2); color: var(--gold); min-width: 100px;">التصنيف</th>`;
 
     branches.forEach(b => {
-        html += `<th style="padding: 12px 15px; text-align: center; border-bottom: 2px solid #e2e8f0; color: #4a5568; min-width: 120px;">🏢 ${escHTML(b.name)}</th>`;
+        html += `<th style="padding: 12px 15px; text-align: center; border-bottom: 2px solid rgba(212,168,83,0.2); color: var(--gold); min-width: 120px;">🏢 ${escHTML(b.name)}</th>`;
     });
 
-    html += `<th style="padding: 12px 15px; text-align: center; border-bottom: 2px solid #e2e8f0; color: #4a5568; min-width: 100px; background: #edf2f7;">الإجمالي</th>
+    html += `<th style="padding: 12px 15px; text-align: center; border-bottom: 2px solid rgba(212,168,83,0.2); color: var(--gold); min-width: 100px; background: var(--raised);">الإجمالي</th>
             </tr>
             </thead>
             <tbody>`;
 
     products.forEach((p, idx) => {
-        const bgColor = idx % 2 === 0 ? '#ffffff' : '#f7fafc';
+        const bgColor = idx % 2 === 0 ? 'var(--card)' : 'var(--raised)';
         let totalStock = 0;
 
         html += `<tr style="background: ${bgColor};">
-            <td style="padding: 10px 15px; border-bottom: 1px solid #e2e8f0; font-weight: bold; color: #2d3748; position: sticky; right: 0; background: ${bgColor};">${escHTML(p.name)}</td>
-            <td style="padding: 10px 15px; border-bottom: 1px solid #e2e8f0; color: #718096;">${escHTML(p.category) || '-'}</td>`;
+            <td style="padding: 10px 15px; border-bottom: 1px solid rgba(212,168,83,0.1); font-weight: bold; color: var(--t1); position: sticky; right: 0; background: ${bgColor};">${escHTML(p.name)}</td>
+            <td style="padding: 10px 15px; border-bottom: 1px solid rgba(212,168,83,0.1); color: var(--t2);">${escHTML(p.category) || '-'}</td>`;
 
         branches.forEach(b => {
             const branchData = p.branches[b.id];
             const stock = branchData ? branchData.stock : 0;
             totalStock += stock;
 
-            let stockColor = '#2d3748';
+            let stockColor = 'var(--t1)';
             let stockBg = '';
             if (stock === 0) {
-                stockColor = '#e53e3e';
-                stockBg = 'background: #fff5f5;';
+                stockColor = 'var(--red)';
+                stockBg = 'background: rgba(232,93,93,0.08);';
             } else if (stock <= 5) {
                 stockColor = '#dd6b20';
-                stockBg = 'background: #fffaf0;';
+                stockBg = 'background: rgba(221,107,32,0.08);';
             }
 
-            html += `<td style="padding: 10px 15px; text-align: center; border-bottom: 1px solid #e2e8f0; color: ${stockColor}; font-weight: bold; ${stockBg}">${stock}</td>`;
+            html += `<td style="padding: 10px 15px; text-align: center; border-bottom: 1px solid rgba(212,168,83,0.1); color: ${stockColor}; font-weight: bold; ${stockBg}">${stock}</td>`;
         });
 
-        html += `<td style="padding: 10px 15px; text-align: center; border-bottom: 1px solid #e2e8f0; font-weight: bold; color: #667eea; background: #edf2f7;">${totalStock}</td>`;
+        html += `<td style="padding: 10px 15px; text-align: center; border-bottom: 1px solid rgba(212,168,83,0.1); font-weight: bold; color: var(--blue); background: var(--raised);">${totalStock}</td>`;
         html += '</tr>';
     });
 
@@ -10843,13 +10868,13 @@ function renderXBRLIncomeTable() {
             html += '<tr><td colspan="5" style="border-bottom: 2px solid #e2e8f0; padding: 2px;"></td></tr>';
             return;
         }
-        const bg = r.highlight ? 'background: #f7fafc;' : '';
+        const bg = r.highlight ? 'background: #1e1e2a;' : '';
         const fw = r.bold ? 'font-weight: bold;' : '';
         const fs = r.big ? 'font-size: 16px;' : '';
         const indent = r.indent ? 'padding-right: 30px;' : '';
         html += `<tr style="${bg}">
             <td style="padding: 10px 15px; ${fw} ${fs} ${indent} color: ${r.color};">${r.label}</td>
-            <td style="padding: 10px 15px; font-size: 11px; color: #a0aec0; direction: ltr;">${r.ifrs}</td>
+            <td style="padding: 10px 15px; font-size: 11px; color: #e0dce8; direction: ltr;">${r.ifrs}</td>
             <td style="padding: 10px 15px; text-align: center; color: #4a5568;">${r.system !== null ? fmt(r.system) : '-'}</td>
             <td style="padding: 10px 15px; text-align: center; color: #805ad5;">${r.manual !== null ? fmt(r.manual) : '-'}</td>
             <td style="padding: 10px 15px; text-align: center; ${fw} ${fs} color: ${r.color};">${fmt(r.total)} ${currency}</td>
@@ -10990,7 +11015,7 @@ function addXBRLPartner(data) {
             </div>
             <div class="form-group">
                 <label style="font-size: 12px;">نصيب الربح <span style="color: #48bb78;">✓ تلقائي</span>:</label>
-                <input type="number" class="xbrl-partner-profit" step="0.01" value="0" readonly style="padding: 8px; border: 1px solid #48bb78; border-radius: 6px; width: 100%; background: #f0fff4;">
+                <input type="number" class="xbrl-partner-profit" step="0.01" value="0" readonly style="padding: 8px; border: 1px solid #48bb78; border-radius: 6px; width: 100%; background: rgba(78,203,113,0.06);">
             </div>
         </div>
         <div style="text-align: left; margin-top: 8px; font-weight: bold; color: #2b6cb0;">
@@ -11195,11 +11220,11 @@ async function generateXBRLReport() {
         // ملخص قائمة الدخل
         document.getElementById('xbrl_income_summary').innerHTML = `
             <table style="width: 100%; border-collapse: collapse;">
-                <tr style="background: #f7fafc;"><td style="padding: 10px 15px; font-weight: bold;">الإيرادات</td><td style="padding: 10px 15px; text-align: left; color: #2b6cb0; font-weight: bold;">${fmt(s.total_revenue)} ${currency}</td></tr>
+                <tr style="background: #1e1e2a;"><td style="padding: 10px 15px; font-weight: bold;">الإيرادات</td><td style="padding: 10px 15px; text-align: left; color: #2b6cb0; font-weight: bold;">${fmt(s.total_revenue)} ${currency}</td></tr>
                 <tr><td style="padding: 10px 15px;">تكلفة المبيعات</td><td style="padding: 10px 15px; text-align: left; color: #c53030;">(${fmt(s.cost_of_sales)}) ${currency}</td></tr>
-                <tr style="background: #f7fafc;"><td style="padding: 10px 15px; font-weight: bold;">مجمل الربح</td><td style="padding: 10px 15px; text-align: left; font-weight: bold; color: ${s.gross_profit >= 0 ? '#38a169' : '#c53030'};">${fmt(s.gross_profit)} ${currency}</td></tr>
+                <tr style="background: #1e1e2a;"><td style="padding: 10px 15px; font-weight: bold;">مجمل الربح</td><td style="padding: 10px 15px; text-align: left; font-weight: bold; color: ${s.gross_profit >= 0 ? '#38a169' : '#c53030'};">${fmt(s.gross_profit)} ${currency}</td></tr>
                 <tr><td style="padding: 10px 15px;">المصاريف التشغيلية</td><td style="padding: 10px 15px; text-align: left; color: #c53030;">(${fmt(s.operating_expenses)}) ${currency}</td></tr>
-                <tr style="background: #f7fafc;"><td style="padding: 10px 15px; font-weight: bold;">ربح العمليات</td><td style="padding: 10px 15px; text-align: left; font-weight: bold; color: ${s.operating_profit >= 0 ? '#38a169' : '#c53030'};">${fmt(s.operating_profit)} ${currency}</td></tr>
+                <tr style="background: #1e1e2a;"><td style="padding: 10px 15px; font-weight: bold;">ربح العمليات</td><td style="padding: 10px 15px; text-align: left; font-weight: bold; color: ${s.operating_profit >= 0 ? '#38a169' : '#c53030'};">${fmt(s.operating_profit)} ${currency}</td></tr>
                 <tr><td style="padding: 10px 15px;">تكاليف التمويل</td><td style="padding: 10px 15px; text-align: left; color: #c53030;">(${fmt(s.finance_costs)}) ${currency}</td></tr>
                 <tr><td style="padding: 10px 15px;">الزكاة / الضريبة</td><td style="padding: 10px 15px; text-align: left; color: #c53030;">(${fmt(s.zakat_tax)}) ${currency}</td></tr>
                 <tr style="background: #1a365d; color: white;"><td style="padding: 12px 15px; font-weight: bold; font-size: 16px;">صافي الربح</td><td style="padding: 12px 15px; text-align: left; font-weight: bold; font-size: 18px;">${fmt(s.net_profit)} ${currency}</td></tr>
@@ -11208,17 +11233,17 @@ async function generateXBRLReport() {
         // ملخص المركز المالي
         document.getElementById('xbrl_balance_summary').innerHTML = `
             <table style="width: 100%; border-collapse: collapse;">
-                <tr style="background: #ebf8ff;"><td style="padding: 10px 15px; font-weight: bold; color: #2b6cb0;">إجمالي الأصول</td><td style="padding: 10px 15px; text-align: left; font-weight: bold; color: #2b6cb0;">${fmt(s.total_assets)} ${currency}</td></tr>
-                <tr style="background: #fff5f5;"><td style="padding: 10px 15px; font-weight: bold; color: #c53030;">إجمالي الخصوم</td><td style="padding: 10px 15px; text-align: left; font-weight: bold; color: #c53030;">${fmt(s.total_liabilities)} ${currency}</td></tr>
-                <tr style="background: #f0fff4;"><td style="padding: 10px 15px; font-weight: bold; color: #38a169;">حقوق الملكية</td><td style="padding: 10px 15px; text-align: left; font-weight: bold; color: #38a169;">${fmt(s.total_equity)} ${currency}</td></tr>
+                <tr style="background: rgba(91,141,239,0.06);"><td style="padding: 10px 15px; font-weight: bold; color: #2b6cb0;">إجمالي الأصول</td><td style="padding: 10px 15px; text-align: left; font-weight: bold; color: #2b6cb0;">${fmt(s.total_assets)} ${currency}</td></tr>
+                <tr style="background: rgba(232,93,93,0.08);"><td style="padding: 10px 15px; font-weight: bold; color: #c53030;">إجمالي الخصوم</td><td style="padding: 10px 15px; text-align: left; font-weight: bold; color: #c53030;">${fmt(s.total_liabilities)} ${currency}</td></tr>
+                <tr style="background: rgba(78,203,113,0.06);"><td style="padding: 10px 15px; font-weight: bold; color: #38a169;">حقوق الملكية</td><td style="padding: 10px 15px; text-align: left; font-weight: bold; color: #38a169;">${fmt(s.total_equity)} ${currency}</td></tr>
             </table>`;
 
         // ملخص التدفقات النقدية
         document.getElementById('xbrl_cashflow_summary').innerHTML = `
             <table style="width: 100%; border-collapse: collapse;">
-                <tr style="background: #f0fff4;"><td style="padding: 10px 15px; font-weight: bold; color: #38a169;">صافي النقد من الأنشطة التشغيلية</td><td style="padding: 10px 15px; text-align: left; font-weight: bold; color: #38a169;">${fmt(s.net_cash_operating)} ${currency}</td></tr>
-                <tr style="background: #faf5ff;"><td style="padding: 10px 15px; font-weight: bold; color: #805ad5;">صافي النقد من الأنشطة الاستثمارية</td><td style="padding: 10px 15px; text-align: left; font-weight: bold; color: #805ad5;">${fmt(s.net_cash_investing)} ${currency}</td></tr>
-                <tr style="background: #fffaf0;"><td style="padding: 10px 15px; font-weight: bold; color: #dd6b20;">صافي النقد من الأنشطة التمويلية</td><td style="padding: 10px 15px; text-align: left; font-weight: bold; color: #dd6b20;">${fmt(s.net_cash_financing)} ${currency}</td></tr>
+                <tr style="background: rgba(78,203,113,0.06);"><td style="padding: 10px 15px; font-weight: bold; color: #38a169;">صافي النقد من الأنشطة التشغيلية</td><td style="padding: 10px 15px; text-align: left; font-weight: bold; color: #38a169;">${fmt(s.net_cash_operating)} ${currency}</td></tr>
+                <tr style="background: rgba(167,139,250,0.06);"><td style="padding: 10px 15px; font-weight: bold; color: var(--purple);">صافي النقد من الأنشطة الاستثمارية</td><td style="padding: 10px 15px; text-align: left; font-weight: bold; color: var(--purple);">${fmt(s.net_cash_investing)} ${currency}</td></tr>
+                <tr style="background: rgba(221,107,32,0.06);"><td style="padding: 10px 15px; font-weight: bold; color: #dd6b20;">صافي النقد من الأنشطة التمويلية</td><td style="padding: 10px 15px; text-align: left; font-weight: bold; color: #dd6b20;">${fmt(s.net_cash_financing)} ${currency}</td></tr>
                 <tr style="background: #1a365d; color: white;"><td style="padding: 12px 15px; font-weight: bold; font-size: 15px;">صافي التغير في النقد</td><td style="padding: 12px 15px; text-align: left; font-weight: bold; font-size: 16px;">${fmt(s.net_change_cash)} ${currency}</td></tr>
                 <tr><td style="padding: 10px 15px; color: #718096;">رصيد النقد - بداية الفترة</td><td style="padding: 10px 15px; text-align: left; color: #718096;">${fmt(s.cash_beginning)} ${currency}</td></tr>
                 <tr style="background: #2b6cb0; color: white;"><td style="padding: 12px 15px; font-weight: bold; font-size: 16px;">رصيد النقد - نهاية الفترة</td><td style="padding: 12px 15px; text-align: left; font-weight: bold; font-size: 18px;">${fmt(s.cash_ending)} ${currency}</td></tr>
@@ -11227,7 +11252,7 @@ async function generateXBRLReport() {
         // ملخص التغيرات في حقوق الملكية
         let equityHtml = `
             <table style="width: 100%; border-collapse: collapse;">
-                <tr style="background: #ebf8ff;"><td style="padding: 10px 15px; font-weight: bold; color: #2b6cb0;">حقوق الملكية - بداية الفترة</td><td style="padding: 10px 15px; text-align: left; font-weight: bold; color: #2b6cb0;">${fmt(s.equity_opening_total)} ${currency}</td></tr>
+                <tr style="background: rgba(91,141,239,0.06);"><td style="padding: 10px 15px; font-weight: bold; color: #2b6cb0;">حقوق الملكية - بداية الفترة</td><td style="padding: 10px 15px; text-align: left; font-weight: bold; color: #2b6cb0;">${fmt(s.equity_opening_total)} ${currency}</td></tr>
                 <tr><td style="padding: 10px 15px; color: #38a169;">+ صافي ربح الفترة</td><td style="padding: 10px 15px; text-align: left; color: #38a169;">${fmt(s.net_profit)} ${currency}</td></tr>
                 <tr><td style="padding: 10px 15px; color: #805ad5;">+ الدخل الشامل الآخر</td><td style="padding: 10px 15px; text-align: left; color: #805ad5;">${fmt(s.other_comprehensive_income)} ${currency}</td></tr>
                 <tr><td style="padding: 10px 15px; color: #c53030;">- أرباح موزعة (توزيعات على الشركاء)</td><td style="padding: 10px 15px; text-align: left; color: #c53030;">(${fmt(s.dividends_declared)}) ${currency}</td></tr>
@@ -11239,7 +11264,7 @@ async function generateXBRLReport() {
             equityHtml += `
             <h4 style="color: #e67e22; margin: 15px 0 8px;">👥 تفصيل حقوق الشركاء</h4>
             <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
-                <tr style="background: #fef3c7;">
+                <tr style="background: rgba(245,158,11,0.1);">
                     <th style="padding: 8px 10px; text-align: right; color: #92400e;">الشريك</th>
                     <th style="padding: 8px 10px; text-align: center; color: #92400e;">النسبة</th>
                     <th style="padding: 8px 10px; text-align: center; color: #92400e;">رأس المال</th>
@@ -11248,7 +11273,7 @@ async function generateXBRLReport() {
                     <th style="padding: 8px 10px; text-align: center; color: #92400e;">الرصيد الختامي</th>
                 </tr>
                 ${s.partners.map(p => `
-                <tr style="border-bottom: 1px solid #e2e8f0;">
+                <tr style="border-bottom: 1px solid rgba(212,168,83,0.15);">
                     <td style="padding: 8px 10px; font-weight: bold;">${escHTML(p.name)}</td>
                     <td style="padding: 8px 10px; text-align: center;">${p.share_percent.toFixed(1)}%</td>
                     <td style="padding: 8px 10px; text-align: center;">${fmt(p.capital_opening)} ${currency}</td>
@@ -11299,12 +11324,12 @@ async function loadXBRLSavedReports() {
 
         const container = document.getElementById('xbrl_saved_reports');
         if (!data.reports || data.reports.length === 0) {
-            container.innerHTML = '<p style="color: #a0aec0; text-align: center; padding: 20px;">لا توجد تقارير محفوظة بعد</p>';
+            container.innerHTML = '<p style="color: #e0dce8; text-align: center; padding: 20px;">لا توجد تقارير محفوظة بعد</p>';
             return;
         }
 
         let html = '<table style="width: 100%; border-collapse: collapse;">';
-        html += '<thead><tr style="background: #f7fafc;">';
+        html += '<thead><tr style="background: #1e1e2a;">';
         html += '<th style="padding: 10px 15px; text-align: right; color: #4a5568;">رقم</th>';
         html += '<th style="padding: 10px 15px; text-align: right; color: #4a5568;">النوع</th>';
         html += '<th style="padding: 10px 15px; text-align: right; color: #4a5568;">الفترة</th>';
@@ -11313,7 +11338,7 @@ async function loadXBRLSavedReports() {
         html += '</tr></thead><tbody>';
 
         data.reports.forEach(r => {
-            html += `<tr style="border-bottom: 1px solid #e2e8f0;">
+            html += `<tr style="border-bottom: 1px solid rgba(212,168,83,0.15);">
                 <td style="padding: 10px 15px;">#${r.id}</td>
                 <td style="padding: 10px 15px;">${r.report_type}</td>
                 <td style="padding: 10px 15px;">${r.period_start} → ${r.period_end}</td>
@@ -11391,14 +11416,14 @@ async function loadShiftsList() {
 
         const container = document.getElementById('shiftsListContainer');
         if (data.shifts.length === 0) {
-            container.innerHTML = '<div style="text-align: center; color: #a0aec0; padding: 30px;">لا توجد شفتات. أضف شفت جديد.</div>';
+            container.innerHTML = '<div style="text-align: center; color: #e0dce8; padding: 30px;">لا توجد شفتات. أضف شفت جديد.</div>';
             return;
         }
 
         container.innerHTML = `
             <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
                 <thead>
-                    <tr style="background: #f7fafc;">
+                    <tr style="background: #1e1e2a;">
                         <th style="padding: 10px; text-align: right; border-bottom: 2px solid #e2e8f0;">الاسم</th>
                         <th style="padding: 10px; text-align: center; border-bottom: 2px solid #e2e8f0;">من</th>
                         <th style="padding: 10px; text-align: center; border-bottom: 2px solid #e2e8f0;">إلى</th>
@@ -11409,7 +11434,7 @@ async function loadShiftsList() {
                 </thead>
                 <tbody>
                     ${data.shifts.map(s => `
-                        <tr style="border-bottom: 1px solid #e2e8f0;">
+                        <tr style="border-bottom: 1px solid rgba(212,168,83,0.15);">
                             <td style="padding: 10px; font-weight: bold;">🕐 ${escHTML(s.name)}</td>
                             <td style="padding: 10px; text-align: center;">${escHTML(s.start_time) || '-'}</td>
                             <td style="padding: 10px; text-align: center;">${escHTML(s.end_time) || '-'}</td>
@@ -11610,7 +11635,7 @@ function renderEditInvoiceItems(items) {
             </thead>
             <tbody>
                 ${items.map((item, i) => `
-                    <tr style="border-bottom: 1px solid #e2e8f0;" data-index="${i}">
+                    <tr style="border-bottom: 1px solid rgba(212,168,83,0.15);" data-index="${i}">
                         <td style="padding: 8px;">${escHTML(item.product_name)}${item.variant_name ? ` (${escHTML(item.variant_name)})` : ''}</td>
                         <td style="padding: 8px; text-align: center;">
                             <input type="number" value="${item.quantity}" min="1" style="width: 60px; text-align: center; border: 1px solid #e2e8f0; border-radius: 4px; padding: 4px;"
@@ -11774,7 +11799,7 @@ async function loadAdminDashShiftPerformance() {
         const { shift_stats, unassigned_employees } = data;
 
         if (shift_stats.length === 0 && unassigned_employees.length === 0) {
-            container.innerHTML = '<div style="text-align: center; color: #a0aec0; padding: 20px;">لا توجد شفتات. أضف شفتات من إدارة المستخدمين.</div>';
+            container.innerHTML = '<div style="text-align: center; color: #e0dce8; padding: 20px;">لا توجد شفتات. أضف شفتات من إدارة المستخدمين.</div>';
             return;
         }
 
@@ -11792,19 +11817,19 @@ async function loadAdminDashShiftPerformance() {
                         <span style="font-size: 12px; color: #718096;">${escHTML(s.start_time || '')} - ${escHTML(s.end_time || '')}</span>
                     </div>
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px;">
-                        <div style="background: white; padding: 10px; border-radius: 8px; text-align: center;">
+                        <div style="background: #16161f; padding: 10px; border-radius: 8px; text-align: center;">
                             <div style="font-size: 22px; font-weight: bold; color: #667eea;">${st.total_invoices}</div>
                             <div style="font-size: 11px; color: #718096;">إجمالي الفواتير</div>
                         </div>
-                        <div style="background: white; padding: 10px; border-radius: 8px; text-align: center;">
+                        <div style="background: #16161f; padding: 10px; border-radius: 8px; text-align: center;">
                             <div style="font-size: 22px; font-weight: bold; color: #38a169;">${Number(st.total_sales).toFixed(2)}</div>
                             <div style="font-size: 11px; color: #718096;">إجمالي المبيعات</div>
                         </div>
-                        <div style="background: white; padding: 10px; border-radius: 8px; text-align: center;">
+                        <div style="background: #16161f; padding: 10px; border-radius: 8px; text-align: center;">
                             <div style="font-size: 22px; font-weight: bold; color: #e67e22;">${st.today_invoices}</div>
                             <div style="font-size: 11px; color: #718096;">فواتير اليوم</div>
                         </div>
-                        <div style="background: white; padding: 10px; border-radius: 8px; text-align: center;">
+                        <div style="background: #16161f; padding: 10px; border-radius: 8px; text-align: center;">
                             <div style="font-size: 22px; font-weight: bold; color: #4facfe;">${Number(st.today_sales).toFixed(2)}</div>
                             <div style="font-size: 11px; color: #718096;">مبيعات اليوم</div>
                         </div>
@@ -11813,22 +11838,22 @@ async function loadAdminDashShiftPerformance() {
                     <div style="font-size: 13px; font-weight: bold; color: #4a5568; margin-bottom: 8px;">موظفي الشفت:</div>
                     <table style="width: 100%; border-collapse: collapse; font-size: 12px;">
                         <thead>
-                            <tr style="background: #f7fafc;">
-                                <th style="padding: 6px 8px; text-align: right; border-bottom: 1px solid #e2e8f0;">الموظف</th>
-                                <th style="padding: 6px 8px; text-align: center; border-bottom: 1px solid #e2e8f0;">الفواتير</th>
-                                <th style="padding: 6px 8px; text-align: center; border-bottom: 1px solid #e2e8f0;">المبيعات</th>
+                            <tr style="background: #1e1e2a;">
+                                <th style="padding: 6px 8px; text-align: right; border-bottom: 1px solid rgba(212,168,83,0.15);">الموظف</th>
+                                <th style="padding: 6px 8px; text-align: center; border-bottom: 1px solid rgba(212,168,83,0.15);">الفواتير</th>
+                                <th style="padding: 6px 8px; text-align: center; border-bottom: 1px solid rgba(212,168,83,0.15);">المبيعات</th>
                             </tr>
                         </thead>
                         <tbody>
                             ${ss.employees.map(emp => `
                                 <tr>
-                                    <td style="padding: 5px 8px; border-bottom: 1px solid #f0f0f0;">${escHTML(emp.full_name)}</td>
-                                    <td style="padding: 5px 8px; text-align: center; border-bottom: 1px solid #f0f0f0;">${emp.invoice_count}</td>
-                                    <td style="padding: 5px 8px; text-align: center; border-bottom: 1px solid #f0f0f0; color: #38a169; font-weight: bold;">${Number(emp.total_sales).toFixed(2)}</td>
+                                    <td style="padding: 5px 8px; border-bottom: 1px solid rgba(212,168,83,0.1);">${escHTML(emp.full_name)}</td>
+                                    <td style="padding: 5px 8px; text-align: center; border-bottom: 1px solid rgba(212,168,83,0.1);">${emp.invoice_count}</td>
+                                    <td style="padding: 5px 8px; text-align: center; border-bottom: 1px solid rgba(212,168,83,0.1); color: #38a169; font-weight: bold;">${Number(emp.total_sales).toFixed(2)}</td>
                                 </tr>
                             `).join('')}
                         </tbody>
-                    </table>` : '<div style="font-size: 12px; color: #a0aec0; text-align: center;">لا يوجد موظفين في هذا الشفت</div>'}
+                    </table>` : '<div style="font-size: 12px; color: #e0dce8; text-align: center;">لا يوجد موظفين في هذا الشفت</div>'}
                 </div>`;
         });
         html += '</div>';
@@ -11836,22 +11861,22 @@ async function loadAdminDashShiftPerformance() {
         // موظفين بدون شفت
         if (unassigned_employees.length > 0) {
             html += `
-                <div style="background: #fff3cd22; border: 2px solid #ffc10744; border-radius: 14px; padding: 20px;">
+                <div style="background: rgba(245,158,11,0.1)22; border: 2px solid #ffc10744; border-radius: 14px; padding: 20px;">
                     <h4 style="margin: 0 0 15px; color: #856404; font-size: 15px;">⚠️ موظفين بدون شفت</h4>
                     <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
                         <thead>
-                            <tr style="background: #f7fafc;">
-                                <th style="padding: 8px; text-align: right; border-bottom: 1px solid #e2e8f0;">الموظف</th>
-                                <th style="padding: 8px; text-align: center; border-bottom: 1px solid #e2e8f0;">الفواتير</th>
-                                <th style="padding: 8px; text-align: center; border-bottom: 1px solid #e2e8f0;">المبيعات</th>
+                            <tr style="background: #1e1e2a;">
+                                <th style="padding: 8px; text-align: right; border-bottom: 1px solid rgba(212,168,83,0.15);">الموظف</th>
+                                <th style="padding: 8px; text-align: center; border-bottom: 1px solid rgba(212,168,83,0.15);">الفواتير</th>
+                                <th style="padding: 8px; text-align: center; border-bottom: 1px solid rgba(212,168,83,0.15);">المبيعات</th>
                             </tr>
                         </thead>
                         <tbody>
                             ${unassigned_employees.map(emp => `
                                 <tr>
-                                    <td style="padding: 6px 8px; border-bottom: 1px solid #f0f0f0;">${escHTML(emp.full_name)}</td>
-                                    <td style="padding: 6px 8px; text-align: center; border-bottom: 1px solid #f0f0f0;">${emp.invoice_count}</td>
-                                    <td style="padding: 6px 8px; text-align: center; border-bottom: 1px solid #f0f0f0; color: #38a169; font-weight: bold;">${Number(emp.total_sales).toFixed(2)}</td>
+                                    <td style="padding: 6px 8px; border-bottom: 1px solid rgba(212,168,83,0.1);">${escHTML(emp.full_name)}</td>
+                                    <td style="padding: 6px 8px; text-align: center; border-bottom: 1px solid rgba(212,168,83,0.1);">${emp.invoice_count}</td>
+                                    <td style="padding: 6px 8px; text-align: center; border-bottom: 1px solid rgba(212,168,83,0.1); color: #38a169; font-weight: bold;">${Number(emp.total_sales).toFixed(2)}</td>
                                 </tr>
                             `).join('')}
                         </tbody>
@@ -12177,22 +12202,22 @@ async function viewTransferDetails(transferId) {
 
         let html = `
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px;">
-                <div style="background:#f7fafc; padding:12px; border-radius:8px;">
+                <div style="background:#1e1e2a; padding:12px; border-radius:8px;">
                     <strong>رقم الطلب:</strong> <span style="color:#667eea; font-weight:bold;">${escHTML(t.transfer_number)}</span>
                 </div>
-                <div style="background:#f7fafc; padding:12px; border-radius:8px;">
+                <div style="background:#1e1e2a; padding:12px; border-radius:8px;">
                     <strong>الحالة:</strong> <span style="padding:3px 10px; border-radius:12px; font-size:12px; background:${statusColor}22; color:${statusColor}; font-weight:bold;">${statusLabel}</span>
                 </div>
-                <div style="background:#f7fafc; padding:12px; border-radius:8px;">
+                <div style="background:#1e1e2a; padding:12px; border-radius:8px;">
                     <strong>من:</strong> ${escHTML(t.from_branch_name || '-')}
                 </div>
-                <div style="background:#f7fafc; padding:12px; border-radius:8px;">
+                <div style="background:#1e1e2a; padding:12px; border-radius:8px;">
                     <strong>إلى:</strong> ${escHTML(t.to_branch_name || '-')}
                 </div>
-                <div style="background:#f7fafc; padding:12px; border-radius:8px;">
+                <div style="background:#1e1e2a; padding:12px; border-radius:8px;">
                     <strong>طلب بواسطة:</strong> ${escHTML(t.requested_by_name || '-')}
                 </div>
-                <div style="background:#f7fafc; padding:12px; border-radius:8px;">
+                <div style="background:#1e1e2a; padding:12px; border-radius:8px;">
                     <strong>تاريخ الطلب:</strong> ${new Date(t.requested_at).toLocaleString('ar-EG')}
                 </div>`;
 
@@ -12215,12 +12240,12 @@ async function viewTransferDetails(transferId) {
             </div>`;
         }
         if (t.reject_reason) {
-            html += `<div style="background:#ffebee; padding:12px; border-radius:8px; grid-column:1/3;">
+            html += `<div style="background:rgba(232,93,93,0.08); padding:12px; border-radius:8px; grid-column:1/3; color:var(--t1);">
                 <strong>سبب الرفض:</strong> ${escHTML(t.reject_reason)}
             </div>`;
         }
         if (t.notes) {
-            html += `<div style="background:#fff8e1; padding:12px; border-radius:8px; grid-column:1/3;">
+            html += `<div style="background:rgba(212,168,83,0.08); padding:12px; border-radius:8px; grid-column:1/3; color:var(--t1);">
                 <strong>ملاحظات:</strong> ${escHTML(t.notes)}
             </div>`;
         }
@@ -12230,7 +12255,7 @@ async function viewTransferDetails(transferId) {
         // جدول العناصر
         html += `<h3 style="margin-bottom:10px;">📦 الأصناف</h3>
             <table style="width:100%; border-collapse:collapse; font-size:13px;">
-                <thead><tr style="background:#f7fafc;">
+                <thead><tr style="background:#1e1e2a;">
                     <th style="padding:8px; text-align:right; border-bottom:2px solid #e2e8f0;">الصنف</th>
                     <th style="padding:8px; text-align:center; border-bottom:2px solid #e2e8f0;">الكمية المطلوبة</th>
                     <th style="padding:8px; text-align:center; border-bottom:2px solid #e2e8f0;">الكمية المعتمدة</th>
@@ -12490,7 +12515,7 @@ function filterSubscriptions() {
 function renderSubscriptions(subs) {
     const container = document.getElementById('subscriptionsTableContainer');
     if (subs.length === 0) {
-        container.innerHTML = '<p style="text-align:center; padding:40px; color:#6c757d;">لا توجد اشتراكات</p>';
+        container.innerHTML = '<p style="text-align:center; padding:40px; color:#9a96a6;">لا توجد اشتراكات</p>';
         return;
     }
     const today = new Date().toISOString().split('T')[0];
@@ -12562,7 +12587,7 @@ function showSubscriptionDetail(subId) {
             </div>
         </div>
         <h3 style="margin-bottom: 10px;">📦 منتجات الاشتراك</h3>
-        ${planItems.length === 0 ? '<p style="color:#6c757d;">لا توجد منتجات في هذه الفئة</p>' : `
+        ${planItems.length === 0 ? '<p style="color:#9a96a6;">لا توجد منتجات في هذه الفئة</p>' : `
         <table class="data-table">
             <thead><tr><th>المنتج</th><th>المتغير</th><th>المسموح</th><th>المستلم</th><th>المتبقي</th></tr></thead>
             <tbody>
@@ -12595,7 +12620,7 @@ async function loadRedemptionHistory(subId) {
         const data = await response.json();
         const container = document.getElementById('redemptionHistoryContainer');
         if (!data.success || !data.redemptions || data.redemptions.length === 0) {
-            container.innerHTML = '<p style="color:#6c757d; text-align:center;">لا توجد استلامات بعد</p>';
+            container.innerHTML = '<p style="color:#9a96a6; text-align:center;">لا توجد استلامات بعد</p>';
             return;
         }
         container.innerHTML = `
@@ -12687,11 +12712,11 @@ function renderPlanItems() {
     const container = document.getElementById('planItemsList');
     if (!container) return;
     if (_planItems.length === 0) {
-        container.innerHTML = '<p style="color:#6c757d; font-size:13px; margin:5px 0;">لم يتم إضافة منتجات بعد</p>';
+        container.innerHTML = '<p style="color:#9a96a6; font-size:13px; margin:5px 0;">لم يتم إضافة منتجات بعد</p>';
         return;
     }
     container.innerHTML = _planItems.map((it, i) => `
-        <div style="display:flex; justify-content:space-between; align-items:center; padding:6px 10px; margin:3px 0; background:#f8f9fa; border-radius:6px; border:1px solid #e0e0e0;">
+        <div style="display:flex; justify-content:space-between; align-items:center; padding:6px 10px; margin:3px 0; background:#1e1e2a; border-radius:6px; border:1px solid #e0e0e0;">
             <span>📦 ${escHTML(it.product_name)}${it.variant_name ? ' - ' + escHTML(it.variant_name) : ''} <strong style="color:#667eea;">x${it.quantity}</strong></span>
             <button onclick="removePlanItem(${i})" style="background:none; border:none; color:#dc3545; cursor:pointer; font-size:16px;">✖</button>
         </div>
@@ -12706,22 +12731,22 @@ async function loadPlansList() {
             _allPlans = data.plans;
             const container = document.getElementById('plansListContainer');
             if (_allPlans.length === 0) {
-                container.innerHTML = '<p style="text-align:center; color:#6c757d;">لا توجد فئات</p>';
+                container.innerHTML = '<p style="text-align:center; color:#9a96a6;">لا توجد فئات</p>';
                 return;
             }
             container.innerHTML = _allPlans.map(p => {
                 const items = p.items || [];
                 const cardImage = p.image ? `<img src="${p.image}" style="width:100%; height:100%; object-fit:cover;">` : _getDefaultCardBg(p.name);
                 return `
-                <div style="display:flex; gap:15px; align-items:start; background:#fff; border:2px solid #e0e0e0; border-radius:12px; padding:15px; margin-bottom:12px; flex-wrap:wrap;">
+                <div style="display:flex; gap:15px; align-items:start; background:var(--card); border:2px solid rgba(212,168,83,0.15); border-radius:12px; padding:15px; margin-bottom:12px; flex-wrap:wrap;">
                     <div style="width:160px; height:100px; border-radius:10px; overflow:hidden; flex-shrink:0; box-shadow:0 2px 8px rgba(0,0,0,0.15);">
                         ${cardImage}
                     </div>
                     <div style="flex:1; min-width:200px;">
                         <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
                             <div>
-                                <strong style="font-size:16px; color:#1e40af;">${escHTML(p.name)}</strong>
-                                ${p.description ? `<span style="color:#6c757d; margin-right:8px;">(${escHTML(p.description)})</span>` : ''}
+                                <strong style="font-size:16px; color:var(--gold);">${escHTML(p.name)}</strong>
+                                ${p.description ? `<span style="color:#9a96a6; margin-right:8px;">(${escHTML(p.description)})</span>` : ''}
                             </div>
                             <div style="display:flex; gap:5px; align-items:center;">
                                 <span style="background:#28a745; color:white; padding:3px 10px; border-radius:12px; font-size:13px; font-weight:bold;">${p.price.toFixed(3)} د.ك</span>
@@ -12736,7 +12761,7 @@ async function loadPlansList() {
                             <strong style="font-size:13px;">📦 المنتجات (${items.length}):</strong>
                             <div style="display:flex; flex-wrap:wrap; gap:6px; margin-top:6px;">
                                 ${items.map(it => `
-                                    <span style="background:#f0f9ff; border:1px solid #bae6fd; padding:4px 10px; border-radius:6px; font-size:12px;">
+                                    <span style="background:rgba(91,141,239,0.06); border:1px solid rgba(91,141,239,0.2); padding:4px 10px; border-radius:6px; font-size:12px;">
                                         ${escHTML(it.product_name)}${it.variant_name ? ' - ' + escHTML(it.variant_name) : ''} <strong style="color:#667eea;">x${it.quantity}</strong>
                                     </span>
                                 `).join('')}
@@ -13023,7 +13048,7 @@ function onPlanSelect() {
         document.getElementById('subPlanDetails').innerHTML = `
             <div style="font-weight:bold; margin-bottom:5px; color:#0369a1;">${escHTML(plan.name)}</div>
             <div>المدة: <strong>${plan.duration_days} يوم</strong> | السعر: <strong>${plan.price.toFixed(3)} د.ك</strong></div>
-            ${plan.description ? `<div style="color:#6c757d;">${escHTML(plan.description)}</div>` : ''}
+            ${plan.description ? `<div style="color:#9a96a6;">${escHTML(plan.description)}</div>` : ''}
             ${items.length > 0 ? `
             <div style="margin-top:8px; border-top:1px solid #bae6fd; padding-top:8px;">
                 <strong>📦 المنتجات المشمولة:</strong>
@@ -13754,8 +13779,8 @@ async function testSyncServer() {
 
     if (!serverUrl) {
         resultEl.style.display = 'block';
-        resultEl.style.background = '#fff5f5';
-        resultEl.style.color = '#e53e3e';
+        resultEl.style.background = 'rgba(232,93,93,0.08)';
+        resultEl.style.color = 'var(--red)';
         resultEl.textContent = 'الرجاء اختيار أو إدخال عنوان السيرفر أولاً';
         return;
     }
@@ -13763,8 +13788,8 @@ async function testSyncServer() {
     if (serverUrl.endsWith('/')) serverUrl = serverUrl.slice(0, -1);
 
     resultEl.style.display = 'block';
-    resultEl.style.background = '#fffff0';
-    resultEl.style.color = '#d69e2e';
+    resultEl.style.background = 'rgba(212,168,83,0.08)';
+    resultEl.style.color = 'var(--gold)';
     resultEl.innerHTML = 'جاري فحص السيرفر... <span class="sync-spinner"></span>';
 
     // فحص عدة endpoints لمعرفة وش شغال على السيرفر
@@ -13860,8 +13885,8 @@ async function testSyncServer() {
         resultEl.innerHTML = html;
     } else {
         // ما في أي استجابة
-        resultEl.style.background = '#fff5f5';
-        resultEl.style.color = '#e53e3e';
+        resultEl.style.background = 'rgba(232,93,93,0.08)';
+        resultEl.style.color = 'var(--red)';
         const firstErr = results[0]?.error || 'غير معروف';
         let errMsg = `<strong>فشل الاتصال بالسيرفر</strong><br>`;
         if (firstErr === 'timeout') {
