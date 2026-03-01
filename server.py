@@ -5434,9 +5434,10 @@ def generate_license_token():
             'plan': t.get('plan', 'basic'),
             'tenant_expires_at': expires_at_str,
             'iat': now,
-            'exp': exp_ts,
             'iss': 'pos-offline-flask'
         }
+        if exp_ts is not None:
+            payload['exp'] = exp_ts
         token = jwt.encode(payload, LICENSE_SECRET, algorithm='HS256')
         return jsonify({'success': True, 'token': token})
     except Exception as e:
@@ -5475,9 +5476,10 @@ def refresh_license_token():
             'plan': t.get('plan', 'basic'),
             'tenant_expires_at': expires_at_str,
             'iat': now,
-            'exp': exp_ts,
             'iss': 'pos-offline-flask'
         }
+        if exp_ts is not None:
+            payload['exp'] = exp_ts
         token = jwt.encode(payload, LICENSE_SECRET, algorithm='HS256')
         # Store token in tenant's settings table
         try:
@@ -5571,16 +5573,22 @@ def create_tenant():
         t_conn.commit()
         t_conn.close()
 
+        # حساب تاريخ انتهاء الاشتراك
+        from datetime import date, timedelta as td
+        expires_at = None
+        if subscription_period and int(subscription_period) > 0:
+            expires_at = (date.today() + td(days=int(subscription_period))).isoformat()
+
         # تسجيل المستأجر في القاعدة الرئيسية
         cursor.execute('''
-            INSERT INTO tenants (name, slug, owner_name, owner_email, owner_phone, db_path, plan, max_users, max_branches, subscription_amount, subscription_period)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ''', (name, slug, owner_name, owner_email, owner_phone, db_path, plan, max_users, max_branches, subscription_amount, subscription_period))
+            INSERT INTO tenants (name, slug, owner_name, owner_email, owner_phone, db_path, plan, max_users, max_branches, subscription_amount, subscription_period, expires_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (name, slug, owner_name, owner_email, owner_phone, db_path, plan, max_users, max_branches, subscription_amount, subscription_period, expires_at))
         conn.commit()
         tenant_id = cursor.lastrowid
         conn.close()
 
-        return jsonify({'success': True, 'id': tenant_id, 'slug': slug})
+        return jsonify({'success': True, 'id': tenant_id, 'slug': slug, 'expires_at': expires_at})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
@@ -5733,6 +5741,35 @@ def create_subscription_invoice():
 
         conn.commit()
         invoice_id = cursor.lastrowid
+
+        # تحديث رمز الترخيص JWT في قاعدة بيانات المستأجر
+        tenant_slug = tenant['slug'] if 'slug' in tenant.keys() else None
+        if tenant_slug:
+            try:
+                now = int(time.time())
+                exp_ts = int(datetime.fromisoformat(end_date.isoformat() + 'T23:59:59').timestamp())
+                t_data = dict_from_row(tenant)
+                token_payload = {
+                    'sub': tenant_slug,
+                    'max_branches': t_data.get('max_branches', 3),
+                    'max_users': t_data.get('max_users', 5),
+                    'is_active': 1,
+                    'plan': t_data.get('plan', 'basic'),
+                    'tenant_expires_at': end_date.isoformat(),
+                    'iat': now,
+                    'exp': exp_ts,
+                    'iss': 'pos-offline-flask'
+                }
+                new_token = jwt.encode(token_payload, LICENSE_SECRET, algorithm='HS256')
+                tenant_db_path = get_tenant_db_path(tenant_slug)
+                t_conn = sqlite3.connect(tenant_db_path)
+                t_cur = t_conn.cursor()
+                t_cur.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('license_token', ?)", (new_token,))
+                t_conn.commit()
+                t_conn.close()
+            except Exception:
+                pass
+
         conn.close()
 
         return jsonify({
