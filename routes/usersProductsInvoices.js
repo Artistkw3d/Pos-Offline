@@ -284,15 +284,24 @@ module.exports = function (app, helpers) {
               const tRow = masterDb.prepare('SELECT is_active, expires_at, plan, max_users, max_branches FROM tenants WHERE slug = ?').get(tenantSlug);
               if (tRow) {
                 const now = Math.floor(Date.now() / 1000);
+                // Calculate exp from tenant's actual expires_at date
+                const expiresAtStr = tRow.expires_at || '';
+                let expTs = now + (LICENSE_GRACE_DAYS * 86400);
+                if (expiresAtStr) {
+                  try {
+                    const d = new Date(expiresAtStr.slice(0, 10) + 'T23:59:59');
+                    if (!isNaN(d.getTime())) expTs = Math.floor(d.getTime() / 1000);
+                  } catch (_) {}
+                }
                 licenseData = {
                   sub: tenantSlug,
                   is_active: tRow.is_active,
                   plan: tRow.plan || 'basic',
                   max_users: tRow.max_users || 5,
                   max_branches: tRow.max_branches || 3,
-                  expires_at: tRow.expires_at || '',
+                  expires_at: expiresAtStr,
                   iat: now,
-                  exp: now + (7 * 86400),
+                  exp: expTs,
                 };
               }
             } catch (_) {}

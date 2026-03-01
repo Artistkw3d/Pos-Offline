@@ -2278,15 +2278,24 @@ def login():
                         if t_row:
                             t_info = dict_from_row(t_row)
                             now = int(time.time())
+                            # Calculate exp from tenant's actual expires_at date
+                            expires_at_str = t_info.get('expires_at', '')
+                            if expires_at_str:
+                                try:
+                                    exp_ts = int(datetime.fromisoformat(expires_at_str[:10] + 'T23:59:59').timestamp())
+                                except Exception:
+                                    exp_ts = now + (LICENSE_GRACE_DAYS * 86400)
+                            else:
+                                exp_ts = now + (LICENSE_GRACE_DAYS * 86400)
                             license_data = {
                                 'sub': tenant_slug,
                                 'is_active': t_info.get('is_active', 1),
                                 'plan': t_info.get('plan', 'basic'),
                                 'max_users': t_info.get('max_users', 5),
                                 'max_branches': t_info.get('max_branches', 3),
-                                'expires_at': t_info.get('expires_at', ''),
+                                'expires_at': expires_at_str,
                                 'iat': now,
-                                'exp': now + (LICENSE_GRACE_DAYS * 86400),
+                                'exp': exp_ts,
                             }
                     except Exception:
                         pass
@@ -5408,15 +5417,24 @@ def generate_license_token():
             return jsonify({'success': False, 'error': 'المستأجر غير موجود'}), 404
         t = dict_from_row(tenant)
         now = int(time.time())
+        # Calculate exp from tenant's actual expires_at date
+        expires_at_str = t.get('expires_at', '')
+        if expires_at_str:
+            try:
+                exp_ts = int(datetime.fromisoformat(expires_at_str[:10] + 'T23:59:59').timestamp())
+            except Exception:
+                exp_ts = now + (LICENSE_GRACE_DAYS * 86400)
+        else:
+            exp_ts = now + (LICENSE_GRACE_DAYS * 86400)
         payload = {
             'sub': slug,
             'max_branches': t.get('max_branches', 3),
             'max_users': t.get('max_users', 5),
             'is_active': t.get('is_active', 1),
             'plan': t.get('plan', 'basic'),
-            'tenant_expires_at': t.get('expires_at', ''),
+            'tenant_expires_at': expires_at_str,
             'iat': now,
-            'exp': now + (LICENSE_GRACE_DAYS * 86400),
+            'exp': exp_ts,
             'iss': 'pos-offline-flask'
         }
         token = jwt.encode(payload, LICENSE_SECRET, algorithm='HS256')
@@ -5440,15 +5458,24 @@ def refresh_license_token():
             return jsonify({'success': False, 'error': 'المستأجر غير موجود'}), 404
         t = dict_from_row(tenant)
         now = int(time.time())
+        # Calculate exp from tenant's actual expires_at date
+        expires_at_str = t.get('expires_at', '')
+        if expires_at_str:
+            try:
+                exp_ts = int(datetime.fromisoformat(expires_at_str[:10] + 'T23:59:59').timestamp())
+            except Exception:
+                exp_ts = now + (LICENSE_GRACE_DAYS * 86400)
+        else:
+            exp_ts = now + (LICENSE_GRACE_DAYS * 86400)
         payload = {
             'sub': slug,
             'max_branches': t.get('max_branches', 3),
             'max_users': t.get('max_users', 5),
             'is_active': t.get('is_active', 1),
             'plan': t.get('plan', 'basic'),
-            'tenant_expires_at': t.get('expires_at', ''),
+            'tenant_expires_at': expires_at_str,
             'iat': now,
-            'exp': now + (LICENSE_GRACE_DAYS * 86400),
+            'exp': exp_ts,
             'iss': 'pos-offline-flask'
         }
         token = jwt.encode(payload, LICENSE_SECRET, algorithm='HS256')
