@@ -2630,7 +2630,7 @@ async function loadProductsTable() {
             Object.keys(byCategory).sort().forEach(category => {
                 html += `
                     <div style="margin-bottom: 30px;">
-                        <h3 style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 15px 20px; border-radius: 10px; margin-bottom: 20px; font-size: 18px;">
+                        <h3 style="background: linear-gradient(135deg, var(--gold), #b8892e); color: var(--bg); padding: 15px 20px; border-radius: 10px; margin-bottom: 20px; font-size: 18px;">
                             📁 ${category}
                         </h3>
                         <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 15px;">
@@ -2644,23 +2644,23 @@ async function loadProductsTable() {
                                     }
                                 }
                                 return `
-                                    <div style="border:2px solid rgba(212,168,83,0.12); padding:15px; border-radius:12px; background:#16161f; text-align:center; transition:all 0.3s; cursor:pointer;" 
-                                         onmouseover="this.style.boxShadow='0 4px 12px rgba(102,126,234,0.3)'; this.style.transform='translateY(-2px)';"
+                                    <div style="border:2px solid var(--gold-b); padding:15px; border-radius:12px; background:var(--card); text-align:center; transition:all 0.3s; cursor:pointer;"
+                                         onmouseover="this.style.boxShadow='0 4px 12px rgba(212,168,83,0.2)'; this.style.transform='translateY(-2px)';"
                                          onmouseout="this.style.boxShadow='none'; this.style.transform='translateY(0)';">
                                         <div style="margin-bottom:10px;">${imgDisplay}</div>
-                                        <div style="font-weight:bold; margin-bottom:5px; color:#2d3748;">${escHTML(p.name)}</div>
-                                        <div style="color:#667eea; font-size:18px; font-weight:bold; margin:8px 0;">${p.price.toFixed(3)} د.ك</div>
-                                        <div style="color:#9a96a6; font-size:13px; margin-bottom:10px;">المخزون: ${p.stock}</div>
-                                        ${p.barcode ? `<div style="color:#9a96a6; font-size:11px; margin-bottom:10px;">📊 ${escHTML(p.barcode)}</div>` : ''}
-                                        
+                                        <div style="font-weight:bold; margin-bottom:5px; color:var(--t1);">${escHTML(p.name)}</div>
+                                        <div style="color:var(--gold); font-size:18px; font-weight:bold; margin:8px 0;">${p.price.toFixed(3)} د.ك</div>
+                                        <div style="color:var(--t3); font-size:13px; margin-bottom:10px;">المخزون: ${p.stock}</div>
+                                        ${p.barcode ? `<div style="color:var(--t3); font-size:11px; margin-bottom:10px;">📊 ${escHTML(p.barcode)}</div>` : ''}
+
                                         <!-- عرض إجمالي التكلفة فقط -->
                                         ${p.cost && p.cost > 0 ? `
                                             <div style="background:rgba(91,141,239,0.06); padding:10px; border-radius:6px; margin:10px 0; border:1px solid rgba(91,141,239,0.2);">
                                                 <div style="display:flex; justify-content:space-between; align-items:center; font-size:13px;">
-                                                    <span style="color:#0369a1; font-weight:600;">💰 التكلفة:</span>
-                                                    <span style="color:#0c4a6e; font-weight:700;">${p.cost.toFixed(3)} د.ك</span>
+                                                    <span style="color:var(--blue); font-weight:600;">💰 التكلفة:</span>
+                                                    <span style="color:var(--blue); font-weight:700;">${p.cost.toFixed(3)} د.ك</span>
                                                 </div>
-                                                <div style="margin-top:5px; font-size:11px; color:#0284c7;">
+                                                <div style="margin-top:5px; font-size:11px; color:var(--blue);">
                                                     📊 الربح: ${(p.price - p.cost).toFixed(3)} د.ك (${((p.price - p.cost) / p.price * 100).toFixed(1)}%)
                                                 </div>
                                             </div>
@@ -2668,9 +2668,9 @@ async function loadProductsTable() {
 
                                         ${p.variants && p.variants.length > 0 ? `
                                             <div style="background:rgba(78,203,113,0.06); padding:8px; border-radius:6px; margin:8px 0; border:1px solid rgba(78,203,113,0.2);">
-                                                <div style="font-size:12px; color:#38a169; font-weight:bold; margin-bottom:5px;">📐 ${p.variants.length} خاصية</div>
+                                                <div style="font-size:12px; color:var(--green); font-weight:bold; margin-bottom:5px;">📐 ${p.variants.length} خاصية</div>
                                                 ${p.variants.map(v => `
-                                                    <div style="display:flex; justify-content:space-between; font-size:11px; padding:2px 0; border-bottom:1px solid #e8f5e9;">
+                                                    <div style="display:flex; justify-content:space-between; font-size:11px; padding:2px 0; color:var(--t2); border-bottom:1px solid rgba(78,203,113,0.1);">
                                                         <span>${escHTML(v.variant_name)}</span>
                                                         <span style="font-weight:bold;">${v.price.toFixed(3)} د.ك</span>
                                                     </div>
