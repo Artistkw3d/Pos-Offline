@@ -285,8 +285,9 @@ module.exports = function (app, helpers) {
               if (tRow) {
                 const now = Math.floor(Date.now() / 1000);
                 // Calculate exp from tenant's actual expires_at date
+                // If no expires_at, exp is null (unlimited subscription)
                 const expiresAtStr = tRow.expires_at || '';
-                let expTs = now + (LICENSE_GRACE_DAYS * 86400);
+                let expTs = null;
                 if (expiresAtStr) {
                   try {
                     const d = new Date(expiresAtStr.slice(0, 10) + 'T23:59:59');

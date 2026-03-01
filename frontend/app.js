@@ -194,9 +194,17 @@ async function checkLicense() {
         return false;
     }
 
-    // Expired
+    // Check expiry only if exp is set (null = unlimited subscription)
     const exp = licenseData.exp;
-    if (exp && exp <= now) {
+    if (!exp) {
+        // No expiry date — unlimited subscription, hide all warnings
+        if (banner) banner.style.display = 'none';
+        if (overlay) overlay.style.display = 'none';
+        return true;
+    }
+
+    // Expired
+    if (exp <= now) {
         if (overlay) {
             overlay.style.display = 'flex';
             const title = document.getElementById('licenseExpiredTitle');
@@ -209,27 +217,25 @@ async function checkLicense() {
     }
 
     // Warning (7 days or less)
-    if (exp) {
-        const remaining = exp - now;
-        const daysLeft = remaining / 86400;
-        if (daysLeft <= 7) {
-            if (banner && bannerText) {
-                banner.style.display = 'block';
-                if (daysLeft <= 1) {
-                    banner.style.background = '#e74c3c';
-                    banner.style.color = '#fff';
-                    const hours = Math.floor(remaining / 3600);
-                    bannerText.textContent = '⚠ ينتهي الترخيص خلال ' + hours + ' ساعة. يرجى تجديد الاشتراك فوراً!';
-                } else {
-                    banner.style.background = '#f39c12';
-                    banner.style.color = '#fff';
-                    const days = Math.floor(daysLeft);
-                    bannerText.textContent = '⚠ ينتهي الترخيص خلال ' + days + ' يوم. يرجى تجديد الاشتراك.';
-                }
+    const remaining = exp - now;
+    const daysLeft = remaining / 86400;
+    if (daysLeft <= 7) {
+        if (banner && bannerText) {
+            banner.style.display = 'block';
+            if (daysLeft <= 1) {
+                banner.style.background = '#e74c3c';
+                banner.style.color = '#fff';
+                const hours = Math.floor(remaining / 3600);
+                bannerText.textContent = '⚠ ينتهي الترخيص خلال ' + hours + ' ساعة. يرجى تجديد الاشتراك فوراً!';
+            } else {
+                banner.style.background = '#f39c12';
+                banner.style.color = '#fff';
+                const days = Math.floor(daysLeft);
+                bannerText.textContent = '⚠ ينتهي الترخيص خلال ' + days + ' يوم. يرجى تجديد الاشتراك.';
             }
-        } else {
-            if (banner) banner.style.display = 'none';
         }
+    } else {
+        if (banner) banner.style.display = 'none';
     }
 
     // Valid - hide overlay

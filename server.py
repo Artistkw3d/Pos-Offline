@@ -2279,14 +2279,14 @@ def login():
                             t_info = dict_from_row(t_row)
                             now = int(time.time())
                             # Calculate exp from tenant's actual expires_at date
+                            # If no expires_at, exp is None (unlimited subscription)
                             expires_at_str = t_info.get('expires_at', '')
+                            exp_ts = None
                             if expires_at_str:
                                 try:
                                     exp_ts = int(datetime.fromisoformat(expires_at_str[:10] + 'T23:59:59').timestamp())
                                 except Exception:
-                                    exp_ts = now + (LICENSE_GRACE_DAYS * 86400)
-                            else:
-                                exp_ts = now + (LICENSE_GRACE_DAYS * 86400)
+                                    exp_ts = None
                             license_data = {
                                 'sub': tenant_slug,
                                 'is_active': t_info.get('is_active', 1),
@@ -5418,14 +5418,14 @@ def generate_license_token():
         t = dict_from_row(tenant)
         now = int(time.time())
         # Calculate exp from tenant's actual expires_at date
+        # If no expires_at, exp is None (unlimited subscription)
         expires_at_str = t.get('expires_at', '')
+        exp_ts = None
         if expires_at_str:
             try:
                 exp_ts = int(datetime.fromisoformat(expires_at_str[:10] + 'T23:59:59').timestamp())
             except Exception:
-                exp_ts = now + (LICENSE_GRACE_DAYS * 86400)
-        else:
-            exp_ts = now + (LICENSE_GRACE_DAYS * 86400)
+                exp_ts = None
         payload = {
             'sub': slug,
             'max_branches': t.get('max_branches', 3),
@@ -5459,14 +5459,14 @@ def refresh_license_token():
         t = dict_from_row(tenant)
         now = int(time.time())
         # Calculate exp from tenant's actual expires_at date
+        # If no expires_at, exp is None (unlimited subscription)
         expires_at_str = t.get('expires_at', '')
+        exp_ts = None
         if expires_at_str:
             try:
                 exp_ts = int(datetime.fromisoformat(expires_at_str[:10] + 'T23:59:59').timestamp())
             except Exception:
-                exp_ts = now + (LICENSE_GRACE_DAYS * 86400)
-        else:
-            exp_ts = now + (LICENSE_GRACE_DAYS * 86400)
+                exp_ts = None
         payload = {
             'sub': slug,
             'max_branches': t.get('max_branches', 3),
