@@ -2619,7 +2619,7 @@ async function loadProductsTable() {
             const catSelect = document.getElementById('searchProductCategory');
             if (catSelect) {
                 const categories = [...new Set(data.products.map(p => p.category || 'بدون فئة'))].sort();
-                catSelect.innerHTML = '<option value="">كل الفئات</option>' + categories.map(c => `<option value="${c}">${c}</option>`).join('');
+                catSelect.innerHTML = '<option value="">كل الفئات</option>' + categories.map(c => `<option value="${escHTML(c)}">${escHTML(c)}</option>`).join('');
             }
 
             // تجميع حسب الفئة
@@ -4046,7 +4046,7 @@ async function updateAttendanceUserFilter() {
             const currentValue = select.value;
             select.innerHTML = '<option value="">كل الموظفين</option>';
             data.users.forEach(u => {
-                select.innerHTML += `<option value="${u.id}">${u.full_name}</option>`;
+                select.innerHTML += `<option value="${u.id}">${escHTML(u.full_name)}</option>`;
             });
             select.value = currentValue;
         }
@@ -4282,10 +4282,10 @@ function addVariantRow(data = {}) {
     row.id = `variantRow_${variantRowCounter}`;
     row.style.cssText = 'display: grid; grid-template-columns: 2fr 1fr 1fr 1fr auto; gap: 8px; align-items: center; margin-bottom: 8px; background: #16161f; padding: 10px; border-radius: 8px; border: 1px solid rgba(78,203,113,0.2);';
     row.innerHTML = `
-        <input type="text" placeholder="الاسم (مثل: صغير، وسط، كبير، 500مل)" value="${data.variant_name || ''}" class="variant-name" style="padding: 8px; border: 1px solid #ddd; border-radius: 6px; text-align: right;">
-        <input type="number" placeholder="السعر" step="0.001" value="${data.price || ''}" class="variant-price" style="padding: 8px; border: 1px solid #ddd; border-radius: 6px; text-align: right;">
-        <input type="number" placeholder="التكلفة" step="0.001" value="${data.cost || ''}" class="variant-cost" style="padding: 8px; border: 1px solid #ddd; border-radius: 6px; text-align: right;">
-        <input type="text" placeholder="باركود" value="${data.barcode || ''}" class="variant-barcode" style="padding: 8px; border: 1px solid #ddd; border-radius: 6px; text-align: right;">
+        <input type="text" placeholder="الاسم (مثل: صغير، وسط، كبير، 500مل)" value="${escHTML(data.variant_name || '')}" class="variant-name" style="padding: 8px; border: 1px solid #ddd; border-radius: 6px; text-align: right;">
+        <input type="number" placeholder="السعر" step="0.001" value="${escHTML(data.price || '')}" class="variant-price" style="padding: 8px; border: 1px solid #ddd; border-radius: 6px; text-align: right;">
+        <input type="number" placeholder="التكلفة" step="0.001" value="${escHTML(data.cost || '')}" class="variant-cost" style="padding: 8px; border: 1px solid #ddd; border-radius: 6px; text-align: right;">
+        <input type="text" placeholder="باركود" value="${escHTML(data.barcode || '')}" class="variant-barcode" style="padding: 8px; border: 1px solid #ddd; border-radius: 6px; text-align: right;">
         <button type="button" onclick="removeVariantRow('variantRow_${variantRowCounter}')" style="background: #dc3545; color: white; border: none; border-radius: 6px; padding: 8px 12px; cursor: pointer;">🗑️</button>
     `;
     container.appendChild(row);
@@ -6814,17 +6814,17 @@ function addCostRow(name = '', value = 0) {
     
     rowDiv.innerHTML = `
         <div class="form-group" style="margin: 0;">
-            <input type="text" 
-                   class="cost-name" 
+            <input type="text"
+                   class="cost-name"
                    placeholder="اسم التكلفة (مثال: الباكج)"
-                   value="${name}"
+                   value="${escHTML(name)}"
                    style="padding: 10px; border: 2px solid #cbd5e0; border-radius: 6px; width: 100%; font-size: 14px;">
         </div>
         <div class="form-group" style="margin: 0;">
-            <input type="number" 
-                   class="cost-value" 
+            <input type="number"
+                   class="cost-value"
                    placeholder="0.000"
-                   value="${value}"
+                   value="${escHTML(value)}"
                    step="0.001"
                    oninput="calculateTotalCost()"
                    style="padding: 10px; border: 2px solid #cbd5e0; border-radius: 6px; width: 100%; font-size: 14px;">
@@ -6951,17 +6951,17 @@ function addInventoryCostRow(name = '', value = 0) {
     
     rowDiv.innerHTML = `
         <div class="form-group" style="margin: 0;">
-            <input type="text" 
-                   class="inventory-cost-name" 
+            <input type="text"
+                   class="inventory-cost-name"
                    placeholder="اسم التكلفة (مثال: الباكج)"
-                   value="${name}"
+                   value="${escHTML(name)}"
                    style="padding: 10px; border: 2px solid #cbd5e0; border-radius: 6px; width: 100%; font-size: 14px;">
         </div>
         <div class="form-group" style="margin: 0;">
-            <input type="number" 
-                   class="inventory-cost-value" 
+            <input type="number"
+                   class="inventory-cost-value"
                    placeholder="0.000"
-                   value="${value}"
+                   value="${escHTML(value)}"
                    step="0.001"
                    oninput="calculateInventoryTotalCost()"
                    style="padding: 10px; border: 2px solid #cbd5e0; border-radius: 6px; width: 100%; font-size: 14px;">
@@ -8486,9 +8486,17 @@ async function viewSupplierFile(invoiceId) {
         if (data.success && data.file_data) {
             const viewer = document.getElementById('supplierFileViewer');
             if (data.file_type === 'application/pdf') {
-                viewer.innerHTML = `<iframe src="${data.file_data}" style="width:100%; height:600px; border:none; border-radius:8px;"></iframe>`;
+                if (/^data:application\/pdf;base64,/.test(data.file_data)) {
+                    viewer.innerHTML = `<iframe src="${escHTML(data.file_data)}" style="width:100%; height:600px; border:none; border-radius:8px;"></iframe>`;
+                } else {
+                    viewer.innerHTML = '<p style="color:red;">Invalid file format</p>';
+                }
             } else {
-                viewer.innerHTML = `<img src="${data.file_data}" style="max-width:100%; max-height:600px; border-radius:8px; box-shadow: 0 4px 15px rgba(0,0,0,0.2);">`;
+                if (/^data:image\/(png|jpeg|jpg|gif|webp|svg\+xml);base64,/.test(data.file_data)) {
+                    viewer.innerHTML = `<img src="${escHTML(data.file_data)}" style="max-width:100%; max-height:600px; border-radius:8px; box-shadow: 0 4px 15px rgba(0,0,0,0.2);">`;
+                } else {
+                    viewer.innerHTML = '<p style="color:red;">Invalid image format</p>';
+                }
             }
             document.getElementById('viewSupplierFileModal').classList.add('active');
         } else {
@@ -9880,15 +9888,15 @@ async function viewTenantStats(tenantId) {
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 20px;">
                 <div style="background: var(--raised); padding: 12px; border-radius: 8px;">
                     <div style="color: var(--t3); font-size: 12px;">المعرف</div>
-                    <div style="font-weight: bold; direction: ltr;">${t.slug}</div>
+                    <div style="font-weight: bold; direction: ltr;">${escHTML(t.slug)}</div>
                 </div>
                 <div style="background: var(--raised); padding: 12px; border-radius: 8px;">
                     <div style="color: var(--t3); font-size: 12px;">الخطة</div>
-                    <div style="font-weight: bold;">${planNames[t.plan] || t.plan}</div>
+                    <div style="font-weight: bold;">${escHTML(planNames[t.plan] || t.plan)}</div>
                 </div>
                 <div style="background: var(--raised); padding: 12px; border-radius: 8px;">
                     <div style="color: var(--t3); font-size: 12px;">المالك</div>
-                    <div style="font-weight: bold;">${t.owner_name}</div>
+                    <div style="font-weight: bold;">${escHTML(t.owner_name)}</div>
                 </div>
                 <div style="background: var(--raised); padding: 12px; border-radius: 8px;">
                     <div style="color: var(--t3); font-size: 12px;">تاريخ الإنشاء</div>
