@@ -891,6 +891,11 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
                 document.getElementById('saUserInfo').textContent = currentSuperAdmin.full_name;
                 document.getElementById('loginForm').reset();
                 loadSuperAdminDashboard();
+                // Force password change on first login
+                if (data.must_change_password) {
+                    alert('يجب تغيير كلمة المرور الافتراضية قبل المتابعة!');
+                    showSuperAdminSettings();
+                }
             } else {
                 alert(data.error || 'فشل تسجيل الدخول');
             }

@@ -312,6 +312,7 @@ def init_master_db():
             username TEXT UNIQUE NOT NULL,
             password TEXT NOT NULL,
             full_name TEXT NOT NULL,
+            must_change_password INTEGER DEFAULT 1,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     ''')
@@ -339,6 +340,14 @@ def init_master_db():
             cursor.execute("ALTER TABLE tenants ADD COLUMN subscription_period INTEGER DEFAULT 30")
         if 'mode' not in cols:
             cursor.execute("ALTER TABLE tenants ADD COLUMN mode TEXT DEFAULT 'online'")
+    except:
+        pass
+    # Migration: add security columns to super_admins
+    try:
+        cursor.execute("PRAGMA table_info(super_admins)")
+        sa_cols = [col[1] for col in cursor.fetchall()]
+        if 'must_change_password' not in sa_cols:
+            cursor.execute("ALTER TABLE super_admins ADD COLUMN must_change_password INTEGER DEFAULT 1")
     except:
         pass
     # إنشاء حساب Super Admin افتراضي إن لم يكن موجوداً
@@ -5508,6 +5517,7 @@ def super_admin_login():
                                (hash_password(password), admin['id']))
                 conn.commit()
             conn.close()
+            must_change = admin['must_change_password'] if 'must_change_password' in admin.keys() else 0
             admin_data = {
                 'id': admin['id'],
                 'username': admin['username'],
@@ -5518,7 +5528,8 @@ def super_admin_login():
             return jsonify({
                 'success': True,
                 'admin': admin_data,
-                'token': token
+                'token': token,
+                'must_change_password': bool(must_change)
             })
         conn.close()
         return jsonify({'success': False, 'error': 'بيانات الدخول غير صحيحة'}), 401
@@ -6005,7 +6016,7 @@ def super_admin_change_password():
 
         # تحديث كلمة المرور
         if new_password:
-            cursor.execute('UPDATE super_admins SET password = ? WHERE id = ?',
+            cursor.execute('UPDATE super_admins SET password = ?, must_change_password = 0 WHERE id = ?',
                            (hash_password(new_password), admin_id))
 
         # تحديث اسم المستخدم

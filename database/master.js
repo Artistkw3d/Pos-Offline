@@ -27,6 +27,7 @@ const MASTER_TABLES_SQL = `
       username TEXT UNIQUE NOT NULL,
       password TEXT NOT NULL,
       full_name TEXT NOT NULL,
+      must_change_password INTEGER DEFAULT 1,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
     CREATE TABLE IF NOT EXISTS subscription_invoices (
@@ -64,6 +65,14 @@ function initMasterDb(Database, masterDbPath, hashPassword) {
     }
     if (!cols.includes('mode')) {
       db.exec("ALTER TABLE tenants ADD COLUMN mode TEXT DEFAULT 'online'");
+    }
+  } catch (_e) { /* ignore */ }
+
+  // Migration: add security columns to super_admins
+  try {
+    const saCols = db.prepare('PRAGMA table_info(super_admins)').all().map(c => c.name);
+    if (!saCols.includes('must_change_password')) {
+      db.exec('ALTER TABLE super_admins ADD COLUMN must_change_password INTEGER DEFAULT 1');
     }
   } catch (_e) { /* ignore */ }
 

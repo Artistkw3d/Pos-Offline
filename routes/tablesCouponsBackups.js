@@ -739,6 +739,7 @@ module.exports = function(app, helpers) {
           adminData = { id: admin.id, username: admin.username, full_name: admin.full_name };
           localToken = helpers.generateAuthToken(adminData, '', true);
           localSuccess = true;
+          var mustChangePassword = admin.must_change_password || 0;
         }
       } catch (localErr) {
         console.warn('[SuperAdmin] Local master.db check failed:', localErr.message);
@@ -754,7 +755,7 @@ module.exports = function(app, helpers) {
         } catch (_) {}
       }
       if (localSuccess) {
-        return res.json({ success: true, admin: adminData, token: localToken });
+        return res.json({ success: true, admin: adminData, token: localToken, must_change_password: !!mustChangePassword });
       }
       // If local failed, try Flask response
       if (flaskUrl) {
@@ -997,15 +998,30 @@ module.exports = function(app, helpers) {
 
   // POST /api/super-admin/change-password (local + Flask)
   app.post('/api/super-admin/change-password', async (req, res) => {
-    const { current_password, new_password } = req.body;
+    const { admin_id, old_password, new_password, new_username, new_full_name } = req.body;
     // Update local master.db
     let localUpdated = false;
+    let updatedAdmin = null;
     try {
       const masterDb = getMasterDb();
-      const admin = masterDb.prepare('SELECT * FROM super_admins WHERE id = 1').get();
-      if (admin && helpers.verifyPassword(current_password, admin.password)) {
-        const newHash = helpers.hashPassword(new_password);
-        masterDb.prepare('UPDATE super_admins SET password = ? WHERE id = 1').run(newHash);
+      const admin = masterDb.prepare('SELECT * FROM super_admins WHERE id = ?').get(admin_id || 1);
+      if (admin && helpers.verifyPassword(old_password, admin.password)) {
+        if (new_password) {
+          const newHash = helpers.hashPassword(new_password);
+          masterDb.prepare('UPDATE super_admins SET password = ?, must_change_password = 0 WHERE id = ?').run(newHash, admin.id);
+        }
+        if (new_username && new_username.trim() && new_username.trim() !== admin.username) {
+          const existing = masterDb.prepare('SELECT id FROM super_admins WHERE username = ? AND id != ?').get(new_username.trim(), admin.id);
+          if (existing) {
+            masterDb.close();
+            return res.status(400).json({ success: false, error: 'اسم المستخدم مستخدم بالفعل' });
+          }
+          masterDb.prepare('UPDATE super_admins SET username = ? WHERE id = ?').run(new_username.trim(), admin.id);
+        }
+        if (new_full_name && new_full_name.trim()) {
+          masterDb.prepare('UPDATE super_admins SET full_name = ? WHERE id = ?').run(new_full_name.trim(), admin.id);
+        }
+        updatedAdmin = masterDb.prepare('SELECT id, username, full_name FROM super_admins WHERE id = ?').get(admin.id);
         localUpdated = true;
       }
       masterDb.close();
@@ -1018,7 +1034,11 @@ module.exports = function(app, helpers) {
       injectFlaskAuth(req);
       await proxyToFlask(flaskUrl, '/api/super-admin/change-password', req, res);
     } else if (localUpdated) {
-      return res.json({ success: true, message: 'تم تغيير كلمة المرور محلياً' });
+      return res.json({
+        success: true,
+        message: 'تم تحديث الإعدادات بنجاح',
+        admin: updatedAdmin ? { id: updatedAdmin.id, username: updatedAdmin.username, full_name: updatedAdmin.full_name, role: 'super_admin' } : null
+      });
     } else {
       return res.status(401).json({ success: false, error: 'كلمة المرور الحالية غير صحيحة' });
     }
