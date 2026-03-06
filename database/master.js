@@ -49,8 +49,9 @@ const MASTER_TABLES_SQL = `
  * @param {Function} Database - better-sqlite3 constructor
  * @param {string} masterDbPath - path to master.db
  * @param {Function} hashPassword - password hashing function
+ * @param {Function} [verifyPassword] - password verification function
  */
-function initMasterDb(Database, masterDbPath, hashPassword) {
+function initMasterDb(Database, masterDbPath, hashPassword, verifyPassword) {
   const db = new Database(masterDbPath);
   db.exec(MASTER_TABLES_SQL);
 
@@ -72,7 +73,16 @@ function initMasterDb(Database, masterDbPath, hashPassword) {
   try {
     const saCols = db.prepare('PRAGMA table_info(super_admins)').all().map(c => c.name);
     if (!saCols.includes('must_change_password')) {
-      db.exec('ALTER TABLE super_admins ADD COLUMN must_change_password INTEGER DEFAULT 1');
+      db.exec('ALTER TABLE super_admins ADD COLUMN must_change_password INTEGER DEFAULT 0');
+      // Only set must_change_password=1 for accounts still using default password
+      if (verifyPassword) {
+        const admins = db.prepare('SELECT id, password FROM super_admins').all();
+        for (const sa of admins) {
+          if (verifyPassword('admin123', sa.password)) {
+            db.prepare('UPDATE super_admins SET must_change_password = 1 WHERE id = ?').run(sa.id);
+          }
+        }
+      }
     }
   } catch (_e) { /* ignore */ }
 

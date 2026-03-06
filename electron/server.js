@@ -188,7 +188,7 @@ function createBackupFile(dbPath, backupDir, label) {
 // ===== Database Initialization (uses database/*.js modules) =====
 
 function initMasterDb() {
-  initMasterDbModule(Database, MASTER_DB_PATH, hashPassword);
+  initMasterDbModule(Database, MASTER_DB_PATH, hashPassword, verifyPassword);
 }
 
 function createTenantDatabase(slug) {

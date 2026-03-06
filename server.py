@@ -347,7 +347,12 @@ def init_master_db():
         cursor.execute("PRAGMA table_info(super_admins)")
         sa_cols = [col[1] for col in cursor.fetchall()]
         if 'must_change_password' not in sa_cols:
-            cursor.execute("ALTER TABLE super_admins ADD COLUMN must_change_password INTEGER DEFAULT 1")
+            cursor.execute("ALTER TABLE super_admins ADD COLUMN must_change_password INTEGER DEFAULT 0")
+            # Only set must_change_password=1 for accounts still using default password
+            cursor.execute("SELECT id, password FROM super_admins")
+            for sa in cursor.fetchall():
+                if verify_password('admin123', sa['password']):
+                    cursor.execute("UPDATE super_admins SET must_change_password = 1 WHERE id = ?", (sa['id'],))
     except:
         pass
     # إنشاء حساب Super Admin افتراضي إن لم يكن موجوداً
