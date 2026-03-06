@@ -1006,9 +1006,11 @@ module.exports = function(app, helpers) {
       const masterDb = getMasterDb();
       const admin = masterDb.prepare('SELECT * FROM super_admins WHERE id = ?').get(admin_id || 1);
       if (admin && helpers.verifyPassword(old_password, admin.password)) {
+        // Always clear must_change_password flag when settings are updated
+        masterDb.prepare('UPDATE super_admins SET must_change_password = 0 WHERE id = ?').run(admin.id);
         if (new_password) {
           const newHash = helpers.hashPassword(new_password);
-          masterDb.prepare('UPDATE super_admins SET password = ?, must_change_password = 0 WHERE id = ?').run(newHash, admin.id);
+          masterDb.prepare('UPDATE super_admins SET password = ? WHERE id = ?').run(newHash, admin.id);
         }
         if (new_username && new_username.trim() && new_username.trim() !== admin.username) {
           const existing = masterDb.prepare('SELECT id FROM super_admins WHERE username = ? AND id != ?').get(new_username.trim(), admin.id);

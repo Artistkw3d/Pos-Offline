@@ -27,7 +27,7 @@ const MASTER_TABLES_SQL = `
       username TEXT UNIQUE NOT NULL,
       password TEXT NOT NULL,
       full_name TEXT NOT NULL,
-      must_change_password INTEGER DEFAULT 1,
+      must_change_password INTEGER DEFAULT 0,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
     CREATE TABLE IF NOT EXISTS subscription_invoices (
@@ -89,7 +89,7 @@ function initMasterDb(Database, masterDbPath, hashPassword, verifyPassword) {
   // Create default super admin if none exists
   const count = db.prepare('SELECT COUNT(*) as cnt FROM super_admins').get();
   if (count.cnt === 0) {
-    db.prepare('INSERT INTO super_admins (username, password, full_name) VALUES (?, ?, ?)').run(
+    db.prepare('INSERT INTO super_admins (username, password, full_name, must_change_password) VALUES (?, ?, ?, 1)').run(
       'superadmin', hashPassword('admin123'), 'مدير النظام'
     );
   }

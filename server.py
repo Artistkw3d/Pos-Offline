@@ -312,7 +312,7 @@ def init_master_db():
             username TEXT UNIQUE NOT NULL,
             password TEXT NOT NULL,
             full_name TEXT NOT NULL,
-            must_change_password INTEGER DEFAULT 1,
+            must_change_password INTEGER DEFAULT 0,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     ''')
@@ -357,7 +357,7 @@ def init_master_db():
         pass
     # إنشاء حساب Super Admin افتراضي إن لم يكن موجوداً
     cursor.execute(
-        "INSERT OR IGNORE INTO super_admins (username, password, full_name) VALUES (?, ?, ?)",
+        "INSERT OR IGNORE INTO super_admins (username, password, full_name, must_change_password) VALUES (?, ?, ?, 1)",
         ('superadmin', hash_password('admin123'), 'مدير النظام')
     )
     conn.commit()
@@ -6019,9 +6019,12 @@ def super_admin_change_password():
             conn.close()
             return jsonify({'success': False, 'error': 'كلمة المرور القديمة غير صحيحة'}), 400
 
+        # Always clear must_change_password flag when settings are updated
+        cursor.execute('UPDATE super_admins SET must_change_password = 0 WHERE id = ?', (admin_id,))
+
         # تحديث كلمة المرور
         if new_password:
-            cursor.execute('UPDATE super_admins SET password = ?, must_change_password = 0 WHERE id = ?',
+            cursor.execute('UPDATE super_admins SET password = ? WHERE id = ?',
                            (hash_password(new_password), admin_id))
 
         # تحديث اسم المستخدم

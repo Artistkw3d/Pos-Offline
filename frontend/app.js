@@ -289,7 +289,7 @@ async function checkRealConnection() {
     try {
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), 3000);
-        const resp = await fetch(`${API_URL}/api/settings?_ping=1`, {
+        const resp = await fetch(`${API_URL}/api/version?_ping=1`, {
             method: 'GET',
             cache: 'no-store',
             signal: controller.signal
