@@ -299,7 +299,8 @@ module.exports = function(app, helpers) {
       `).all();
       return res.json({ success: true, tables });
     } catch (e) {
-      return res.status(500).json({ success: false, error: e.message });
+      console.error(`API error [${req.path}]:`, e.message);
+      return res.status(500).json({ success: false, error: 'حدث خطأ في النظام' });
     }
   });
 
@@ -319,7 +320,8 @@ module.exports = function(app, helpers) {
       );
       return res.json({ success: true, id: Number(result.lastInsertRowid) });
     } catch (e) {
-      return res.status(500).json({ success: false, error: e.message });
+      console.error(`API error [${req.path}]:`, e.message);
+      return res.status(500).json({ success: false, error: 'حدث خطأ في النظام' });
     }
   });
 
@@ -343,7 +345,8 @@ module.exports = function(app, helpers) {
       }
       return res.json({ success: true });
     } catch (e) {
-      return res.status(500).json({ success: false, error: e.message });
+      console.error(`API error [${req.path}]:`, e.message);
+      return res.status(500).json({ success: false, error: 'حدث خطأ في النظام' });
     }
   });
 
@@ -355,7 +358,8 @@ module.exports = function(app, helpers) {
       db.prepare('DELETE FROM restaurant_tables WHERE id = ?').run(tableId);
       return res.json({ success: true });
     } catch (e) {
-      return res.status(500).json({ success: false, error: e.message });
+      console.error(`API error [${req.path}]:`, e.message);
+      return res.status(500).json({ success: false, error: 'حدث خطأ في النظام' });
     }
   });
 
@@ -376,7 +380,8 @@ module.exports = function(app, helpers) {
       }
       return res.json({ success: true });
     } catch (e) {
-      return res.status(500).json({ success: false, error: e.message });
+      console.error(`API error [${req.path}]:`, e.message);
+      return res.status(500).json({ success: false, error: 'حدث خطأ في النظام' });
     }
   });
 
@@ -389,7 +394,8 @@ module.exports = function(app, helpers) {
         .run('available', tableId);
       return res.json({ success: true });
     } catch (e) {
-      return res.status(500).json({ success: false, error: e.message });
+      console.error(`API error [${req.path}]:`, e.message);
+      return res.status(500).json({ success: false, error: 'حدث خطأ في النظام' });
     }
   });
 
@@ -409,7 +415,8 @@ module.exports = function(app, helpers) {
         .run('reserved', tableId);
       return res.json({ success: true });
     } catch (e) {
-      return res.status(500).json({ success: false, error: e.message });
+      console.error(`API error [${req.path}]:`, e.message);
+      return res.status(500).json({ success: false, error: 'حدث خطأ في النظام' });
     }
   });
 
@@ -424,7 +431,8 @@ module.exports = function(app, helpers) {
       const coupons = db.prepare('SELECT * FROM coupons ORDER BY created_at DESC').all();
       return res.json({ success: true, coupons });
     } catch (e) {
-      return res.status(500).json({ success: false, error: e.message });
+      console.error(`API error [${req.path}]:`, e.message);
+      return res.status(500).json({ success: false, error: 'حدث خطأ في النظام' });
     }
   });
 
@@ -450,7 +458,8 @@ module.exports = function(app, helpers) {
       if (e.message && e.message.includes('UNIQUE constraint failed')) {
         return res.status(400).json({ success: false, error: 'كود الكوبون موجود مسبقاً' });
       }
-      return res.status(500).json({ success: false, error: e.message });
+      console.error(`API error [${req.path}]:`, e.message);
+      return res.status(500).json({ success: false, error: 'حدث خطأ في النظام' });
     }
   });
 
@@ -477,7 +486,8 @@ module.exports = function(app, helpers) {
       );
       return res.json({ success: true });
     } catch (e) {
-      return res.status(500).json({ success: false, error: e.message });
+      console.error(`API error [${req.path}]:`, e.message);
+      return res.status(500).json({ success: false, error: 'حدث خطأ في النظام' });
     }
   });
 
@@ -489,7 +499,8 @@ module.exports = function(app, helpers) {
       db.prepare('DELETE FROM coupons WHERE id = ?').run(couponId);
       return res.json({ success: true });
     } catch (e) {
-      return res.status(500).json({ success: false, error: e.message });
+      console.error(`API error [${req.path}]:`, e.message);
+      return res.status(500).json({ success: false, error: 'حدث خطأ في النظام' });
     }
   });
 
@@ -528,7 +539,8 @@ module.exports = function(app, helpers) {
 
       return res.json({ success: true, discount: Math.round(discount * 1000) / 1000, coupon });
     } catch (e) {
-      return res.status(500).json({ success: false, error: e.message });
+      console.error(`API error [${req.path}]:`, e.message);
+      return res.status(500).json({ success: false, error: 'حدث خطأ في النظام' });
     }
   });
 
@@ -541,7 +553,8 @@ module.exports = function(app, helpers) {
       db.prepare('UPDATE coupons SET used_count = used_count + 1 WHERE code = ?').run(code);
       return res.json({ success: true });
     } catch (e) {
-      return res.status(500).json({ success: false, error: e.message });
+      console.error(`API error [${req.path}]:`, e.message);
+      return res.status(500).json({ success: false, error: 'حدث خطأ في النظام' });
     }
   });
 
@@ -561,7 +574,8 @@ module.exports = function(app, helpers) {
       `).all();
       return res.json({ success: true, suppliers });
     } catch (e) {
-      return res.status(500).json({ success: false, error: e.message });
+      console.error(`API error [${req.path}]:`, e.message);
+      return res.status(500).json({ success: false, error: 'حدث خطأ في النظام' });
     }
   });
 
@@ -583,7 +597,8 @@ module.exports = function(app, helpers) {
       );
       return res.json({ success: true, id: Number(result.lastInsertRowid) });
     } catch (e) {
-      return res.status(500).json({ success: false, error: e.message });
+      console.error(`API error [${req.path}]:`, e.message);
+      return res.status(500).json({ success: false, error: 'حدث خطأ في النظام' });
     }
   });
 
@@ -607,7 +622,8 @@ module.exports = function(app, helpers) {
       );
       return res.json({ success: true });
     } catch (e) {
-      return res.status(500).json({ success: false, error: e.message });
+      console.error(`API error [${req.path}]:`, e.message);
+      return res.status(500).json({ success: false, error: 'حدث خطأ في النظام' });
     }
   });
 
@@ -620,7 +636,8 @@ module.exports = function(app, helpers) {
       db.prepare('DELETE FROM suppliers WHERE id = ?').run(supplierId);
       return res.json({ success: true });
     } catch (e) {
-      return res.status(500).json({ success: false, error: e.message });
+      console.error(`API error [${req.path}]:`, e.message);
+      return res.status(500).json({ success: false, error: 'حدث خطأ في النظام' });
     }
   });
 
@@ -634,7 +651,8 @@ module.exports = function(app, helpers) {
       ).all(supplierId);
       return res.json({ success: true, invoices });
     } catch (e) {
-      return res.status(500).json({ success: false, error: e.message });
+      console.error(`API error [${req.path}]:`, e.message);
+      return res.status(500).json({ success: false, error: 'حدث خطأ في النظام' });
     }
   });
 
@@ -665,7 +683,8 @@ module.exports = function(app, helpers) {
       );
       return res.json({ success: true, id: Number(result.lastInsertRowid) });
     } catch (e) {
-      return res.status(500).json({ success: false, error: e.message });
+      console.error(`API error [${req.path}]:`, e.message);
+      return res.status(500).json({ success: false, error: 'حدث خطأ في النظام' });
     }
   });
 
@@ -677,7 +696,8 @@ module.exports = function(app, helpers) {
       db.prepare('DELETE FROM supplier_invoices WHERE id = ?').run(invoiceId);
       return res.json({ success: true });
     } catch (e) {
-      return res.status(500).json({ success: false, error: e.message });
+      console.error(`API error [${req.path}]:`, e.message);
+      return res.status(500).json({ success: false, error: 'حدث خطأ في النظام' });
     }
   });
 
@@ -692,7 +712,8 @@ module.exports = function(app, helpers) {
       }
       return res.status(404).json({ success: false, error: 'الملف غير موجود' });
     } catch (e) {
-      return res.status(500).json({ success: false, error: e.message });
+      console.error(`API error [${req.path}]:`, e.message);
+      return res.status(500).json({ success: false, error: 'حدث خطأ في النظام' });
     }
   });
 
@@ -741,7 +762,8 @@ module.exports = function(app, helpers) {
       }
       return res.status(401).json({ success: false, error: 'اسم المستخدم أو كلمة المرور غير صحيحة' });
     } catch (e) {
-      return res.status(500).json({ success: false, error: e.message });
+      console.error(`API error [${req.path}]:`, e.message);
+      return res.status(500).json({ success: false, error: 'حدث خطأ في النظام' });
     }
   });
 
@@ -834,7 +856,8 @@ module.exports = function(app, helpers) {
       if (e.message && e.message.includes('UNIQUE')) {
         return res.status(400).json({ success: false, error: 'معرف المتجر مستخدم بالفعل' });
       }
-      return res.status(500).json({ success: false, error: e.message });
+      console.error(`API error [${req.path}]:`, e.message);
+      return res.status(500).json({ success: false, error: 'حدث خطأ في النظام' });
     }
   });
 
@@ -939,7 +962,8 @@ module.exports = function(app, helpers) {
       } catch (_) {}
       return res.json({ success: true, tenant, stats });
     } catch (e) {
-      return res.status(500).json({ success: false, error: e.message });
+      console.error(`API error [${req.path}]:`, e.message);
+      return res.status(500).json({ success: false, error: 'حدث خطأ في النظام' });
     }
   });
 
@@ -1036,7 +1060,8 @@ module.exports = function(app, helpers) {
       backupInfo.tenant_name = tenant.name;
       return res.json({ success: true, backup: backupInfo });
     } catch (e) {
-      return res.status(500).json({ success: false, error: e.message });
+      console.error(`API error [${req.path}]:`, e.message);
+      return res.status(500).json({ success: false, error: 'حدث خطأ في النظام' });
     }
   });
 
@@ -1084,7 +1109,8 @@ module.exports = function(app, helpers) {
         failed: errors.length
       });
     } catch (e) {
-      return res.status(500).json({ success: false, error: e.message });
+      console.error(`API error [${req.path}]:`, e.message);
+      return res.status(500).json({ success: false, error: 'حدث خطأ في النظام' });
     }
   });
 
@@ -1144,7 +1170,8 @@ module.exports = function(app, helpers) {
 
       return res.json({ success: true, all_backups: allBackups });
     } catch (e) {
-      return res.status(500).json({ success: false, error: e.message });
+      console.error(`API error [${req.path}]:`, e.message);
+      return res.status(500).json({ success: false, error: 'حدث خطأ في النظام' });
     }
   });
 
@@ -1164,7 +1191,8 @@ module.exports = function(app, helpers) {
       }
       return res.json({ success: true, backup: backupInfo });
     } catch (e) {
-      return res.status(500).json({ success: false, error: e.message });
+      console.error(`API error [${req.path}]:`, e.message);
+      return res.status(500).json({ success: false, error: 'حدث خطأ في النظام' });
     }
   });
 
@@ -1215,7 +1243,8 @@ module.exports = function(app, helpers) {
 
       return res.json({ success: true, backups, schedule });
     } catch (e) {
-      return res.status(500).json({ success: false, error: e.message });
+      console.error(`API error [${req.path}]:`, e.message);
+      return res.status(500).json({ success: false, error: 'حدث خطأ في النظام' });
     }
   });
 
@@ -1245,7 +1274,8 @@ module.exports = function(app, helpers) {
 
       return res.download(filepath, safeFilename);
     } catch (e) {
-      return res.status(500).json({ success: false, error: e.message });
+      console.error(`API error [${req.path}]:`, e.message);
+      return res.status(500).json({ success: false, error: 'حدث خطأ في النظام' });
     }
   });
 
@@ -1268,7 +1298,8 @@ module.exports = function(app, helpers) {
       fs.unlinkSync(filepath);
       return res.json({ success: true });
     } catch (e) {
-      return res.status(500).json({ success: false, error: e.message });
+      console.error(`API error [${req.path}]:`, e.message);
+      return res.status(500).json({ success: false, error: 'حدث خطأ في النظام' });
     }
   }
   app.delete('/api/backup/delete/:filename', handleDeleteBackup);
@@ -1314,7 +1345,8 @@ module.exports = function(app, helpers) {
         }).catch((err) => {
           source.close();
           fs.unlinkSync(tmpPath);
-          return res.status(500).json({ success: false, error: err.message });
+          console.error(`Backup restore error: ${err.message}`);
+          return res.status(500).json({ success: false, error: 'حدث خطأ في النظام' });
         });
 
       } else if (req.body && req.body.filename) {
@@ -1338,14 +1370,16 @@ module.exports = function(app, helpers) {
           return res.json({ success: true, message: 'تمت الاستعادة بنجاح. تم إنشاء نسخة احتياطية تلقائية قبل الاستعادة.' });
         }).catch((err) => {
           source.close();
-          return res.status(500).json({ success: false, error: err.message });
+          console.error(`Backup restore error: ${err.message}`);
+          return res.status(500).json({ success: false, error: 'حدث خطأ في النظام' });
         });
 
       } else {
         return res.status(400).json({ success: false, error: 'لم يتم تحديد ملف' });
       }
     } catch (e) {
-      return res.status(500).json({ success: false, error: e.message });
+      console.error(`API error [${req.path}]:`, e.message);
+      return res.status(500).json({ success: false, error: 'حدث خطأ في النظام' });
     }
   });
 
@@ -1372,7 +1406,8 @@ module.exports = function(app, helpers) {
 
       return res.json({ success: true });
     } catch (e) {
-      return res.status(500).json({ success: false, error: e.message });
+      console.error(`API error [${req.path}]:`, e.message);
+      return res.status(500).json({ success: false, error: 'حدث خطأ في النظام' });
     }
   });
 
@@ -1421,7 +1456,8 @@ module.exports = function(app, helpers) {
 
       return res.json({ success: true, auth_url: authUrl, redirect_uri: redirectUri });
     } catch (e) {
-      return res.status(500).json({ success: false, error: e.message });
+      console.error(`API error [${req.path}]:`, e.message);
+      return res.status(500).json({ success: false, error: 'حدث خطأ في النظام' });
     }
   });
 
@@ -1495,7 +1531,8 @@ setTimeout(function(){ window.close(); }, 2000);
       if (e.statusCode) {
         return res.status(400).json({ success: false, error: `خطأ من Google: ${e.body}` });
       }
-      return res.status(500).json({ success: false, error: e.message });
+      console.error(`API error [${req.path}]:`, e.message);
+      return res.status(500).json({ success: false, error: 'حدث خطأ في النظام' });
     }
   });
 
@@ -1519,7 +1556,8 @@ setTimeout(function(){ window.close(); }, 2000);
         has_credentials: hasCredentials
       });
     } catch (e) {
-      return res.status(500).json({ success: false, error: e.message });
+      console.error(`API error [${req.path}]:`, e.message);
+      return res.status(500).json({ success: false, error: 'حدث خطأ في النظام' });
     }
   });
 
@@ -1539,7 +1577,8 @@ setTimeout(function(){ window.close(); }, 2000);
 
       return res.json({ success: true });
     } catch (e) {
-      return res.status(500).json({ success: false, error: e.message });
+      console.error(`API error [${req.path}]:`, e.message);
+      return res.status(500).json({ success: false, error: 'حدث خطأ في النظام' });
     }
   });
 
@@ -1628,7 +1667,8 @@ setTimeout(function(){ window.close(); }, 2000);
       if (e.statusCode) {
         return res.status(500).json({ success: false, error: `خطأ في Google Drive: ${e.body}` });
       }
-      return res.status(500).json({ success: false, error: e.message });
+      console.error(`API error [${req.path}]:`, e.message);
+      return res.status(500).json({ success: false, error: 'حدث خطأ في النظام' });
     }
   });
 
@@ -1665,7 +1705,8 @@ setTimeout(function(){ window.close(); }, 2000);
 
       return res.json({ success: true, files });
     } catch (e) {
-      return res.status(500).json({ success: false, error: e.message });
+      console.error(`API error [${req.path}]:`, e.message);
+      return res.status(500).json({ success: false, error: 'حدث خطأ في النظام' });
     }
   });
 
@@ -1717,7 +1758,8 @@ setTimeout(function(){ window.close(); }, 2000);
         overall
       });
     } catch (e) {
-      return res.status(500).json({ success: false, error: e.message });
+      console.error(`API error [${req.path}]:`, e.message);
+      return res.status(500).json({ success: false, error: 'حدث خطأ في النظام' });
     }
   });
 
@@ -1787,7 +1829,8 @@ setTimeout(function(){ window.close(); }, 2000);
         products: productsList
       });
     } catch (e) {
-      return res.status(500).json({ success: false, error: e.message });
+      console.error(`API error [${req.path}]:`, e.message);
+      return res.status(500).json({ success: false, error: 'حدث خطأ في النظام' });
     }
   });
 
