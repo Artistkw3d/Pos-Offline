@@ -740,7 +740,9 @@ module.exports = function(app, helpers) {
           localToken = helpers.generateAuthToken(adminData, '', true);
           localSuccess = true;
           var mustChangePassword = admin.must_change_password || 0;
+          var totpEnabled = admin.totp_enabled || 0;
         }
+        masterDb.close();
       } catch (localErr) {
         console.warn('[SuperAdmin] Local master.db check failed:', localErr.message);
       }
@@ -755,7 +757,18 @@ module.exports = function(app, helpers) {
         } catch (_) {}
       }
       if (localSuccess) {
-        return res.json({ success: true, admin: adminData, token: localToken, must_change_password: !!mustChangePassword });
+        // If TOTP is enabled, require 2FA verification
+        if (totpEnabled) {
+          return res.json({
+            success: true,
+            requires_2fa: true,
+            admin: adminData,
+            token: localToken,
+            must_change_password: !!mustChangePassword,
+            totp_enabled: true
+          });
+        }
+        return res.json({ success: true, admin: adminData, token: localToken, must_change_password: !!mustChangePassword, totp_enabled: false });
       }
       // If local failed, try Flask response
       if (flaskUrl) {
@@ -1043,6 +1056,164 @@ module.exports = function(app, helpers) {
       });
     } else {
       return res.status(401).json({ success: false, error: 'كلمة المرور الحالية غير صحيحة' });
+    }
+  });
+
+  // POST /api/logout (token blacklist)
+  app.post('/api/logout', (req, res) => {
+    try {
+      const authHeader = req.headers.authorization || '';
+      const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
+      if (token && helpers.blacklistToken) {
+        helpers.blacklistToken(token);
+        try {
+          const payload = require('jsonwebtoken').decode(token);
+          if (payload && helpers.writeAuditLog) {
+            const masterDb = getMasterDb();
+            helpers.writeAuditLog(masterDb, 'LOGOUT', 'User logged out',
+              payload.user_id, payload.username, helpers.getClientIp(req));
+            masterDb.close();
+          }
+        } catch (_) {}
+      }
+      return res.json({ success: true });
+    } catch (e) {
+      return res.json({ success: true });
+    }
+  });
+
+  // POST /api/super-admin/totp/setup (generate TOTP secret)
+  app.post('/api/super-admin/totp/setup', (req, res) => {
+    try {
+      const { admin_id } = req.body;
+      const masterDb = getMasterDb();
+      const admin = masterDb.prepare('SELECT * FROM super_admins WHERE id = ?').get(admin_id);
+      if (!admin) {
+        masterDb.close();
+        return res.status(404).json({ success: false, error: 'Admin not found' });
+      }
+      // Generate a random base32 secret
+      const crypto = require('crypto');
+      const secret = crypto.randomBytes(20).toString('hex');
+      // Store the secret (base32 encoding for TOTP)
+      const base32chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+      let base32Secret = '';
+      const bytes = Buffer.from(secret, 'hex');
+      for (let i = 0; i < bytes.length; i += 5) {
+        const chunk = bytes.slice(i, i + 5);
+        const bits = [];
+        for (const byte of chunk) {
+          bits.push(...byte.toString(2).padStart(8, '0').split(''));
+        }
+        for (let j = 0; j < bits.length; j += 5) {
+          const idx = parseInt(bits.slice(j, j + 5).join(''), 2);
+          if (!isNaN(idx) && idx < 32) base32Secret += base32chars[idx];
+        }
+      }
+      masterDb.prepare('UPDATE super_admins SET totp_secret = ? WHERE id = ?').run(base32Secret, admin_id);
+      masterDb.close();
+      const uri = `otpauth://totp/POS-Offline:${encodeURIComponent(admin.username)}?secret=${base32Secret}&issuer=POS-Offline`;
+      return res.json({ success: true, secret: base32Secret, uri });
+    } catch (e) {
+      console.error(`API error [${req.path}]:`, e.message);
+      return res.status(500).json({ success: false, error: 'System error' });
+    }
+  });
+
+  // POST /api/super-admin/totp/verify (verify and enable TOTP)
+  app.post('/api/super-admin/totp/verify', (req, res) => {
+    try {
+      const { admin_id, code } = req.body;
+      const masterDb = getMasterDb();
+      const admin = masterDb.prepare('SELECT totp_secret FROM super_admins WHERE id = ?').get(admin_id);
+      if (!admin || !admin.totp_secret) {
+        masterDb.close();
+        return res.status(400).json({ success: false, error: 'TOTP not set up yet' });
+      }
+      // Simple TOTP verification (HMAC-based, 30-second window)
+      const crypto = require('crypto');
+      const timeStep = Math.floor(Date.now() / 30000);
+      let verified = false;
+      // Check current and adjacent time steps (allows 1 step tolerance)
+      for (let i = -1; i <= 1; i++) {
+        const t = timeStep + i;
+        const timeBuffer = Buffer.alloc(8);
+        timeBuffer.writeUInt32BE(0, 0);
+        timeBuffer.writeUInt32BE(t, 4);
+        // Decode base32 secret to buffer
+        const base32chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+        const secretUpper = admin.totp_secret.toUpperCase().replace(/=+$/, '');
+        let bits = '';
+        for (const c of secretUpper) {
+          const idx = base32chars.indexOf(c);
+          if (idx >= 0) bits += idx.toString(2).padStart(5, '0');
+        }
+        const secretBytes = [];
+        for (let b = 0; b < bits.length; b += 8) {
+          if (b + 8 <= bits.length) secretBytes.push(parseInt(bits.substring(b, b + 8), 2));
+        }
+        const keyBuffer = Buffer.from(secretBytes);
+        const hmac = crypto.createHmac('sha1', keyBuffer).update(timeBuffer).digest();
+        const offset = hmac[hmac.length - 1] & 0xf;
+        const otpBin = ((hmac[offset] & 0x7f) << 24) | ((hmac[offset+1] & 0xff) << 16) |
+                        ((hmac[offset+2] & 0xff) << 8) | (hmac[offset+3] & 0xff);
+        const otp = (otpBin % 1000000).toString().padStart(6, '0');
+        if (otp === String(code).padStart(6, '0')) {
+          verified = true;
+          break;
+        }
+      }
+      if (verified) {
+        masterDb.prepare('UPDATE super_admins SET totp_enabled = 1 WHERE id = ?').run(admin_id);
+        if (helpers.writeAuditLog) {
+          helpers.writeAuditLog(masterDb, '2FA_ENABLED', 'Super admin enabled TOTP 2FA', admin_id, null, helpers.getClientIp(req));
+        }
+        masterDb.close();
+        return res.json({ success: true });
+      }
+      masterDb.close();
+      return res.status(400).json({ success: false, error: 'Invalid code, try again' });
+    } catch (e) {
+      console.error(`API error [${req.path}]:`, e.message);
+      return res.status(500).json({ success: false, error: 'System error' });
+    }
+  });
+
+  // POST /api/super-admin/totp/disable (disable TOTP 2FA)
+  app.post('/api/super-admin/totp/disable', (req, res) => {
+    try {
+      const { admin_id, password } = req.body;
+      const masterDb = getMasterDb();
+      const admin = masterDb.prepare('SELECT * FROM super_admins WHERE id = ?').get(admin_id);
+      if (!admin || !helpers.verifyPassword(password, admin.password)) {
+        masterDb.close();
+        return res.status(400).json({ success: false, error: 'Incorrect password' });
+      }
+      masterDb.prepare('UPDATE super_admins SET totp_enabled = 0, totp_secret = NULL WHERE id = ?').run(admin_id);
+      if (helpers.writeAuditLog) {
+        helpers.writeAuditLog(masterDb, '2FA_DISABLED', 'Super admin disabled TOTP 2FA', admin_id, admin.username, helpers.getClientIp(req));
+      }
+      masterDb.close();
+      return res.json({ success: true });
+    } catch (e) {
+      console.error(`API error [${req.path}]:`, e.message);
+      return res.status(500).json({ success: false, error: 'System error' });
+    }
+  });
+
+  // GET /api/super-admin/audit-logs (retrieve audit logs)
+  app.get('/api/super-admin/audit-logs', (req, res) => {
+    try {
+      const limit = parseInt(req.query.limit) || 100;
+      const offset = parseInt(req.query.offset) || 0;
+      const masterDb = getMasterDb();
+      const logs = masterDb.prepare('SELECT * FROM audit_logs ORDER BY created_at DESC LIMIT ? OFFSET ?').all(limit, offset);
+      const totalRow = masterDb.prepare('SELECT COUNT(*) as total FROM audit_logs').get();
+      masterDb.close();
+      return res.json({ success: true, logs, total: totalRow.total });
+    } catch (e) {
+      console.error(`API error [${req.path}]:`, e.message);
+      return res.status(500).json({ success: false, error: 'System error' });
     }
   });
 

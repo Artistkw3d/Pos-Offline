@@ -28,6 +28,18 @@ const MASTER_TABLES_SQL = `
       password TEXT NOT NULL,
       full_name TEXT NOT NULL,
       must_change_password INTEGER DEFAULT 0,
+      totp_secret TEXT,
+      totp_enabled INTEGER DEFAULT 0,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE TABLE IF NOT EXISTS audit_logs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      action TEXT NOT NULL,
+      details TEXT,
+      user_id INTEGER,
+      username TEXT,
+      tenant_slug TEXT,
+      ip_address TEXT,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
     CREATE TABLE IF NOT EXISTS subscription_invoices (
@@ -83,6 +95,12 @@ function initMasterDb(Database, masterDbPath, hashPassword, verifyPassword) {
           }
         }
       }
+    }
+    if (!saCols.includes('totp_secret')) {
+      db.exec('ALTER TABLE super_admins ADD COLUMN totp_secret TEXT');
+    }
+    if (!saCols.includes('totp_enabled')) {
+      db.exec('ALTER TABLE super_admins ADD COLUMN totp_enabled INTEGER DEFAULT 0');
     }
   } catch (_e) { /* ignore */ }
 

@@ -255,6 +255,39 @@ function validatePasswordStrength(password) {
   return { valid: true };
 }
 
+// Token blacklist (in-memory, cleared on restart)
+const _tokenBlacklist = {};
+
+function blacklistToken(token) {
+  try {
+    const payload = jwt.decode(token);
+    const exp = payload && payload.exp ? payload.exp : Math.floor(Date.now() / 1000) + 86400;
+    _tokenBlacklist[token] = exp;
+  } catch (_e) {
+    _tokenBlacklist[token] = Math.floor(Date.now() / 1000) + 86400;
+  }
+}
+
+function isTokenBlacklisted(token) {
+  if (!_tokenBlacklist[token]) return false;
+  // Clean up expired entries
+  const now = Math.floor(Date.now() / 1000);
+  if (_tokenBlacklist[token] < now) {
+    delete _tokenBlacklist[token];
+    return false;
+  }
+  return true;
+}
+
+// Audit log helper
+function writeAuditLog(masterDb, action, details, userId, username, ipAddress, tenantSlug) {
+  try {
+    masterDb.prepare(
+      'INSERT INTO audit_logs (action, details, user_id, username, ip_address, tenant_slug) VALUES (?, ?, ?, ?, ?, ?)'
+    ).run(action, details || null, userId || null, username || null, ipAddress || null, tenantSlug || null);
+  } catch (_e) { /* ignore */ }
+}
+
 // Rate limiting
 const _loginAttempts = {};
 const LOGIN_RATE_LIMIT = 5;
@@ -280,7 +313,7 @@ function checkRateLimit(ip, endpoint) {
 const PUBLIC_ROUTES = new Set([
   '/api/login', '/api/super-admin/login', '/api/version',
   '/api/tenant/check-status', '/api/license/verify',
-  '/api/sync/status'
+  '/api/sync/status', '/api/logout'
 ]);
 
 function authMiddleware(req, res, next) {
@@ -300,6 +333,9 @@ function authMiddleware(req, res, next) {
   const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
   if (!token) {
     return res.status(401).json({ success: false, error: 'Authentication required' });
+  }
+  if (isTokenBlacklisted(token)) {
+    return res.status(401).json({ success: false, error: 'Token has been revoked' });
   }
   try {
     const payload = jwt.verify(token, getAuthSecret());
@@ -421,6 +457,7 @@ function startServer(options = {}) {
     createBackupFile, getBackupDir, createTenantDatabase, migrateDatabase,
     getTenantSlug, getTenantDbPath, getFlaskServerUrl,
     generateAuthToken, validatePasswordStrength,
+    blacklistToken, isTokenBlacklisted, writeAuditLog, getClientIp,
     DB_PATH, MASTER_DB_PATH, TENANTS_DB_DIR, BACKUPS_DIR, FRONTEND_DIR,
     upload, Database
   };

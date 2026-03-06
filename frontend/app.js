@@ -875,30 +875,40 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
         const saMatch = rawUsername.match(/^(.+)\+superadmin#$/);
         if (saMatch) {
             const saUsername = saMatch[1];
-            const response = await originalFetch(`${API_URL}/api/super-admin/login`, {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ username: saUsername, password: password })
-            });
-            const data = await response.json();
-            if (data.success) {
-                currentSuperAdmin = data.admin;
-                if (data.token) localStorage.setItem('pos_auth_token', data.token);
-                localStorage.setItem('pos_super_admin', JSON.stringify(data.admin));
-                document.getElementById('loginOverlay').classList.add('hidden');
-                document.getElementById('mainContainer').style.display = 'none';
-                document.getElementById('superAdminDashboard').style.display = 'block';
-                document.getElementById('saUserInfo').textContent = currentSuperAdmin.full_name;
-                document.getElementById('loginForm').reset();
-                loadSuperAdminDashboard();
-                // Force password change on first login
-                if (data.must_change_password) {
-                    alert('يجب تغيير كلمة المرور الافتراضية قبل المتابعة!');
-                    showSuperAdminSettings();
+            // Phase 2.2: Helper to complete super admin login
+            async function completeSuperAdminLogin(loginData) {
+                const response = await originalFetch(`${API_URL}/api/super-admin/login`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(loginData)
+                });
+                const data = await response.json();
+                // 2FA required
+                if (data.requires_2fa && !loginData.totp_code) {
+                    const totpCode = prompt('أدخل رمز التحقق الثنائي (6 أرقام) من تطبيق المصادقة:');
+                    if (!totpCode) return;
+                    return completeSuperAdminLogin({ ...loginData, totp_code: totpCode });
                 }
-            } else {
-                alert(data.error || 'فشل تسجيل الدخول');
+                if (data.success) {
+                    currentSuperAdmin = data.admin;
+                    if (data.token) localStorage.setItem('pos_auth_token', data.token);
+                    localStorage.setItem('pos_super_admin', JSON.stringify(data.admin));
+                    document.getElementById('loginOverlay').classList.add('hidden');
+                    document.getElementById('mainContainer').style.display = 'none';
+                    document.getElementById('superAdminDashboard').style.display = 'block';
+                    document.getElementById('saUserInfo').textContent = currentSuperAdmin.full_name;
+                    document.getElementById('loginForm').reset();
+                    // Phase 2.1: Force password change on first login
+                    if (data.must_change_password) {
+                        alert('يجب تغيير كلمة المرور الافتراضية قبل المتابعة!');
+                        showSuperAdminSettings();
+                    }
+                    loadSuperAdminDashboard();
+                } else {
+                    alert(data.error || 'فشل تسجيل الدخول');
+                }
             }
+            await completeSuperAdminLogin({ username: saUsername, password: password });
             return;
         }
 
@@ -1208,7 +1218,18 @@ async function logout() {
             });
         } catch (e) {}
     }
-    
+
+    // Phase 1.3: Invalidate token on server
+    try {
+        const token = localStorage.getItem('pos_auth_token');
+        if (token) {
+            await originalFetch(`${API_URL}/api/logout`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token}
+            });
+        }
+    } catch(e) { /* ignore */ }
+
     // مسح كل البيانات
     currentUser = null;
     cart = [];
@@ -8491,12 +8512,14 @@ async function viewSupplierFile(invoiceId) {
         if (data.success && data.file_data) {
             const viewer = document.getElementById('supplierFileViewer');
             if (data.file_type === 'application/pdf') {
+                // Validate data URL format before injecting
                 if (/^data:application\/pdf;base64,/.test(data.file_data)) {
                     viewer.innerHTML = `<iframe src="${escHTML(data.file_data)}" style="width:100%; height:600px; border:none; border-radius:8px;"></iframe>`;
                 } else {
                     viewer.innerHTML = '<p style="color:red;">Invalid file format</p>';
                 }
             } else {
+                // Validate data URL format before injecting
                 if (/^data:image\/(png|jpeg|jpg|gif|webp|svg\+xml);base64,/.test(data.file_data)) {
                     viewer.innerHTML = `<img src="${escHTML(data.file_data)}" style="max-width:100%; max-height:600px; border-radius:8px; box-shadow: 0 4px 15px rgba(0,0,0,0.2);">`;
                 } else {
@@ -9476,7 +9499,16 @@ console.log('[Tables] Restaurant Tables System Loaded ✅');
 // ===== نظام المدير الأعلى (Super Admin) =====
 
 
-function logoutSuperAdmin() {
+async function logoutSuperAdmin() {
+    try {
+        const token = localStorage.getItem('pos_auth_token');
+        if (token) {
+            await originalFetch(`${API_URL}/api/logout`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token}
+            });
+        }
+    } catch(e) { /* ignore network errors on logout */ }
     currentSuperAdmin = null;
     localStorage.removeItem('pos_super_admin');
     localStorage.removeItem('pos_auth_token');
@@ -9542,6 +9574,87 @@ document.getElementById('superAdminSettingsForm')?.addEventListener('submit', as
         alert('خطأ في حفظ الإعدادات');
     }
 });
+
+// === Phase 2.2: TOTP 2FA Management ===
+async function setupTOTP() {
+    if (!currentSuperAdmin) return;
+    try {
+        const response = await authFetch(`${API_URL}/api/super-admin/totp/setup`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ admin_id: currentSuperAdmin.id })
+        });
+        const data = await response.json();
+        if (data.success) {
+            const el = document.getElementById('totpSetupInfo');
+            if (el) {
+                el.innerHTML = `<div style="background:#1a1a2e;padding:15px;border-radius:8px;margin:10px 0;direction:ltr;text-align:left;">
+                    <p style="color:#ffd700;margin:0 0 10px"><strong>TOTP Secret:</strong></p>
+                    <code style="background:#000;padding:8px 12px;border-radius:4px;font-size:14px;word-break:break-all;display:block;margin-bottom:10px">${escHTML(data.secret)}</code>
+                    <p style="color:#aaa;font-size:12px;margin:5px 0">Copy this secret to Google Authenticator, Authy, or any TOTP app.</p>
+                    <p style="color:#aaa;font-size:12px;margin:5px 0">Or use this URI: <code style="font-size:11px">${escHTML(data.uri)}</code></p>
+                </div>
+                <div style="margin-top:10px">
+                    <input type="text" id="totpVerifyCode" placeholder="أدخل الرمز من التطبيق (6 أرقام)" style="width:200px;padding:8px;text-align:center;font-size:18px;letter-spacing:5px" maxlength="6">
+                    <button onclick="verifyAndEnableTOTP()" style="padding:8px 20px;background:#28a745;color:white;border:none;border-radius:4px;cursor:pointer;margin-right:10px">تفعيل</button>
+                </div>`;
+                el.style.display = 'block';
+            }
+        } else {
+            alert(data.error || 'فشل إعداد المصادقة الثنائية');
+        }
+    } catch(e) {
+        alert('خطأ في الاتصال');
+    }
+}
+
+async function verifyAndEnableTOTP() {
+    const code = document.getElementById('totpVerifyCode')?.value || '';
+    if (code.length !== 6) { alert('أدخل 6 أرقام'); return; }
+    try {
+        const response = await authFetch(`${API_URL}/api/super-admin/totp/verify`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ admin_id: currentSuperAdmin.id, code: code })
+        });
+        const data = await response.json();
+        if (data.success) {
+            alert('تم تفعيل المصادقة الثنائية بنجاح! ستحتاج الرمز عند كل تسجيل دخول.');
+            const el = document.getElementById('totpSetupInfo');
+            if (el) el.style.display = 'none';
+            const btn = document.getElementById('totpToggleBtn');
+            if (btn) { btn.textContent = 'تعطيل المصادقة الثنائية'; btn.onclick = disableTOTP; btn.style.background = '#dc3545'; }
+        } else {
+            alert(data.error || 'الرمز غير صحيح');
+        }
+    } catch(e) {
+        alert('خطأ في الاتصال');
+    }
+}
+
+async function disableTOTP() {
+    const password = prompt('أدخل كلمة المرور لتعطيل المصادقة الثنائية:');
+    if (!password) return;
+    try {
+        const response = await authFetch(`${API_URL}/api/super-admin/totp/disable`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ admin_id: currentSuperAdmin.id, password: password })
+        });
+        const data = await response.json();
+        if (data.success) {
+            alert('تم تعطيل المصادقة الثنائية');
+            const btn = document.getElementById('totpToggleBtn');
+            if (btn) { btn.textContent = 'تفعيل المصادقة الثنائية (2FA)'; btn.onclick = setupTOTP; btn.style.background = '#28a745'; }
+            const el = document.getElementById('totpSetupInfo');
+            if (el) el.style.display = 'none';
+        } else {
+            alert(data.error || 'فشل تعطيل المصادقة الثنائية');
+        }
+    } catch(e) {
+        alert('خطأ في الاتصال');
+    }
+}
 
 async function loadSuperAdminDashboard() {
     try {

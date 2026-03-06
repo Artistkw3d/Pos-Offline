@@ -35,7 +35,7 @@ self.addEventListener('install', (event) => {
 
 // التفعيل - حذف الكاشات القديمة
 self.addEventListener('activate', (event) => {
-    console.log('[SW] Activating v40...');
+    console.log('[SW] Activating v41...');
     event.waitUntil(
         caches.keys().then(keys => {
             return Promise.all(
@@ -54,6 +54,11 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
     const { request } = event;
     const url = new URL(request.url);
+
+    // تجاهل الطلبات غير HTTP/HTTPS (مثل chrome-extension://)
+    if (!url.protocol.startsWith('http')) {
+        return;
+    }
 
     // طلبات فحص الاتصال - شبكة فقط
     if (url.searchParams.has('_ping')) {

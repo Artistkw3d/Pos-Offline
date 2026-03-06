@@ -1977,39 +1977,6 @@
         </div>
     </div>
 
-    <!-- Super Admin Settings Modal -->
-    <div class="modal" id="superAdminSettingsModal">
-        <div class="modal-content" style="max-width: 450px;">
-            <div class="modal-header">
-                <h2>⚙️ إعدادات المدير الأعلى</h2>
-                <button onclick="document.getElementById('superAdminSettingsModal').classList.remove('active')" class="close-btn">&times;</button>
-            </div>
-            <form id="superAdminSettingsForm" style="padding: 5px;">
-                <div class="form-group">
-                    <label>الاسم الكامل:</label>
-                    <input type="text" id="saSettingsFullName" required>
-                </div>
-                <div class="form-group">
-                    <label>اسم المستخدم الجديد:</label>
-                    <input type="text" id="saSettingsUsername" required style="direction: ltr;">
-                </div>
-                <hr style="border: 1px solid #e5e7eb; margin: 15px 0;">
-                <div class="form-group">
-                    <label>كلمة المرور الحالية: <span style="color: var(--red);">*</span></label>
-                    <input type="password" id="saSettingsOldPassword" required placeholder="مطلوب للتأكيد">
-                </div>
-                <div class="form-group">
-                    <label>كلمة المرور الجديدة: <small style="color: #e0dce8;">(اتركها فارغة لعدم التغيير)</small></label>
-                    <input type="password" id="saSettingsNewPassword" placeholder="اتركها فارغة إذا لا تريد التغيير">
-                </div>
-                <div class="form-group">
-                    <label>تأكيد كلمة المرور الجديدة:</label>
-                    <input type="password" id="saSettingsConfirmPassword" placeholder="أعد كتابة كلمة المرور الجديدة">
-                </div>
-                <button type="submit" class="btn" style="width: 100%; padding: 12px; background: linear-gradient(135deg, #8b5cf6, #7c3aed); color: white;">💾 حفظ التغييرات</button>
-            </form>
-        </div>
-    </div>
 
     <!-- Add/Edit Coupon Modal -->
     <div class="modal" id="addCouponModal">
@@ -3214,6 +3181,47 @@
                     
                     <button type="submit" class="btn">حفظ التعديل</button>
                 </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Super Admin Settings Modal (global level for proper fixed positioning) -->
+    <div class="modal" id="superAdminSettingsModal">
+        <div class="modal-content" style="max-width: 450px;">
+            <div class="modal-header">
+                <h2>⚙️ إعدادات المدير الأعلى</h2>
+                <button onclick="document.getElementById('superAdminSettingsModal').classList.remove('active')" class="close-btn">&times;</button>
+            </div>
+            <form id="superAdminSettingsForm" style="padding: 5px;">
+                <div class="form-group">
+                    <label>الاسم الكامل:</label>
+                    <input type="text" id="saSettingsFullName" required>
+                </div>
+                <div class="form-group">
+                    <label>اسم المستخدم الجديد:</label>
+                    <input type="text" id="saSettingsUsername" required style="direction: ltr;">
+                </div>
+                <hr style="border: 1px solid #e5e7eb; margin: 15px 0;">
+                <div class="form-group">
+                    <label>كلمة المرور الحالية: <span style="color: var(--red);">*</span></label>
+                    <input type="password" id="saSettingsOldPassword" required placeholder="مطلوب للتأكيد">
+                </div>
+                <div class="form-group">
+                    <label>كلمة المرور الجديدة: <small style="color: #e0dce8;">(اتركها فارغة لعدم التغيير)</small></label>
+                    <input type="password" id="saSettingsNewPassword" placeholder="اتركها فارغة إذا لا تريد التغيير">
+                </div>
+                <div class="form-group">
+                    <label>تأكيد كلمة المرور الجديدة:</label>
+                    <input type="password" id="saSettingsConfirmPassword" placeholder="أعد كتابة كلمة المرور الجديدة">
+                </div>
+                <button type="submit" class="btn" style="width: 100%; padding: 12px; background: linear-gradient(135deg, #8b5cf6, #7c3aed); color: white;">💾 حفظ التغييرات</button>
+            </form>
+            <hr style="border: 1px solid #e5e7eb; margin: 15px 5px;">
+            <div style="padding: 5px;">
+                <h3 style="margin: 0 0 10px; font-size: 15px;">🔐 المصادقة الثنائية (2FA)</h3>
+                <p style="color: #888; font-size: 13px; margin: 0 0 10px;">أضف طبقة حماية إضافية لحسابك باستخدام تطبيق مصادقة (Google Authenticator / Authy)</p>
+                <button id="totpToggleBtn" onclick="setupTOTP()" style="padding: 10px 20px; background: #28a745; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 14px;">تفعيل المصادقة الثنائية (2FA)</button>
+                <div id="totpSetupInfo" style="display: none;"></div>
             </div>
         </div>
     </div>
