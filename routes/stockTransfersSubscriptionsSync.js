@@ -46,7 +46,8 @@ module.exports = function (app, helpers) {
 
       return res.json({ success: true, transfers });
     } catch (e) {
-      return res.status(500).json({ success: false, error: e.message });
+      console.error(`API error [${req.path}]:`, e.message);
+      return res.status(500).json({ success: false, error: 'حدث خطأ في النظام' });
     }
   });
 
@@ -65,7 +66,8 @@ module.exports = function (app, helpers) {
 
       return res.json({ success: true, transfer });
     } catch (e) {
-      return res.status(500).json({ success: false, error: e.message });
+      console.error(`API error [${req.path}]:`, e.message);
+      return res.status(500).json({ success: false, error: 'حدث خطأ في النظام' });
     }
   });
 
@@ -145,7 +147,8 @@ module.exports = function (app, helpers) {
 
       return res.json({ success: true, id: transfer_id, transfer_number });
     } catch (e) {
-      return res.status(500).json({ success: false, error: e.message });
+      console.error(`API error [${req.path}]:`, e.message);
+      return res.status(500).json({ success: false, error: 'حدث خطأ في النظام' });
     }
   });
 
@@ -204,7 +207,8 @@ module.exports = function (app, helpers) {
 
       return res.json({ success: true });
     } catch (e) {
-      return res.status(500).json({ success: false, error: e.message });
+      console.error(`API error [${req.path}]:`, e.message);
+      return res.status(500).json({ success: false, error: 'حدث خطأ في النظام' });
     }
   });
 
@@ -237,7 +241,8 @@ module.exports = function (app, helpers) {
 
       return res.json({ success: true });
     } catch (e) {
-      return res.status(500).json({ success: false, error: e.message });
+      console.error(`API error [${req.path}]:`, e.message);
+      return res.status(500).json({ success: false, error: 'حدث خطأ في النظام' });
     }
   });
 
@@ -270,7 +275,8 @@ module.exports = function (app, helpers) {
 
       return res.json({ success: true });
     } catch (e) {
-      return res.status(500).json({ success: false, error: e.message });
+      console.error(`API error [${req.path}]:`, e.message);
+      return res.status(500).json({ success: false, error: 'حدث خطأ في النظام' });
     }
   });
 
@@ -352,7 +358,8 @@ module.exports = function (app, helpers) {
 
       return res.json({ success: true });
     } catch (e) {
-      return res.status(500).json({ success: false, error: e.message });
+      console.error(`API error [${req.path}]:`, e.message);
+      return res.status(500).json({ success: false, error: 'حدث خطأ في النظام' });
     }
   });
 
@@ -381,7 +388,8 @@ module.exports = function (app, helpers) {
 
       return res.json({ success: true });
     } catch (e) {
-      return res.status(500).json({ success: false, error: e.message });
+      console.error(`API error [${req.path}]:`, e.message);
+      return res.status(500).json({ success: false, error: 'حدث خطأ في النظام' });
     }
   });
 
@@ -404,7 +412,8 @@ module.exports = function (app, helpers) {
       }
       return res.json({ success: true, subscription: tenant });
     } catch (e) {
-      return res.status(500).json({ success: false, error: e.message });
+      console.error(`API error [${req.path}]:`, e.message);
+      return res.status(500).json({ success: false, error: 'حدث خطأ في النظام' });
     }
   });
 
@@ -424,7 +433,8 @@ module.exports = function (app, helpers) {
 
       return res.json({ success: true, plans });
     } catch (e) {
-      return res.status(500).json({ success: false, error: e.message });
+      console.error(`API error [${req.path}]:`, e.message);
+      return res.status(500).json({ success: false, error: 'حدث خطأ في النظام' });
     }
   });
 
@@ -467,7 +477,8 @@ module.exports = function (app, helpers) {
 
       return res.json({ success: true, id: plan_id });
     } catch (e) {
-      return res.status(500).json({ success: false, error: e.message });
+      console.error(`API error [${req.path}]:`, e.message);
+      return res.status(500).json({ success: false, error: 'حدث خطأ في النظام' });
     }
   });
 
@@ -514,7 +525,8 @@ module.exports = function (app, helpers) {
 
       return res.json({ success: true });
     } catch (e) {
-      return res.status(500).json({ success: false, error: e.message });
+      console.error(`API error [${req.path}]:`, e.message);
+      return res.status(500).json({ success: false, error: 'حدث خطأ في النظام' });
     }
   });
 
@@ -529,7 +541,8 @@ module.exports = function (app, helpers) {
 
       return res.json({ success: true });
     } catch (e) {
-      return res.status(500).json({ success: false, error: e.message });
+      console.error(`API error [${req.path}]:`, e.message);
+      return res.status(500).json({ success: false, error: 'حدث خطأ في النظام' });
     }
   });
 
@@ -543,7 +556,8 @@ module.exports = function (app, helpers) {
 
       return res.json({ success: true, items });
     } catch (e) {
-      return res.status(500).json({ success: false, error: e.message });
+      console.error(`API error [${req.path}]:`, e.message);
+      return res.status(500).json({ success: false, error: 'حدث خطأ في النظام' });
     }
   });
 
@@ -569,7 +583,8 @@ module.exports = function (app, helpers) {
 
       return res.json({ success: true, id: item_id });
     } catch (e) {
-      return res.status(500).json({ success: false, error: e.message });
+      console.error(`API error [${req.path}]:`, e.message);
+      return res.status(500).json({ success: false, error: 'حدث خطأ في النظام' });
     }
   });
 
@@ -583,7 +598,8 @@ module.exports = function (app, helpers) {
 
       return res.json({ success: true });
     } catch (e) {
-      return res.status(500).json({ success: false, error: e.message });
+      console.error(`API error [${req.path}]:`, e.message);
+      return res.status(500).json({ success: false, error: 'حدث خطأ في النظام' });
     }
   });
 
@@ -632,7 +648,8 @@ module.exports = function (app, helpers) {
 
       return res.json({ success: true, subscriptions: subs });
     } catch (e) {
-      return res.status(500).json({ success: false, error: e.message });
+      console.error(`API error [${req.path}]:`, e.message);
+      return res.status(500).json({ success: false, error: 'حدث خطأ في النظام' });
     }
   });
 
@@ -704,7 +721,8 @@ module.exports = function (app, helpers) {
 
       return res.json({ success: true, id: sub_id });
     } catch (e) {
-      return res.status(500).json({ success: false, error: e.message });
+      console.error(`API error [${req.path}]:`, e.message);
+      return res.status(500).json({ success: false, error: 'حدث خطأ في النظام' });
     }
   });
 
@@ -721,7 +739,8 @@ module.exports = function (app, helpers) {
 
       return res.json({ success: true });
     } catch (e) {
-      return res.status(500).json({ success: false, error: e.message });
+      console.error(`API error [${req.path}]:`, e.message);
+      return res.status(500).json({ success: false, error: 'حدث خطأ في النظام' });
     }
   });
 
@@ -735,7 +754,8 @@ module.exports = function (app, helpers) {
 
       return res.json({ success: true });
     } catch (e) {
-      return res.status(500).json({ success: false, error: e.message });
+      console.error(`API error [${req.path}]:`, e.message);
+      return res.status(500).json({ success: false, error: 'حدث خطأ في النظام' });
     }
   });
 
@@ -801,7 +821,8 @@ module.exports = function (app, helpers) {
 
       return res.json({ success: true, subscription: sub, active: true });
     } catch (e) {
-      return res.status(500).json({ success: false, error: e.message });
+      console.error(`API error [${req.path}]:`, e.message);
+      return res.status(500).json({ success: false, error: 'حدث خطأ في النظام' });
     }
   });
 
@@ -929,7 +950,8 @@ module.exports = function (app, helpers) {
 
       return res.json({ success: true, redeemed: redeemed_items });
     } catch (e) {
-      return res.status(500).json({ success: false, error: e.message });
+      console.error(`API error [${req.path}]:`, e.message);
+      return res.status(500).json({ success: false, error: 'حدث خطأ في النظام' });
     }
   });
 
@@ -943,7 +965,8 @@ module.exports = function (app, helpers) {
 
       return res.json({ success: true, redemptions });
     } catch (e) {
-      return res.status(500).json({ success: false, error: e.message });
+      console.error(`API error [${req.path}]:`, e.message);
+      return res.status(500).json({ success: false, error: 'حدث خطأ في النظام' });
     }
   });
 
@@ -1109,7 +1132,8 @@ module.exports = function (app, helpers) {
         synced_at
       });
     } catch (e) {
-      return res.status(500).json({ success: false, error: e.message });
+      console.error(`API error [${req.path}]:`, e.message);
+      return res.status(500).json({ success: false, error: 'حدث خطأ في النظام' });
     }
   });
 
@@ -1182,7 +1206,8 @@ module.exports = function (app, helpers) {
         synced_at
       });
     } catch (e) {
-      return res.status(500).json({ success: false, error: e.message });
+      console.error(`API error [${req.path}]:`, e.message);
+      return res.status(500).json({ success: false, error: 'حدث خطأ في النظام' });
     }
   });
 
@@ -1213,7 +1238,8 @@ module.exports = function (app, helpers) {
         }
       });
     } catch (e) {
-      return res.status(500).json({ success: false, error: e.message });
+      console.error(`API error [${req.path}]:`, e.message);
+      return res.status(500).json({ success: false, error: 'حدث خطأ في النظام' });
     }
   });
 
@@ -1283,7 +1309,8 @@ module.exports = function (app, helpers) {
         full_sync: true
       });
     } catch (e) {
-      return res.status(500).json({ success: false, error: e.message });
+      console.error(`API error [${req.path}]:`, e.message);
+      return res.status(500).json({ success: false, error: 'حدث خطأ في النظام' });
     }
   });
 
@@ -1466,7 +1493,8 @@ module.exports = function (app, helpers) {
       });
     } catch (e) {
       console.error('[Sync] Pull from server error:', e.message);
-      return res.status(500).json({ success: false, error: e.message });
+      console.error(`API error [${req.path}]:`, e.message);
+      return res.status(500).json({ success: false, error: 'حدث خطأ في النظام' });
     }
   });
 

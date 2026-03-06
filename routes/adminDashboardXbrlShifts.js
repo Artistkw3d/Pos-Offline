@@ -59,7 +59,8 @@ module.exports = function (app, helpers) {
 
       res.json({ success: true, branches: branchesSummary, overall });
     } catch (e) {
-      res.status(500).json({ success: false, error: e.message });
+      console.error(`API error [${req.path}]:`, e.message);
+      res.status(500).json({ success: false, error: 'حدث خطأ في النظام' });
     }
   });
 
@@ -101,7 +102,8 @@ module.exports = function (app, helpers) {
 
       res.json({ success: true, branches, products: Object.values(productsMap) });
     } catch (e) {
-      res.status(500).json({ success: false, error: e.message });
+      console.error(`API error [${req.path}]:`, e.message);
+      res.status(500).json({ success: false, error: 'حدث خطأ في النظام' });
     }
   });
 
@@ -113,7 +115,8 @@ module.exports = function (app, helpers) {
       const row = db.prepare('SELECT * FROM xbrl_company_info ORDER BY id DESC LIMIT 1').get();
       res.json({ success: true, data: row || null });
     } catch (e) {
-      res.status(500).json({ success: false, error: e.message });
+      console.error(`API error [${req.path}]:`, e.message);
+      res.status(500).json({ success: false, error: 'حدث خطأ في النظام' });
     }
   });
 
@@ -155,7 +158,8 @@ module.exports = function (app, helpers) {
       }
       res.json({ success: true, message: 'تم حفظ بيانات الشركة' });
     } catch (e) {
-      res.status(500).json({ success: false, error: e.message });
+      console.error(`API error [${req.path}]:`, e.message);
+      res.status(500).json({ success: false, error: 'حدث خطأ في النظام' });
     }
   });
 
@@ -290,7 +294,8 @@ module.exports = function (app, helpers) {
         }
       });
     } catch (e) {
-      res.status(500).json({ success: false, error: e.message });
+      console.error(`API error [${req.path}]:`, e.message);
+      res.status(500).json({ success: false, error: 'حدث خطأ في النظام' });
     }
   });
 
@@ -581,7 +586,8 @@ ${partnersSection}
         }
       });
     } catch (e) {
-      res.status(500).json({ success: false, error: e.message });
+      console.error(`API error [${req.path}]:`, e.message);
+      res.status(500).json({ success: false, error: 'حدث خطأ في النظام' });
     }
   });
 
@@ -592,7 +598,8 @@ ${partnersSection}
       ensureXbrlTables(db);
       res.json({ success: true, reports: db.prepare('SELECT id, report_type, period_start, period_end, created_at, notes FROM xbrl_reports ORDER BY created_at DESC LIMIT 50').all() });
     } catch (e) {
-      res.status(500).json({ success: false, error: e.message });
+      console.error(`API error [${req.path}]:`, e.message);
+      res.status(500).json({ success: false, error: 'حدث خطأ في النظام' });
     }
   });
 
@@ -605,7 +612,8 @@ ${partnersSection}
       if (!row) return res.status(404).json({ success: false, error: 'التقرير غير موجود' });
       res.json({ success: true, report: row });
     } catch (e) {
-      res.status(500).json({ success: false, error: e.message });
+      console.error(`API error [${req.path}]:`, e.message);
+      res.status(500).json({ success: false, error: 'حدث خطأ في النظام' });
     }
   });
 
@@ -617,7 +625,8 @@ ${partnersSection}
       const db = getDb(req);
       res.json({ success: true, shifts: db.prepare('SELECT * FROM shifts ORDER BY created_at DESC').all() });
     } catch (e) {
-      res.status(500).json({ success: false, error: e.message });
+      console.error(`API error [${req.path}]:`, e.message);
+      res.status(500).json({ success: false, error: 'حدث خطأ في النظام' });
     }
   });
 
@@ -631,7 +640,8 @@ ${partnersSection}
           data.is_active !== undefined ? data.is_active : 1, data.auto_lock || 0);
       res.json({ success: true, id: Number(result.lastInsertRowid) });
     } catch (e) {
-      res.status(500).json({ success: false, error: e.message });
+      console.error(`API error [${req.path}]:`, e.message);
+      res.status(500).json({ success: false, error: 'حدث خطأ في النظام' });
     }
   });
 
@@ -645,7 +655,8 @@ ${partnersSection}
           data.is_active !== undefined ? data.is_active : 1, data.auto_lock || 0, req.params.shift_id);
       res.json({ success: true });
     } catch (e) {
-      res.status(500).json({ success: false, error: e.message });
+      console.error(`API error [${req.path}]:`, e.message);
+      res.status(500).json({ success: false, error: 'حدث خطأ في النظام' });
     }
   });
 
@@ -658,7 +669,8 @@ ${partnersSection}
       db.prepare('DELETE FROM shifts WHERE id = ?').run(shiftId);
       res.json({ success: true });
     } catch (e) {
-      res.status(500).json({ success: false, error: e.message });
+      console.error(`API error [${req.path}]:`, e.message);
+      res.status(500).json({ success: false, error: 'حدث خطأ في النظام' });
     }
   });
 
@@ -687,7 +699,8 @@ ${partnersSection}
 
       res.json({ success: true, locked, shift_name: shift.name, end_time: endTime, current_time: currentTime });
     } catch (e) {
-      res.status(500).json({ success: false, error: e.message });
+      console.error(`API error [${req.path}]:`, e.message);
+      res.status(500).json({ success: false, error: 'حدث خطأ في النظام' });
     }
   });
 
@@ -765,7 +778,8 @@ ${partnersSection}
 
       res.json({ success: true });
     } catch (e) {
-      res.status(500).json({ success: false, error: e.message });
+      console.error(`API error [${req.path}]:`, e.message);
+      res.status(500).json({ success: false, error: 'حدث خطأ في النظام' });
     }
   });
 
@@ -777,7 +791,8 @@ ${partnersSection}
         history: db.prepare('SELECT * FROM invoice_edit_history WHERE invoice_id = ? ORDER BY edited_at DESC').all(req.params.invoice_id)
       });
     } catch (e) {
-      res.status(500).json({ success: false, error: e.message });
+      console.error(`API error [${req.path}]:`, e.message);
+      res.status(500).json({ success: false, error: 'حدث خطأ في النظام' });
     }
   });
 
@@ -811,7 +826,8 @@ ${partnersSection}
 
       res.json({ success: true, shift_stats: shiftStats, unassigned_employees: unassigned });
     } catch (e) {
-      res.status(500).json({ success: false, error: e.message });
+      console.error(`API error [${req.path}]:`, e.message);
+      res.status(500).json({ success: false, error: 'حدث خطأ في النظام' });
     }
   });
 
@@ -835,7 +851,8 @@ ${partnersSection}
       masterDb.close();
       return res.json({ success: true, message: 'تم تحديث وضع المتجر' });
     } catch (e) {
-      return res.status(500).json({ success: false, error: e.message });
+      console.error(`API error [${req.path}]:`, e.message);
+      return res.status(500).json({ success: false, error: 'حدث خطأ في النظام' });
     }
   });
 
