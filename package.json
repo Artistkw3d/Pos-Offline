@@ -1,6 +1,6 @@
 {
   "name": "pos-offline",
-  "version": "1.2.24",
+  "version": "1.2.25",
   "description": "نظام نقاط البيع - يعمل بدون اتصال (Windows + Android)",
   "author": "Artistkw3d",
   "main": "electron/main.js",

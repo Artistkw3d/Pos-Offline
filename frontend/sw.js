@@ -2,8 +2,8 @@
 // Service Worker - PWA + Offline Support
 // ========================================
 
-const CACHE_NAME = 'pos-cache-v52';
-const STATIC_CACHE = 'pos-static-v40';
+const CACHE_NAME = 'pos-cache-v53';
+const STATIC_CACHE = 'pos-static-v41';
 
 // الملفات الأساسية
 const STATIC_ASSETS = [
@@ -19,7 +19,7 @@ const STATIC_ASSETS = [
 
 // التثبيت
 self.addEventListener('install', (event) => {
-    console.log('[SW] Installing v40...');
+    console.log('[SW] Installing v41...');
     event.waitUntil(
         caches.open(STATIC_CACHE).then(cache => {
             return Promise.allSettled(
