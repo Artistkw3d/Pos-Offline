@@ -6533,17 +6533,35 @@ function playInvoiceSound() {
 }
 
 // ===== استعادة المستخدم عند تحميل الصفحة =====
-// === جلب رقم الإصدار ===
+// === جلب رقم الإصدار + فحص التحديث ===
 async function fetchVersion() {
     try {
         const res = await fetch(`${API_URL}/api/version`, {cache: 'no-store'});
         const data = await res.json();
         if (data.success) {
-            const vText = `v${data.version}`;
+            const serverVersion = data.version;
+            const vText = `v${serverVersion}`;
             const hv = document.getElementById('headerVersion');
             const lv = document.getElementById('loginVersion');
             if (hv) hv.textContent = vText;
             if (lv) lv.textContent = vText;
+            // Force refresh if server version changed
+            const lastVersion = localStorage.getItem('pos_app_version');
+            if (lastVersion && lastVersion !== serverVersion) {
+                console.log(`[Version] Update detected: ${lastVersion} -> ${serverVersion}, clearing cache...`);
+                localStorage.setItem('pos_app_version', serverVersion);
+                if ('caches' in window) {
+                    const keys = await caches.keys();
+                    await Promise.all(keys.map(k => caches.delete(k)));
+                }
+                if (navigator.serviceWorker) {
+                    const reg = await navigator.serviceWorker.getRegistration();
+                    if (reg) await reg.update();
+                }
+                window.location.reload(true);
+                return;
+            }
+            localStorage.setItem('pos_app_version', serverVersion);
         }
     } catch(e) { console.log('[Version] fetch failed:', e); }
 }
