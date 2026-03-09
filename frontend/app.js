@@ -1,18 +1,3 @@
-// === Force refresh once per app launch to ensure latest code ===
-if (!sessionStorage.getItem('pos_refreshed')) {
-    sessionStorage.setItem('pos_refreshed', '1');
-    if ('caches' in window) {
-        caches.keys().then(function(keys) {
-            return Promise.all(keys.map(function(k) { return caches.delete(k); }));
-        }).then(function() {
-            window.location.reload(true);
-        });
-    } else {
-        window.location.reload(true);
-    }
-    throw new Error('RELOAD');  // Stop script execution until reload completes
-}
-
 const API_URL = (function() {
     // Capacitor: no local backend, use remote server
     if (window.Capacitor && window.Capacitor.isNativePlatform()) {
@@ -1138,6 +1123,15 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
                 canViewSubscriptions: hasPerm('can_view_subscriptions'),
                 canManageSubscriptions: hasPerm('can_manage_subscriptions')
             };
+
+            // تحميل إعدادات الميزات (Feature Flags)
+            if (typeof PosFeatures !== 'undefined') {
+                await PosFeatures.load();
+            }
+            // مزامنة البيانات من الخادم
+            if (typeof syncManager !== 'undefined' && syncManager.sync) {
+                try { await syncManager.sync(); } catch(_e) {}
+            }
 
             // إخفاء/إظهار الأزرار والتبويبات
             document.getElementById('settingsBtn').style.display = window.userPermissions.canAccessSettings ? 'inline-block' : 'none';
@@ -6549,7 +6543,7 @@ function playInvoiceSound() {
 
 // ===== استعادة المستخدم عند تحميل الصفحة =====
 // === رقم الإصدار ===
-const APP_VERSION = '1.3.5';
+const APP_VERSION = '1.3.6';
 (function showVersion() {
     const vText = 'v' + APP_VERSION;
     const hv = document.getElementById('headerVersion');
