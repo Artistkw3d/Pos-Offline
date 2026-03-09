@@ -246,6 +246,11 @@ ipcMain.handle('get-server-port', async () => {
     return activePort;
 });
 
+// Sync version for preload (needed before app.js loads)
+ipcMain.on('get-server-port-sync', (event) => {
+    event.returnValue = activePort;
+});
+
 // === App lifecycle ===
 app.whenReady().then(async () => {
     const port = await startServer();

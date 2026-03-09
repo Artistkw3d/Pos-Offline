@@ -5,7 +5,7 @@ const API_URL = (function() {
     }
     // Electron file:// protocol: use local server (Flask:5000 or Express:5050)
     if (window.location.protocol === 'file:') {
-        const port = window.__POS_SERVER_PORT || 5000;
+        const port = (window.electronAPI && window.electronAPI.serverPort) || window.__POS_SERVER_PORT || 5050;
         return 'http://localhost:' + port;
     }
     // Web/Docker: use current origin

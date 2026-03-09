@@ -1,10 +1,14 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 // توفير واجهة آمنة للتطبيق
+// Get server port synchronously so API_URL can use it immediately
+const serverPort = ipcRenderer.sendSync('get-server-port-sync');
+
 contextBridge.exposeInMainWorld('electronAPI', {
     // معلومات النظام
     platform: process.platform,
     isElectron: true,
+    serverPort: serverPort || null,
 
     // إرسال رسائل للعملية الرئيسية
     send: (channel, data) => {
