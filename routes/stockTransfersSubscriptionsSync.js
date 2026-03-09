@@ -1484,6 +1484,37 @@ module.exports = function (app, helpers) {
       insertAll();
       db.close();
 
+      // Register tenant in local master.db so login works offline
+      if (tenantSlug) {
+        try {
+          const masterDb = getMasterDb();
+          masterDb.prepare(`
+            CREATE TABLE IF NOT EXISTS tenants (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              name TEXT, slug TEXT UNIQUE, is_active INTEGER DEFAULT 1,
+              expires_at TEXT, created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+              mode TEXT DEFAULT 'offline'
+            )
+          `).run();
+          // Fetch real tenant info from remote server
+          let tenantName = tenantSlug;
+          let tenantExpiry = new Date(Date.now() + 365 * 86400000).toISOString().slice(0, 10);
+          try {
+            const tenantInfo = await fetchFromFlask(flaskUrl, `/api/tenant/check-status?slug=${encodeURIComponent(tenantSlug)}`);
+            if (tenantInfo.ok && tenantInfo.data && tenantInfo.data.success) {
+              tenantName = tenantInfo.data.name || tenantSlug;
+              tenantExpiry = tenantInfo.data.expires_at || tenantExpiry;
+            }
+          } catch (_) {}
+          masterDb.prepare(`INSERT OR REPLACE INTO tenants (name, slug, is_active, expires_at, mode)
+            VALUES (?, ?, 1, ?, 'offline')`).run(tenantName, tenantSlug, tenantExpiry);
+          masterDb.close();
+          console.log('[Sync] Tenant registered in local master.db:', tenantSlug);
+        } catch (mErr) {
+          console.warn('[Sync] Could not register tenant locally:', mErr.message);
+        }
+      }
+
       console.log('[Sync] Pull from server completed:', counts);
       return res.json({
         success: true,
