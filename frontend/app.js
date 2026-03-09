@@ -790,6 +790,11 @@ async function initializeUI() {
         document.getElementById('branchesBtn').style.display = 'none';
         document.getElementById('transfersBtn').style.display = 'none';
     }
+    // تحميل إعدادات الميزات (Feature Flags) وإخفاء الميزات المعطّلة
+    if (typeof PosFeatures !== 'undefined') {
+        await PosFeatures.load();
+    }
+
     // عرض خانة اختيار الطاولة في نقطة البيع
     loadTablesDropdown();
 

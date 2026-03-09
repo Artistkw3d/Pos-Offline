@@ -333,22 +333,22 @@
                 <button class="header-btn" onclick="showTab('customers')" data-tab="customers">👥 العملاء</button>
                 <button class="header-btn" onclick="showTab('reports')" data-tab="reports">📊 التقارير</button>
                 <button class="header-btn" onclick="showTab('expenses')" data-tab="expenses" id="expensesBtn" style="display: none;">💰 التكاليف</button>
-                <button class="header-btn" onclick="showTab('advancedreports')" data-tab="advancedreports" id="advancedReportsBtn" style="display: none;">📈 تقارير متقدمة</button>
+                <button class="header-btn" onclick="showTab('advancedreports')" data-tab="advancedreports" id="advancedReportsBtn" style="display: none;" data-feature="advanced_reports">📈 تقارير متقدمة</button>
                 <button class="header-btn" onclick="showTab('systemlogs')" data-tab="systemlogs" id="systemLogsBtn" style="display: none;">📋 سجل النظام</button>
-                <button class="header-btn" onclick="showTab('coupons')" data-tab="coupons" id="couponsBtn" style="display: none;">🎟️ الكوبونات</button>
-                <button class="header-btn" onclick="showTab('suppliers')" data-tab="suppliers" id="suppliersBtn" style="display: none;">🏭 الموردين</button>
-                <button class="header-btn" onclick="showTab('tables')" data-tab="tables" id="tablesBtn" style="display: none;">🍽️ الطاولات</button>
+                <button class="header-btn" onclick="showTab('coupons')" data-tab="coupons" id="couponsBtn" style="display: none;" data-feature="coupons">🎟️ الكوبونات</button>
+                <button class="header-btn" onclick="showTab('suppliers')" data-tab="suppliers" id="suppliersBtn" style="display: none;" data-feature="suppliers">🏭 الموردين</button>
+                <button class="header-btn" onclick="showTab('tables')" data-tab="tables" id="tablesBtn" style="display: none;" data-feature="restaurant_tables">🍽️ الطاولات</button>
                 <button class="header-btn" onclick="showTab('accounting')" data-tab="accounting">💰 المحاسبة</button>
-                <button class="header-btn" onclick="showTab('dcf')" data-tab="dcf" id="dcfBtn" style="display: none;">📈 تقييم DCF</button>
+                <button class="header-btn" onclick="showTab('dcf')" data-tab="dcf" id="dcfBtn" style="display: none;" data-feature="dcf">📈 تقييم DCF</button>
                 <button class="header-btn" onclick="showTab('users')" data-tab="users" id="usersBtn" style="display: none;">👥 المستخدمين</button>
                 <button class="header-btn" onclick="showTab('branches')" data-tab="branches" id="branchesBtn" style="display: none;">🏢 الفروع</button>
-                <button class="header-btn" onclick="showTab('attendance')" data-tab="attendance" id="attendanceBtn" style="display: none;">⏰ الحضور</button>
+                <button class="header-btn" onclick="showTab('attendance')" data-tab="attendance" id="attendanceBtn" style="display: none;" data-feature="attendance">⏰ الحضور</button>
                 <button class="header-btn" onclick="showTab('settings')" data-tab="settings" id="settingsBtn" style="display: none;">⚙️ إعدادات</button>
                 <button class="header-btn" onclick="showTab('backup')" data-tab="backup" id="backupBtn" style="display: none;">💾 النسخ الاحتياطي</button>
-                <button class="header-btn" onclick="showTab('xbrl')" data-tab="xbrl" id="xbrlBtn" style="display: none;">📄 XBRL</button>
+                <button class="header-btn" onclick="showTab('xbrl')" data-tab="xbrl" id="xbrlBtn" style="display: none;" data-feature="xbrl">📄 XBRL</button>
                 <button class="header-btn" onclick="showTab('admindashboard')" data-tab="admindashboard" id="adminDashboardBtn" style="display: none;">📊 شاشة الأدمن</button>
-                <button class="header-btn" onclick="showTab('transfers')" data-tab="transfers" id="transfersBtn" style="display: none;">🚚 طلبات النقل</button>
-                <button class="header-btn" onclick="showTab('subscriptions')" data-tab="subscriptions" id="subscriptionsBtn" style="display: none;">💳 الاشتراكات</button>
+                <button class="header-btn" onclick="showTab('transfers')" data-tab="transfers" id="transfersBtn" style="display: none;" data-feature="stock_transfers">🚚 طلبات النقل</button>
+                <button class="header-btn" onclick="showTab('subscriptions')" data-tab="subscriptions" id="subscriptionsBtn" style="display: none;" data-feature="subscriptions">💳 الاشتراكات</button>
             </div>
 
             <!-- User & Logout -->
@@ -3362,6 +3362,8 @@
         </div>
     </div>
 
+    <script src="core/features.js"></script>
+    <script src="core/module-loader.js"></script>
     <script src="app.js"></script>
     <script src="products-search.js"></script>
 </body>
