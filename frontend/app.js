@@ -9764,6 +9764,7 @@ async function loadSuperAdminDashboard() {
                                 <button onclick="openSubscriptionModal(${t.id})" style="background: #8b5cf6; color: white; border: none; padding: 5px 8px; border-radius: 6px; cursor: pointer; font-size: 11px;" title="الاشتراك">💳</button>
                                 <button onclick="viewTenantStats(${t.id})" style="background: #3b82f6; color: white; border: none; padding: 5px 8px; border-radius: 6px; cursor: pointer; font-size: 11px;" title="إحصائيات">📊</button>
                                 <button onclick="superAdminBackupTenant(${t.id}, '${escHTML(t.name)}')" style="background: #10b981; color: white; border: none; padding: 5px 8px; border-radius: 6px; cursor: pointer; font-size: 11px;" title="نسخ احتياطي">💾</button>
+                                <button onclick="openFeatureFlags(${t.id}, '${escHTML(t.name)}')" style="background: #06b6d4; color: white; border: none; padding: 5px 8px; border-radius: 6px; cursor: pointer; font-size: 11px;" title="الميزات">🔧</button>
                                 <button onclick="editTenant(${t.id})" style="background: #f59e0b; color: white; border: none; padding: 5px 8px; border-radius: 6px; cursor: pointer; font-size: 11px;" title="تعديل">✏️</button>
                                 <button onclick="toggleTenant(${t.id}, ${t.is_active ? 0 : 1})" style="background: ${t.is_active ? '#ef4444' : '#10b981'}; color: white; border: none; padding: 5px 8px; border-radius: 6px; cursor: pointer; font-size: 11px;" title="${t.is_active ? 'تعطيل' : 'تفعيل'}">${t.is_active ? '🚫' : '✅'}</button>
                                 <button onclick="deleteTenantAction(${t.id}, '${escHTML(t.name)}')" style="background: #dc2626; color: white; border: none; padding: 5px 8px; border-radius: 6px; cursor: pointer; font-size: 11px;" title="حذف">🗑️</button>
@@ -9993,6 +9994,103 @@ async function deleteTenantAction(tenantId, tenantName) {
         }
     } catch (e) {
         console.error('[SuperAdmin] Delete error:', e);
+    }
+}
+
+// ===== Feature Flags Management (Super Admin) =====
+let _featureFlagsTenantId = null;
+
+async function openFeatureFlags(tenantId, tenantName) {
+    _featureFlagsTenantId = tenantId;
+    document.getElementById('featureFlagsTitle').textContent = `🔧 إدارة الميزات: ${tenantName}`;
+
+    try {
+        const response = await authFetch(`${API_URL}/api/super-admin/features/${tenantId}`);
+        const data = await response.json();
+        if (!data.success) {
+            alert(data.error || 'فشل تحميل الميزات');
+            return;
+        }
+
+        const features = data.features;
+        let html = '';
+        for (const [key, info] of Object.entries(features)) {
+            const checked = info.enabled ? 'checked' : '';
+            const statusText = info.enabled ? 'مفعّل' : 'معطّل';
+            const statusColor = info.enabled ? '#10b981' : '#ef4444';
+            const timeInfo = info.enabled && info.enabled_at
+                ? `<span style="font-size: 11px; color: var(--t2);">مفعّل منذ: ${new Date(info.enabled_at).toLocaleDateString('ar-KW')}</span>`
+                : info.disabled_at
+                    ? `<span style="font-size: 11px; color: var(--t2);">معطّل منذ: ${new Date(info.disabled_at).toLocaleDateString('ar-KW')}</span>`
+                    : '';
+
+            html += `
+                <div style="display: flex; align-items: center; justify-content: space-between; padding: 12px 15px; background: var(--bg2); border-radius: 10px; border: 1px solid var(--border);">
+                    <div style="display: flex; flex-direction: column; gap: 3px;">
+                        <div style="font-size: 14px; font-weight: 600;">${escHTML(info.name_ar)}</div>
+                        <div style="font-size: 11px; color: var(--t2);">${escHTML(info.name_en)}</div>
+                        ${timeInfo}
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <span style="font-size: 12px; color: ${statusColor}; font-weight: 600;">${statusText}</span>
+                        <label style="position: relative; display: inline-block; width: 48px; height: 26px; cursor: pointer;">
+                            <input type="checkbox" data-feature-key="${key}" ${checked}
+                                style="opacity: 0; width: 0; height: 0;"
+                                onchange="this.parentElement.querySelector('.ff-slider').style.background = this.checked ? '#10b981' : '#374151'">
+                            <span class="ff-slider" style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: ${info.enabled ? '#10b981' : '#374151'}; border-radius: 26px; transition: 0.3s;"></span>
+                            <span style="position: absolute; top: 3px; ${info.enabled ? 'left: 3px' : 'right: 3px'}; width: 20px; height: 20px; background: white; border-radius: 50%; transition: 0.3s; pointer-events: none;"></span>
+                        </label>
+                    </div>
+                </div>
+            `;
+        }
+        document.getElementById('featureFlagsList').innerHTML = html;
+
+        // Add toggle animation
+        document.querySelectorAll('#featureFlagsList input[type="checkbox"]').forEach(cb => {
+            cb.addEventListener('change', function() {
+                const dot = this.parentElement.querySelector('span:last-child');
+                if (this.checked) {
+                    dot.style.left = '3px';
+                    dot.style.right = 'auto';
+                } else {
+                    dot.style.right = '3px';
+                    dot.style.left = 'auto';
+                }
+            });
+        });
+
+        document.getElementById('featureFlagsModal').classList.add('active');
+    } catch (e) {
+        console.error('[Features] Error loading:', e);
+        alert('فشل تحميل الميزات');
+    }
+}
+
+async function saveFeatureFlags() {
+    if (!_featureFlagsTenantId) return;
+
+    const features = {};
+    document.querySelectorAll('#featureFlagsList input[data-feature-key]').forEach(cb => {
+        features[cb.getAttribute('data-feature-key')] = cb.checked;
+    });
+
+    try {
+        const response = await authFetch(`${API_URL}/api/super-admin/features/${_featureFlagsTenantId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ features })
+        });
+        const data = await response.json();
+        if (data.success) {
+            alert('تم حفظ التغييرات بنجاح ✅');
+            document.getElementById('featureFlagsModal').classList.remove('active');
+        } else {
+            alert(data.error || 'فشل الحفظ');
+        }
+    } catch (e) {
+        console.error('[Features] Save error:', e);
+        alert('حدث خطأ أثناء الحفظ');
     }
 }
 

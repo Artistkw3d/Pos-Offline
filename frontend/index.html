@@ -306,6 +306,21 @@
         </div>
     </div>
 
+    <!-- Feature Flags Modal (Super Admin) -->
+    <div class="modal" id="featureFlagsModal">
+        <div class="modal-content" style="max-width: 600px;">
+            <div class="modal-header">
+                <h2 id="featureFlagsTitle">🔧 إدارة الميزات</h2>
+                <button onclick="document.getElementById('featureFlagsModal').classList.remove('active')" class="close-btn">&times;</button>
+            </div>
+            <div style="padding: 15px;">
+                <p style="color: var(--t2); margin-bottom: 15px; font-size: 13px;">تفعيل أو تعطيل الميزات لهذا المتجر. الميزات المعطّلة تختفي تماماً من واجهة المتجر.</p>
+                <div id="featureFlagsList" style="display: flex; flex-direction: column; gap: 10px;"></div>
+                <button onclick="saveFeatureFlags()" class="btn" style="width: 100%; margin-top: 20px; padding: 12px; background: linear-gradient(135deg, #d4a853, #b8892e); color: white;">💾 حفظ التغييرات</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Main -->
     <div class="container" id="mainContainer" style="display: none;">
         <div class="header">
