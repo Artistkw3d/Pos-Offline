@@ -25,6 +25,7 @@ import html
 import jwt
 from functools import wraps
 from werkzeug.security import generate_password_hash, check_password_hash
+from database.migration_runner import run_migrations, get_db_version
 
 app = Flask(__name__, static_folder='frontend')
 
@@ -1449,14 +1450,18 @@ def migrate_database(db_path=None):
     finally:
         conn.close()
 
-# ترقية قاعدة البيانات الافتراضية
+# ترقية قاعدة البيانات الافتراضية (نظام الترقية المتسلسل)
 migrate_database()
+run_migrations(DB_PATH)
+run_migrations(MASTER_DB_PATH, master=True)
 
 # ترقية جميع قواعد بيانات المستأجرين
 if os.path.exists(TENANTS_DB_DIR):
     for f in os.listdir(TENANTS_DB_DIR):
         if f.endswith('.db'):
-            migrate_database(os.path.join(TENANTS_DB_DIR, f))
+            tenant_path = os.path.join(TENANTS_DB_DIR, f)
+            migrate_database(tenant_path)
+            run_migrations(tenant_path)
 
 def get_tenant_slug():
     """استخراج معرف المستأجر من الطلب"""

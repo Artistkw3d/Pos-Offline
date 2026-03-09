@@ -249,12 +249,109 @@ print('OK')
 
 Frontend JS files are validated with `node --check` for syntax only.
 
+## Modular Architecture & Feature Flags (Planned Restructure)
+
+### Overview
+The codebase is being restructured from monolithic files into a modular, plugin-based architecture with a feature flags system controlled by Super Admin per tenant.
+
+### Target Directory Structure (Frontend)
+```
+frontend/
+├── index.html              ← slim shell: nav + module containers
+├── app.js                  ← core: router, init, module loader (~500 lines)
+├── core/
+│   ├── api.js              ← fetch wrapper + X-Tenant-ID injection
+│   ├── state.js            ← global state management
+│   ├── ui.js               ← modal, toast, escHTML, RTL helpers
+│   └── router.js           ← page navigation + module rendering
+├── modules/
+│   ├── products/
+│   │   ├── products.js
+│   │   └── products.html
+│   ├── invoices/
+│   │   ├── invoices.js
+│   │   └── invoices.html
+│   ├── customers/
+│   ├── reports/
+│   ├── settings/
+│   └── [new-feature]/      ← each new feature = new folder
+│       ├── feature.js
+│       └── feature.html
+├── style.css
+├── localdb.js
+├── sync-manager.js
+├── sw.js
+└── manifest.json
+```
+
+### Database Migration System
+Instead of scattered `ALTER TABLE ... ADD COLUMN` in try/except blocks, use a versioned migration system:
+```
+database/
+├── migrations/
+│   ├── 001_initial.sql
+│   ├── 002_add_suppliers.sql
+│   └── NNN_description.sql
+```
+- A `db_version` table tracks which migrations have been applied
+- On server startup: check current version -> run only NEW migrations -> done
+- Migrations only ADD (columns, tables, indexes) — never delete or rename existing data
+- Existing databases are upgraded safely; new databases get all migrations in order
+
+### Feature Flags System (Per-Tenant)
+A `tenant_features` table in `master.db` controls which features are enabled per store:
+```sql
+CREATE TABLE tenant_features (
+    tenant_id TEXT,
+    feature_key TEXT,
+    enabled INTEGER DEFAULT 0,
+    enabled_at TEXT,
+    PRIMARY KEY (tenant_id, feature_key)
+);
+```
+- Super Admin UI shows a toggle panel per store to enable/disable features
+- Frontend checks feature flags on load — disabled features are completely hidden
+- Backend blocks API calls for disabled features (returns 403)
+- Data is NEVER deleted when a feature is toggled off — it stays in the database
+- Toggling back on restores full access to existing data
+
+### Plugin vs System Update Rule
+**CRITICAL: When adding ANY new feature, you MUST ask the user:**
+
+> "Is this a **plugin** (feature flag) or a **system update**?"
+
+- **Plugin (user says "yes")**: The feature becomes a toggleable module. Super Admin can enable/disable it per store. It gets a feature flag entry and appears in the Super Admin features panel.
+  - Examples: loyalty points, suppliers management, XBRL reports, subscription system
+- **System Update (user says "no")**: The feature is a core change that applies to ALL stores. No toggle — always active.
+  - Examples: security fix, UI improvement, performance update, core POS functionality, bug fix
+
+### Module Registration Pattern
+Each module self-registers with metadata:
+```javascript
+export default {
+    key: 'feature_key',           // matches tenant_features.feature_key
+    type: 'plugin',               // 'plugin' (toggleable) or 'core' (always on)
+    menuItem: { icon: '...', label: '...', order: N },
+    routes: ['/feature-page'],
+    init() { /* setup */ },
+    render() { /* draw UI */ }
+}
+```
+- Plugin modules check feature flags before rendering
+- Core modules always render (no feature flag check)
+
+### Single Backend Goal
+- **Drop the Express server** (`electron/server.js` + `routes/*.js`)
+- Keep only `server.py` (Flask) as the single canonical backend
+- Electron uses Flask as a sidecar process
+- One API to maintain instead of two
+
 ## Cross-Repo & Cross-Platform Sync Policy
 
 **CRITICAL: On every change, you MUST ask the user:**
 
 > "This change affects [describe scope]. Should I also apply it to:"
-> 1. **My-Pos repo** (Docker/server deployment at `C:\Users\em6er\Desktop\My-Pos`)?
+> 1. **My-Pos repo** (Docker/server deployment at `/home/artistkw/My-Pos`)?
 > 2. **Electron/Windows desktop app** (electron/server.js + routes/*.js)?
 > 3. **Android/Capacitor app** (rebuild APK)?
 
