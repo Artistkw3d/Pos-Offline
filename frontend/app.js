@@ -485,7 +485,21 @@ async function checkFirstTimeSetup() {
     // 2) Legacy check
     const configured = localStorage.getItem('pos_flask_server_url_configured');
     const skipped = localStorage.getItem('pos_setup_skipped');
-    if (configured || skipped) return false;
+    if (configured || skipped) {
+        // Verify the setting actually exists in the server DB
+        try {
+            const resp = await fetch(API_URL + '/api/settings');
+            if (resp.ok) {
+                const sData = await resp.json();
+                const settings = sData.data || sData.settings || sData;
+                if (settings.flask_server_url) return false; // Setting exists, all good
+            }
+        } catch (_) {}
+        // If we can't verify or setting is missing, still allow login (don't block)
+        if (skipped) return false;
+        // Setting was supposedly configured but not in DB — re-show setup
+        localStorage.removeItem('pos_flask_server_url_configured');
+    }
 
     // 3) First run — show setup
     const setupOverlay = document.getElementById('serverSetupOverlay');
@@ -493,10 +507,10 @@ async function checkFirstTimeSetup() {
     if (setupOverlay) {
         setupOverlay.style.display = '';
         if (loginOverlay) loginOverlay.style.display = 'none';
-        // Electron: auto-fill localhost, show skip
+        // Electron: allow user to enter remote server URL, show skip for offline-only
         if (window.location.protocol === 'file:') {
             const urlInput = document.getElementById('setupServerUrl');
-            if (urlInput) { urlInput.value = 'http://localhost:5050'; urlInput.readOnly = true; urlInput.style.background = 'var(--raised)'; }
+            if (urlInput && !urlInput.value) urlInput.value = 'https://my-pos.org';
             const skipC = document.getElementById('setupSkipContainer');
             if (skipC) skipC.style.display = 'block';
         }
