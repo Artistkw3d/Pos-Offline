@@ -6170,6 +6170,174 @@ def super_admin_list_all_backups():
         print(f"API error [{request.path}]: {e}")
         return jsonify({'success': False, 'error': 'حدث خطأ في النظام'}), 500
 
+# ===== نظام Feature Flags =====
+
+# قائمة الميزات المتاحة (كل ميزة جديدة من نوع plugin تُضاف هنا)
+AVAILABLE_FEATURES = {
+    'suppliers': {'name_ar': 'إدارة الموردين', 'name_en': 'Suppliers', 'icon': 'truck', 'default': True},
+    'coupons': {'name_ar': 'الكوبونات', 'name_en': 'Coupons', 'icon': 'tag', 'default': True},
+    'restaurant_tables': {'name_ar': 'الطاولات', 'name_en': 'Restaurant Tables', 'icon': 'utensils', 'default': True},
+    'xbrl': {'name_ar': 'تقارير XBRL', 'name_en': 'XBRL Reports', 'icon': 'file-text', 'default': False},
+    'stock_transfers': {'name_ar': 'طلبات النقل', 'name_en': 'Stock Transfers', 'icon': 'shuffle', 'default': True},
+    'subscriptions': {'name_ar': 'الاشتراكات', 'name_en': 'Subscriptions', 'icon': 'credit-card', 'default': True},
+    'attendance': {'name_ar': 'الحضور والانصراف', 'name_en': 'Attendance', 'icon': 'clock', 'default': True},
+    'shifts': {'name_ar': 'الشفتات', 'name_en': 'Shifts', 'icon': 'calendar', 'default': True},
+    'loyalty': {'name_ar': 'نقاط الولاء', 'name_en': 'Loyalty Points', 'icon': 'star', 'default': True},
+    'advanced_reports': {'name_ar': 'التقارير المتقدمة', 'name_en': 'Advanced Reports', 'icon': 'bar-chart', 'default': True},
+    'dcf': {'name_ar': 'تقييم المنشأة', 'name_en': 'DCF Valuation', 'icon': 'trending-up', 'default': False},
+}
+
+
+def is_feature_enabled(tenant_slug, feature_key):
+    """التحقق من تفعيل ميزة معينة لمتجر"""
+    if not tenant_slug:
+        return True  # القاعدة الافتراضية: كل الميزات مفعّلة
+    if feature_key not in AVAILABLE_FEATURES:
+        return True  # ميزات غير معرّفة تعتبر مفعّلة دائماً (core features)
+    try:
+        conn = get_master_db()
+        cursor = conn.cursor()
+        # أولاً: البحث عن إعداد خاص بالمتجر
+        cursor.execute('''
+            SELECT tf.enabled FROM tenant_features tf
+            JOIN tenants t ON t.id = tf.tenant_id
+            WHERE t.slug = ? AND tf.feature_key = ?
+        ''', (tenant_slug, feature_key))
+        row = cursor.fetchone()
+        conn.close()
+        if row:
+            return bool(row[0])
+        # إذا لم يوجد إعداد خاص: استخدم القيمة الافتراضية
+        return AVAILABLE_FEATURES[feature_key].get('default', True)
+    except Exception:
+        return AVAILABLE_FEATURES[feature_key].get('default', True)
+
+
+def require_feature(feature_key):
+    """مزخرف للتحقق من تفعيل ميزة قبل تنفيذ endpoint"""
+    def decorator(f):
+        @wraps(f)
+        def decorated(*args, **kwargs):
+            tenant_slug = get_tenant_slug()
+            if not is_feature_enabled(tenant_slug, feature_key):
+                return jsonify({
+                    'success': False,
+                    'error': 'هذه الميزة غير مفعّلة لمتجرك',
+                    'feature_disabled': True,
+                    'feature_key': feature_key
+                }), 403
+            return f(*args, **kwargs)
+        return decorated
+    return decorator
+
+
+@app.route('/api/features', methods=['GET'])
+def get_enabled_features():
+    """جلب قائمة الميزات المفعّلة للمتجر الحالي"""
+    tenant_slug = get_tenant_slug()
+    features = {}
+    for key, info in AVAILABLE_FEATURES.items():
+        features[key] = {
+            'enabled': is_feature_enabled(tenant_slug, key),
+            'name_ar': info['name_ar'],
+            'name_en': info['name_en'],
+            'icon': info['icon']
+        }
+    return jsonify({'success': True, 'features': features})
+
+
+@app.route('/api/super-admin/features/<int:tenant_id>', methods=['GET'])
+def super_admin_get_features(tenant_id):
+    """جلب إعدادات الميزات لمتجر معين (Super Admin)"""
+    try:
+        conn = get_master_db()
+        cursor = conn.cursor()
+        cursor.execute('SELECT slug FROM tenants WHERE id = ?', (tenant_id,))
+        tenant = cursor.fetchone()
+        if not tenant:
+            conn.close()
+            return jsonify({'success': False, 'error': 'المتجر غير موجود'}), 404
+
+        tenant_slug = tenant[0]
+
+        # جلب الإعدادات الحالية
+        cursor.execute('''
+            SELECT feature_key, enabled, enabled_at, disabled_at
+            FROM tenant_features WHERE tenant_id = ?
+        ''', (tenant_id,))
+        saved = {row[0]: {'enabled': bool(row[1]), 'enabled_at': row[2], 'disabled_at': row[3]}
+                 for row in cursor.fetchall()}
+        conn.close()
+
+        features = {}
+        for key, info in AVAILABLE_FEATURES.items():
+            if key in saved:
+                features[key] = {
+                    'enabled': saved[key]['enabled'],
+                    'enabled_at': saved[key]['enabled_at'],
+                    'disabled_at': saved[key]['disabled_at'],
+                    'name_ar': info['name_ar'],
+                    'name_en': info['name_en'],
+                    'icon': info['icon']
+                }
+            else:
+                features[key] = {
+                    'enabled': info.get('default', True),
+                    'enabled_at': None,
+                    'disabled_at': None,
+                    'name_ar': info['name_ar'],
+                    'name_en': info['name_en'],
+                    'icon': info['icon']
+                }
+
+        return jsonify({'success': True, 'features': features, 'tenant_id': tenant_id})
+    except Exception as e:
+        print(f"API error [{request.path}]: {e}")
+        return jsonify({'success': False, 'error': 'حدث خطأ في النظام'}), 500
+
+
+@app.route('/api/super-admin/features/<int:tenant_id>', methods=['PUT'])
+def super_admin_update_features(tenant_id):
+    """تحديث إعدادات الميزات لمتجر (Super Admin)"""
+    try:
+        data = request.get_json()
+        features = data.get('features', {})
+
+        conn = get_master_db()
+        cursor = conn.cursor()
+        cursor.execute('SELECT id FROM tenants WHERE id = ?', (tenant_id,))
+        if not cursor.fetchone():
+            conn.close()
+            return jsonify({'success': False, 'error': 'المتجر غير موجود'}), 404
+
+        now = datetime.now().isoformat()
+        for feature_key, enabled in features.items():
+            if feature_key not in AVAILABLE_FEATURES:
+                continue
+            enabled = bool(enabled)
+            cursor.execute('''
+                INSERT INTO tenant_features (tenant_id, feature_key, enabled, enabled_at)
+                VALUES (?, ?, ?, ?)
+                ON CONFLICT(tenant_id, feature_key) DO UPDATE SET
+                    enabled = excluded.enabled,
+                    enabled_at = CASE WHEN excluded.enabled = 1 THEN ? ELSE enabled_at END,
+                    disabled_at = CASE WHEN excluded.enabled = 0 THEN ? ELSE disabled_at END
+            ''', (tenant_id, feature_key, 1 if enabled else 0, now, now, now))
+
+        conn.commit()
+        conn.close()
+        return jsonify({'success': True, 'message': 'تم تحديث الميزات بنجاح'})
+    except Exception as e:
+        print(f"API error [{request.path}]: {e}")
+        return jsonify({'success': False, 'error': 'حدث خطأ في النظام'}), 500
+
+
+@app.route('/api/super-admin/features/available', methods=['GET'])
+def super_admin_available_features():
+    """قائمة جميع الميزات المتاحة (Super Admin)"""
+    return jsonify({'success': True, 'features': AVAILABLE_FEATURES})
+
+
 # ===== نظام النسخ الاحتياطي =====
 
 def get_backup_dir(tenant_slug=None):
