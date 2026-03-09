@@ -3,15 +3,27 @@ const API_URL = (function() {
     if (window.Capacitor && window.Capacitor.isNativePlatform()) {
         return localStorage.getItem('pos_server_url') || 'https://my-pos.org';
     }
-    // Electron file:// protocol: use saved server URL or local server
+    // Electron file:// protocol
     if (window.location.protocol === 'file:') {
+        const port = (window.electronAPI && window.electronAPI.serverPort) || window.__POS_SERVER_PORT || 5050;
+        const localUrl = 'http://localhost:' + port;
+        const mode = localStorage.getItem('pos_tenant_mode');
+        // Offline stores: always use local Express server after initial sync
+        if (mode === 'offline' && localStorage.getItem('pos_offline_initial_sync')) {
+            return localUrl;
+        }
+        // Online stores or first-time setup: use remote server
         const savedUrl = localStorage.getItem('pos_server_url');
         if (savedUrl) return savedUrl;
-        const port = (window.electronAPI && window.electronAPI.serverPort) || window.__POS_SERVER_PORT || 5050;
-        return 'http://localhost:' + port;
+        return localUrl;
     }
     // Web/Docker: use current origin
     return window.location.origin;
+})();
+
+// Remote server URL for sync (always the remote, never localhost)
+const REMOTE_SERVER_URL = (function() {
+    return localStorage.getItem('pos_server_url') || localStorage.getItem('pos_sync_server_url') || '';
 })();
 
 // === Theme Toggle ===
@@ -648,12 +660,21 @@ async function saveServerSetup() {
     if (config.expires_at) {
         localStorage.setItem('pos_license_active', config.is_active ? '1' : '0');
     }
-    // Fire-and-forget: save to server settings
-    fetch(API_URL + '/api/settings', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ flask_server_url: config.server_url })
-    }).catch(() => {});
+    // Save flask_server_url to LOCAL Express server (so it knows where to sync from)
+    if (window.location.protocol === 'file:') {
+        const localPort = (window.electronAPI && window.electronAPI.serverPort) || window.__POS_SERVER_PORT || 5050;
+        fetch('http://localhost:' + localPort + '/api/settings', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ flask_server_url: config.server_url })
+        }).catch(() => {});
+    } else {
+        fetch(API_URL + '/api/settings', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ flask_server_url: config.server_url })
+        }).catch(() => {});
+    }
     // Reload so API_URL picks up the new pos_server_url from localStorage
     window.location.reload();
 }
@@ -1029,10 +1050,9 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
                 }
             }
 
-            // === Step 5: Auto-trigger initial data download for offline tenants ===
+            // === Initial data download for offline tenants (first time only) ===
             if (isOfflineMode() && !localStorage.getItem('pos_offline_initial_sync')) {
                 try {
-                    const syncStatusEl = document.getElementById('loginOverlay');
                     // Show a loading message
                     const syncMsg = document.createElement('div');
                     syncMsg.id = 'initialSyncMsg';
@@ -1040,17 +1060,27 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
                     syncMsg.innerHTML = '⏳ جاري تحميل بيانات المتجر...<br><small>هذه العملية تتم مرة واحدة فقط</small>';
                     document.body.appendChild(syncMsg);
 
+                    // Save flask_server_url to local Express DB so it knows where to pull from
+                    const localPort = (window.electronAPI && window.electronAPI.serverPort) || window.__POS_SERVER_PORT || 5050;
+                    const localUrl = 'http://localhost:' + localPort;
+                    if (REMOTE_SERVER_URL) {
+                        await fetch(localUrl + '/api/settings', {
+                            method: 'PUT',
+                            headers: { 'Content-Type': 'application/json', 'X-Tenant-ID': selectedTenant },
+                            body: JSON.stringify({ flask_server_url: REMOTE_SERVER_URL })
+                        }).catch(() => {});
+                    }
+
                     if (window.Capacitor && window.Capacitor.isNativePlatform()) {
-                        // Capacitor: use sync-manager's fullSync
                         if (typeof syncManager !== 'undefined' && syncManager.fullSync) {
                             await syncManager.fullSync();
                         }
                     } else {
-                        // Electron: call local Express endpoint to pull from Flask
+                        // Electron: call LOCAL Express endpoint to pull data from remote Flask
                         const branch_id = data.user.branch_id || 1;
-                        const pullResp = await fetch(`${API_URL}/api/sync/pull-from-server?branch_id=${branch_id}`, {
+                        const pullResp = await fetch(localUrl + '/api/sync/pull-from-server?branch_id=' + branch_id, {
                             method: 'POST',
-                            headers: { 'Content-Type': 'application/json' }
+                            headers: { 'Content-Type': 'application/json', 'X-Tenant-ID': selectedTenant }
                         });
                         const pullData = await pullResp.json();
                         if (pullData.success) {
@@ -1060,9 +1090,9 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
                         }
                     }
                     localStorage.setItem('pos_offline_initial_sync', '1');
-                    // Remove loading message
-                    const msgEl = document.getElementById('initialSyncMsg');
-                    if (msgEl) msgEl.remove();
+                    // Reload so API_URL switches to localhost for offline operation
+                    window.location.reload();
+                    return;
                 } catch (syncErr) {
                     console.error('[Sync] Initial download error:', syncErr);
                     const msgEl = document.getElementById('initialSyncMsg');
@@ -1198,6 +1228,11 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
 
             // تشغيل فاحص قفل الشفت
             startShiftLockChecker();
+
+            // تشغيل المزامنة التلقائية في الخلفية
+            if (typeof syncManager !== 'undefined') {
+                syncManager.start();
+            }
 
             // فحص صلاحية الترخيص
             checkLicenseGracePeriod();
@@ -6543,7 +6578,7 @@ function playInvoiceSound() {
 
 // ===== استعادة المستخدم عند تحميل الصفحة =====
 // === رقم الإصدار ===
-const APP_VERSION = '1.3.6';
+const APP_VERSION = '1.4.0';
 (function showVersion() {
     const vText = 'v' + APP_VERSION;
     const hv = document.getElementById('headerVersion');
