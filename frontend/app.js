@@ -10047,9 +10047,9 @@ async function openFeatureFlags(tenantId, tenantName) {
             const statusText = info.enabled ? 'مفعّل' : 'معطّل';
             const statusColor = info.enabled ? '#10b981' : '#ef4444';
             const timeInfo = info.enabled && info.enabled_at
-                ? `<span style="font-size: 11px; color: var(--t2);">مفعّل منذ: ${new Date(info.enabled_at).toLocaleDateString('ar-KW')}</span>`
+                ? `<span style="font-size: 11px; color: var(--t2);">مفعّل منذ: ${escHTML(new Date(info.enabled_at).toLocaleDateString('ar-KW'))}</span>`
                 : info.disabled_at
-                    ? `<span style="font-size: 11px; color: var(--t2);">معطّل منذ: ${new Date(info.disabled_at).toLocaleDateString('ar-KW')}</span>`
+                    ? `<span style="font-size: 11px; color: var(--t2);">معطّل منذ: ${escHTML(new Date(info.disabled_at).toLocaleDateString('ar-KW'))}</span>`
                     : '';
 
             html += `

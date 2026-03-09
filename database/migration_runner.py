@@ -86,7 +86,8 @@ def _execute_sql_statements(cursor, sql_content, db_path):
             # Table might not exist in this DB type (e.g. tenants table in tenant DB)
             if 'no such table' in err:
                 continue
-            print(f"[Migration] Warning in {db_path}: {stmt[:60]}... -> {e}")
+            print(f"[Migration] ERROR in {db_path}: {stmt[:100]}... -> {e}")
+            raise RuntimeError(f"Migration failed on {db_path}: {e}")
 
 
 def run_migrations(db_path, master=False):
