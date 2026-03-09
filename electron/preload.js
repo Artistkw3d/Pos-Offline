@@ -24,7 +24,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
     // طلب بيانات من العملية الرئيسية (invoke/handle pattern)
     invoke: (channel, data) => {
-        const validChannels = ['license-load'];
+        const validChannels = ['license-load', 'get-server-port'];
         if (validChannels.includes(channel)) {
             return ipcRenderer.invoke(channel, data);
         }

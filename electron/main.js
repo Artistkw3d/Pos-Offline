@@ -1,46 +1,166 @@
 const { app, BrowserWindow, Menu, ipcMain, dialog } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const { spawn } = require('child_process');
 
 let mainWindow;
-let server = null;
-const SERVER_PORT = 5050;
+let flaskProcess = null;
+let expressServer = null;
+const FLASK_PORT = 5000;
+const EXPRESS_PORT = 5050;
+let activePort = null;
 
-// تشغيل سيرفر Node.js المحلي
-function startLocalServer() {
+// === Flask sidecar (preferred backend) ===
+function startFlaskServer() {
+    return new Promise((resolve) => {
+        const dbDir = path.join(app.getPath('userData'), 'database');
+        if (!fs.existsSync(dbDir)) {
+            fs.mkdirSync(dbDir, { recursive: true });
+        }
+
+        // Copy seed database if needed
+        const dbPath = path.join(dbDir, 'pos.db');
+        const srcDb = path.join(__dirname, '..', 'database', 'pos.db');
+        if (!fs.existsSync(dbPath) && fs.existsSync(srcDb)) {
+            fs.copyFileSync(srcDb, dbPath);
+        }
+
+        // Try to find Python
+        const pythonCmd = process.platform === 'win32' ? 'python' : 'python3';
+        const serverPy = path.join(__dirname, '..', 'server.py');
+
+        if (!fs.existsSync(serverPy)) {
+            console.warn('[Flask] server.py not found, skipping Flask');
+            resolve(false);
+            return;
+        }
+
+        const env = {
+            ...process.env,
+            POS_DB_DIR: dbDir,
+            POS_PORT: String(FLASK_PORT),
+            FLASK_ENV: 'production'
+        };
+
+        try {
+            flaskProcess = spawn(pythonCmd, [serverPy], {
+                cwd: path.join(__dirname, '..'),
+                env: env,
+                stdio: ['pipe', 'pipe', 'pipe']
+            });
+
+            let started = false;
+            const timeout = setTimeout(() => {
+                if (!started) {
+                    console.warn('[Flask] Startup timeout, falling back to Express');
+                    resolve(false);
+                }
+            }, 8000);
+
+            flaskProcess.stdout.on('data', (data) => {
+                const output = data.toString();
+                console.log('[Flask]', output.trim());
+                if (!started && (output.includes('Running on') || output.includes('Serving Flask'))) {
+                    started = true;
+                    clearTimeout(timeout);
+                    activePort = FLASK_PORT;
+                    console.log(`[Flask] Server started on port ${FLASK_PORT}`);
+                    resolve(true);
+                }
+            });
+
+            flaskProcess.stderr.on('data', (data) => {
+                const output = data.toString();
+                // Flask logs to stderr by default
+                if (!started && (output.includes('Running on') || output.includes('Serving Flask'))) {
+                    started = true;
+                    clearTimeout(timeout);
+                    activePort = FLASK_PORT;
+                    console.log(`[Flask] Server started on port ${FLASK_PORT}`);
+                    resolve(true);
+                }
+                if (output.includes('Error') || output.includes('error')) {
+                    console.error('[Flask]', output.trim());
+                }
+            });
+
+            flaskProcess.on('error', (err) => {
+                console.warn('[Flask] Failed to start:', err.message);
+                clearTimeout(timeout);
+                flaskProcess = null;
+                resolve(false);
+            });
+
+            flaskProcess.on('exit', (code) => {
+                console.log(`[Flask] Process exited with code ${code}`);
+                if (!started) {
+                    clearTimeout(timeout);
+                    flaskProcess = null;
+                    resolve(false);
+                }
+            });
+
+        } catch (err) {
+            console.warn('[Flask] Spawn failed:', err.message);
+            resolve(false);
+        }
+    });
+}
+
+// === Express fallback (deprecated - will be removed in future) ===
+function startExpressServer() {
     const dbDir = path.join(app.getPath('userData'), 'database');
     const frontendDir = path.join(__dirname, '..', 'frontend');
     const backupsDir = path.join(dbDir, 'backups');
 
-    // إنشاء مجلد قاعدة البيانات
     if (!fs.existsSync(dbDir)) {
         fs.mkdirSync(dbDir, { recursive: true });
     }
 
-    // نسخ قاعدة البيانات الأولية إذا لم تكن موجودة
     const dbPath = path.join(dbDir, 'pos.db');
     const srcDb = path.join(__dirname, '..', 'database', 'pos.db');
     if (!fs.existsSync(dbPath) && fs.existsSync(srcDb)) {
         fs.copyFileSync(srcDb, dbPath);
     }
 
-    // تشغيل السيرفر المدمج (Node.js بدلاً من Python)
     try {
         const { startServer } = require('./server');
-        server = startServer({
-            port: SERVER_PORT,
+        expressServer = startServer({
+            port: EXPRESS_PORT,
             dbDir: dbDir,
             frontendDir: frontendDir,
             backupsDir: backupsDir
         });
-        console.log(`[Server] Node.js server started on port ${SERVER_PORT}`);
+        activePort = EXPRESS_PORT;
+        console.log(`[Express] Fallback server started on port ${EXPRESS_PORT}`);
+        return true;
     } catch (err) {
-        console.error('[Server] Failed to start:', err);
-        dialog.showErrorBox('خطأ في تشغيل السيرفر', err.message);
+        console.error('[Express] Failed to start:', err.message);
+        return false;
     }
 }
 
-// إنشاء النافذة الرئيسية
+// === Start server (Flask first, Express fallback) ===
+async function startServer() {
+    console.log('[Server] Attempting Flask sidecar...');
+    const flaskOk = await startFlaskServer();
+
+    if (!flaskOk) {
+        console.log('[Server] Flask unavailable, falling back to Express...');
+        const expressOk = startExpressServer();
+        if (!expressOk) {
+            dialog.showErrorBox(
+                'Server Error',
+                'Could not start either Flask or Express server.\n' +
+                'Make sure Python 3 with Flask is installed, or Node.js dependencies are available.'
+            );
+        }
+    }
+
+    return activePort;
+}
+
+// === Window ===
 function createWindow() {
     mainWindow = new BrowserWindow({
         width: 1400,
@@ -56,7 +176,6 @@ function createWindow() {
         autoHideMenuBar: true
     });
 
-    // القائمة العربية
     const menuTemplate = [
         {
             label: 'النظام',
@@ -85,9 +204,7 @@ function createWindow() {
     ];
     Menu.setApplicationMenu(Menu.buildFromTemplate(menuTemplate));
 
-    // Handle file downloads (backup, etc.)
     mainWindow.webContents.session.on('will-download', (event, item) => {
-        // Electron shows native save dialog by default
         item.on('done', (e, state) => {
             if (state === 'completed') {
                 console.log('[Download] Saved:', item.getSavePath());
@@ -95,7 +212,6 @@ function createWindow() {
         });
     });
 
-    // تحميل الواجهة - مباشرة من الملفات أو من السيرفر المحلي
     const frontendPath = path.join(__dirname, '..', 'frontend', 'index.html');
     mainWindow.loadFile(frontendPath);
 
@@ -104,65 +220,70 @@ function createWindow() {
     });
 }
 
-// === License file persistence in AppData ===
+// === License file persistence ===
 const licensePath = () => path.join(app.getPath('userData'), 'license.json');
 
 ipcMain.on('license-save', (event, data) => {
-    try {
-        fs.writeFileSync(licensePath(), data, 'utf8');
-    } catch (e) {
-        console.error('[License] Failed to save license file:', e.message);
-    }
+    try { fs.writeFileSync(licensePath(), data, 'utf8'); }
+    catch (e) { console.error('[License] Save failed:', e.message); }
 });
 
 ipcMain.on('license-clear', () => {
-    try {
-        if (fs.existsSync(licensePath())) {
-            fs.unlinkSync(licensePath());
-        }
-    } catch (e) {
-        console.error('[License] Failed to clear license file:', e.message);
-    }
+    try { if (fs.existsSync(licensePath())) fs.unlinkSync(licensePath()); }
+    catch (e) { console.error('[License] Clear failed:', e.message); }
 });
 
 ipcMain.handle('license-load', async () => {
     try {
         const lp = licensePath();
-        if (fs.existsSync(lp)) {
-            return fs.readFileSync(lp, 'utf8');
-        }
-    } catch (e) {
-        console.error('[License] Failed to load license file:', e.message);
-    }
+        if (fs.existsSync(lp)) return fs.readFileSync(lp, 'utf8');
+    } catch (e) { console.error('[License] Load failed:', e.message); }
     return null;
 });
 
-// أحداث التطبيق
-app.whenReady().then(() => {
-    startLocalServer();
+// === Expose active server port to renderer ===
+ipcMain.handle('get-server-port', async () => {
+    return activePort;
+});
+
+// === App lifecycle ===
+app.whenReady().then(async () => {
+    const port = await startServer();
     createWindow();
 
+    // Send the active port to the frontend once loaded
+    if (mainWindow && port) {
+        mainWindow.webContents.on('did-finish-load', () => {
+            mainWindow.webContents.executeJavaScript(
+                `window.__POS_SERVER_PORT = ${port}; console.log('[Electron] Server port: ${port}');`
+            );
+        });
+    }
+
     app.on('activate', () => {
-        if (BrowserWindow.getAllWindows().length === 0) {
-            createWindow();
-        }
+        if (BrowserWindow.getAllWindows().length === 0) createWindow();
     });
 });
 
 app.on('window-all-closed', () => {
-    // إيقاف السيرفر
-    if (server) {
-        server.close();
-        server = null;
+    if (flaskProcess) {
+        flaskProcess.kill();
+        flaskProcess = null;
     }
-    if (process.platform !== 'darwin') {
-        app.quit();
+    if (expressServer) {
+        expressServer.close();
+        expressServer = null;
     }
+    if (process.platform !== 'darwin') app.quit();
 });
 
 app.on('before-quit', () => {
-    if (server) {
-        server.close();
-        server = null;
+    if (flaskProcess) {
+        flaskProcess.kill();
+        flaskProcess = null;
+    }
+    if (expressServer) {
+        expressServer.close();
+        expressServer = null;
     }
 });

@@ -3,9 +3,10 @@ const API_URL = (function() {
     if (window.Capacitor && window.Capacitor.isNativePlatform()) {
         return localStorage.getItem('pos_server_url') || 'https://my-pos.org';
     }
-    // Electron file:// protocol: use local Express server
+    // Electron file:// protocol: use local server (Flask:5000 or Express:5050)
     if (window.location.protocol === 'file:') {
-        return 'http://localhost:5050';
+        const port = window.__POS_SERVER_PORT || 5000;
+        return 'http://localhost:' + port;
     }
     // Web/Docker: use current origin
     return window.location.origin;
