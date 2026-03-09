@@ -4300,6 +4300,67 @@ def delete_branch(branch_id):
         print(f"API error [{request.path}]: {e}")
         return jsonify({'success': False, 'error': 'حدث خطأ في النظام'}), 500
 
+# ===== نظام Feature Flags =====
+
+# قائمة الميزات المتاحة (كل ميزة جديدة من نوع plugin تُضاف هنا)
+AVAILABLE_FEATURES = {
+    'suppliers': {'name_ar': 'إدارة الموردين', 'name_en': 'Suppliers', 'icon': 'truck', 'default': True},
+    'coupons': {'name_ar': 'الكوبونات', 'name_en': 'Coupons', 'icon': 'tag', 'default': True},
+    'restaurant_tables': {'name_ar': 'الطاولات', 'name_en': 'Restaurant Tables', 'icon': 'utensils', 'default': True},
+    'xbrl': {'name_ar': 'تقارير XBRL', 'name_en': 'XBRL Reports', 'icon': 'file-text', 'default': False},
+    'stock_transfers': {'name_ar': 'طلبات النقل', 'name_en': 'Stock Transfers', 'icon': 'shuffle', 'default': True},
+    'subscriptions': {'name_ar': 'الاشتراكات', 'name_en': 'Subscriptions', 'icon': 'credit-card', 'default': True},
+    'attendance': {'name_ar': 'الحضور والانصراف', 'name_en': 'Attendance', 'icon': 'clock', 'default': True},
+    'shifts': {'name_ar': 'الشفتات', 'name_en': 'Shifts', 'icon': 'calendar', 'default': True},
+    'loyalty': {'name_ar': 'نقاط الولاء', 'name_en': 'Loyalty Points', 'icon': 'star', 'default': True},
+    'advanced_reports': {'name_ar': 'التقارير المتقدمة', 'name_en': 'Advanced Reports', 'icon': 'bar-chart', 'default': True},
+    'dcf': {'name_ar': 'تقييم المنشأة', 'name_en': 'DCF Valuation', 'icon': 'trending-up', 'default': False},
+}
+
+
+def is_feature_enabled(tenant_slug, feature_key):
+    """التحقق من تفعيل ميزة معينة لمتجر"""
+    if not tenant_slug:
+        return True  # القاعدة الافتراضية: كل الميزات مفعّلة
+    if feature_key not in AVAILABLE_FEATURES:
+        return True  # ميزات غير معرّفة تعتبر مفعّلة دائماً (core features)
+    try:
+        conn = get_master_db()
+        cursor = conn.cursor()
+        # أولاً: البحث عن إعداد خاص بالمتجر
+        cursor.execute('''
+            SELECT tf.enabled FROM tenant_features tf
+            JOIN tenants t ON t.id = tf.tenant_id
+            WHERE t.slug = ? AND tf.feature_key = ?
+        ''', (tenant_slug, feature_key))
+        row = cursor.fetchone()
+        conn.close()
+        if row:
+            return bool(row[0])
+        # إذا لم يوجد إعداد خاص: استخدم القيمة الافتراضية
+        return AVAILABLE_FEATURES[feature_key].get('default', True)
+    except Exception:
+        return AVAILABLE_FEATURES[feature_key].get('default', True)
+
+
+def require_feature(feature_key):
+    """مزخرف للتحقق من تفعيل ميزة قبل تنفيذ endpoint"""
+    def decorator(f):
+        @wraps(f)
+        def decorated(*args, **kwargs):
+            tenant_slug = get_tenant_slug()
+            if not is_feature_enabled(tenant_slug, feature_key):
+                return jsonify({
+                    'success': False,
+                    'error': 'هذه الميزة غير مفعّلة لمتجرك',
+                    'feature_disabled': True,
+                    'feature_key': feature_key
+                }), 403
+            return f(*args, **kwargs)
+        return decorated
+    return decorator
+
+
 # ===== API سجل الحضور =====
 
 @app.route('/api/attendance/check-in', methods=['POST'])
@@ -6174,66 +6235,7 @@ def super_admin_list_all_backups():
         print(f"API error [{request.path}]: {e}")
         return jsonify({'success': False, 'error': 'حدث خطأ في النظام'}), 500
 
-# ===== نظام Feature Flags =====
-
-# قائمة الميزات المتاحة (كل ميزة جديدة من نوع plugin تُضاف هنا)
-AVAILABLE_FEATURES = {
-    'suppliers': {'name_ar': 'إدارة الموردين', 'name_en': 'Suppliers', 'icon': 'truck', 'default': True},
-    'coupons': {'name_ar': 'الكوبونات', 'name_en': 'Coupons', 'icon': 'tag', 'default': True},
-    'restaurant_tables': {'name_ar': 'الطاولات', 'name_en': 'Restaurant Tables', 'icon': 'utensils', 'default': True},
-    'xbrl': {'name_ar': 'تقارير XBRL', 'name_en': 'XBRL Reports', 'icon': 'file-text', 'default': False},
-    'stock_transfers': {'name_ar': 'طلبات النقل', 'name_en': 'Stock Transfers', 'icon': 'shuffle', 'default': True},
-    'subscriptions': {'name_ar': 'الاشتراكات', 'name_en': 'Subscriptions', 'icon': 'credit-card', 'default': True},
-    'attendance': {'name_ar': 'الحضور والانصراف', 'name_en': 'Attendance', 'icon': 'clock', 'default': True},
-    'shifts': {'name_ar': 'الشفتات', 'name_en': 'Shifts', 'icon': 'calendar', 'default': True},
-    'loyalty': {'name_ar': 'نقاط الولاء', 'name_en': 'Loyalty Points', 'icon': 'star', 'default': True},
-    'advanced_reports': {'name_ar': 'التقارير المتقدمة', 'name_en': 'Advanced Reports', 'icon': 'bar-chart', 'default': True},
-    'dcf': {'name_ar': 'تقييم المنشأة', 'name_en': 'DCF Valuation', 'icon': 'trending-up', 'default': False},
-}
-
-
-def is_feature_enabled(tenant_slug, feature_key):
-    """التحقق من تفعيل ميزة معينة لمتجر"""
-    if not tenant_slug:
-        return True  # القاعدة الافتراضية: كل الميزات مفعّلة
-    if feature_key not in AVAILABLE_FEATURES:
-        return True  # ميزات غير معرّفة تعتبر مفعّلة دائماً (core features)
-    try:
-        conn = get_master_db()
-        cursor = conn.cursor()
-        # أولاً: البحث عن إعداد خاص بالمتجر
-        cursor.execute('''
-            SELECT tf.enabled FROM tenant_features tf
-            JOIN tenants t ON t.id = tf.tenant_id
-            WHERE t.slug = ? AND tf.feature_key = ?
-        ''', (tenant_slug, feature_key))
-        row = cursor.fetchone()
-        conn.close()
-        if row:
-            return bool(row[0])
-        # إذا لم يوجد إعداد خاص: استخدم القيمة الافتراضية
-        return AVAILABLE_FEATURES[feature_key].get('default', True)
-    except Exception:
-        return AVAILABLE_FEATURES[feature_key].get('default', True)
-
-
-def require_feature(feature_key):
-    """مزخرف للتحقق من تفعيل ميزة قبل تنفيذ endpoint"""
-    def decorator(f):
-        @wraps(f)
-        def decorated(*args, **kwargs):
-            tenant_slug = get_tenant_slug()
-            if not is_feature_enabled(tenant_slug, feature_key):
-                return jsonify({
-                    'success': False,
-                    'error': 'هذه الميزة غير مفعّلة لمتجرك',
-                    'feature_disabled': True,
-                    'feature_key': feature_key
-                }), 403
-            return f(*args, **kwargs)
-        return decorated
-    return decorator
-
+# ===== Feature Flags API Endpoints =====
 
 @app.route('/api/features', methods=['GET'])
 def get_enabled_features():
