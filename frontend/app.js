@@ -1271,7 +1271,26 @@ async function logout() {
 }
 
 // Tabs
+// تعيين ميزة لكل تبويب (plugin features فقط)
+const _tabFeatureMap = {
+    'suppliers': 'suppliers',
+    'coupons': 'coupons',
+    'tables': 'restaurant_tables',
+    'xbrl': 'xbrl',
+    'transfers': 'stock_transfers',
+    'subscriptions': 'subscriptions',
+    'attendance': 'attendance',
+    'advancedreports': 'advanced_reports',
+    'dcf': 'dcf'
+};
+
 function showTab(tabName) {
+    // التحقق من feature flags قبل عرض التبويب
+    const featureKey = _tabFeatureMap[tabName];
+    if (featureKey && typeof PosFeatures !== 'undefined' && !PosFeatures.isEnabled(featureKey)) {
+        return; // الميزة معطّلة - لا تعرض التبويب
+    }
+
     document.querySelectorAll('.header-btn').forEach(btn => btn.classList.remove('active'));
     const activeBtn = document.querySelector(`[data-tab="${tabName}"]`);
     if (activeBtn) activeBtn.classList.add('active');

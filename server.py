@@ -4303,6 +4303,7 @@ def delete_branch(branch_id):
 # ===== API سجل الحضور =====
 
 @app.route('/api/attendance/check-in', methods=['POST'])
+@require_feature('attendance')
 def check_in():
     """تسجيل حضور"""
     try:
@@ -5096,6 +5097,7 @@ def delete_return(return_id):
 # ===== API طاولات المطاعم =====
 
 @app.route('/api/tables', methods=['GET'])
+@require_feature('restaurant_tables')
 def get_tables():
     try:
         conn = get_db()
@@ -5230,6 +5232,7 @@ def reserve_table(table_id):
 # ===== API الكوبونات =====
 
 @app.route('/api/coupons', methods=['GET'])
+@require_feature('coupons')
 def get_coupons():
     try:
         conn = get_db()
@@ -5363,6 +5366,7 @@ def use_coupon():
 # ===== API الموردين =====
 
 @app.route('/api/suppliers', methods=['GET'])
+@require_feature('suppliers')
 def get_suppliers():
     try:
         conn = get_db()
@@ -7308,6 +7312,7 @@ def ensure_xbrl_tables(cursor):
         print(f"[XBRL] ensure_xbrl_tables: {e}")
 
 @app.route('/api/xbrl/company-info', methods=['GET'])
+@require_feature('xbrl')
 def get_xbrl_company_info():
     """جلب بيانات الشركة لتقارير XBRL"""
     try:
@@ -8215,6 +8220,7 @@ def get_xbrl_report(report_id):
 # ===== نظام الشفتات =====
 
 @app.route('/api/shifts', methods=['GET'])
+@require_feature('shifts')
 def get_shifts():
     """جلب جميع الشفتات"""
     try:
@@ -8566,6 +8572,7 @@ def admin_dashboard_shift_performance():
 # ===== نظام طلبات النقل المخزني =====
 
 @app.route('/api/stock-transfers', methods=['GET'])
+@require_feature('stock_transfers')
 def get_stock_transfers():
     """جلب جميع طلبات النقل"""
     try:
@@ -8951,6 +8958,7 @@ def delete_stock_transfer(transfer_id):
 # ===== API الاشتراكات =====
 
 @app.route('/api/subscription-plans', methods=['GET'])
+@require_feature('subscriptions')
 def get_subscription_plans():
     """جلب خطط الاشتراك مع منتجاتها"""
     try:
