@@ -1,3 +1,18 @@
+// === Force refresh once per app launch to ensure latest code ===
+if (!sessionStorage.getItem('pos_refreshed')) {
+    sessionStorage.setItem('pos_refreshed', '1');
+    if ('caches' in window) {
+        caches.keys().then(function(keys) {
+            return Promise.all(keys.map(function(k) { return caches.delete(k); }));
+        }).then(function() {
+            window.location.reload(true);
+        });
+    } else {
+        window.location.reload(true);
+    }
+    throw new Error('RELOAD');  // Stop script execution until reload completes
+}
+
 const API_URL = (function() {
     // Capacitor: no local backend, use remote server
     if (window.Capacitor && window.Capacitor.isNativePlatform()) {
@@ -6533,35 +6548,17 @@ function playInvoiceSound() {
 }
 
 // ===== استعادة المستخدم عند تحميل الصفحة =====
-// === جلب رقم الإصدار + فحص التحديث ===
+// === جلب رقم الإصدار ===
 async function fetchVersion() {
     try {
         const res = await fetch(`${API_URL}/api/version`, {cache: 'no-store'});
         const data = await res.json();
         if (data.success) {
-            const serverVersion = data.version;
-            const vText = `v${serverVersion}`;
+            const vText = `v${data.version}`;
             const hv = document.getElementById('headerVersion');
             const lv = document.getElementById('loginVersion');
             if (hv) hv.textContent = vText;
             if (lv) lv.textContent = vText;
-            // Force refresh if server version changed
-            const lastVersion = localStorage.getItem('pos_app_version');
-            if (lastVersion && lastVersion !== serverVersion) {
-                console.log(`[Version] Update detected: ${lastVersion} -> ${serverVersion}, clearing cache...`);
-                localStorage.setItem('pos_app_version', serverVersion);
-                if ('caches' in window) {
-                    const keys = await caches.keys();
-                    await Promise.all(keys.map(k => caches.delete(k)));
-                }
-                if (navigator.serviceWorker) {
-                    const reg = await navigator.serviceWorker.getRegistration();
-                    if (reg) await reg.update();
-                }
-                window.location.reload(true);
-                return;
-            }
-            localStorage.setItem('pos_app_version', serverVersion);
         }
     } catch(e) { console.log('[Version] fetch failed:', e); }
 }
