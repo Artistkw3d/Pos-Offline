@@ -3,8 +3,10 @@ const API_URL = (function() {
     if (window.Capacitor && window.Capacitor.isNativePlatform()) {
         return localStorage.getItem('pos_server_url') || 'https://my-pos.org';
     }
-    // Electron file:// protocol: use local server (Flask:5000 or Express:5050)
+    // Electron file:// protocol: use saved server URL or local server
     if (window.location.protocol === 'file:') {
+        const savedUrl = localStorage.getItem('pos_server_url');
+        if (savedUrl) return savedUrl;
         const port = (window.electronAPI && window.electronAPI.serverPort) || window.__POS_SERVER_PORT || 5050;
         return 'http://localhost:' + port;
     }
@@ -652,14 +654,8 @@ async function saveServerSetup() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ flask_server_url: config.server_url })
     }).catch(() => {});
-    // Transition to login
-    document.getElementById('serverSetupOverlay').style.display = 'none';
-    document.getElementById('loginOverlay').style.display = '';
-    // Pre-fill tenant slug in login form
-    if (config.tenant_slug) {
-        const slugInput = document.getElementById('loginTenantSlug');
-        if (slugInput) slugInput.value = config.tenant_slug;
-    }
+    // Reload so API_URL picks up the new pos_server_url from localStorage
+    window.location.reload();
 }
 
 async function skipServerSetup() {
