@@ -25,7 +25,11 @@ import html
 import jwt
 from functools import wraps
 from werkzeug.security import generate_password_hash, check_password_hash
-from database.migration_runner import run_migrations, get_db_version
+try:
+    from database.migration_runner import run_migrations, get_db_version
+except ImportError:
+    def run_migrations(*args, **kwargs): pass
+    def get_db_version(*args, **kwargs): return 0
 
 app = Flask(__name__, static_folder='frontend')
 
