@@ -6548,21 +6548,23 @@ function playInvoiceSound() {
 }
 
 // ===== استعادة المستخدم عند تحميل الصفحة =====
-// === جلب رقم الإصدار ===
-async function fetchVersion() {
-    try {
-        const res = await fetch(`${API_URL}/api/version`, {cache: 'no-store'});
-        const data = await res.json();
-        if (data.success) {
-            const vText = `v${data.version}`;
-            const hv = document.getElementById('headerVersion');
-            const lv = document.getElementById('loginVersion');
-            if (hv) hv.textContent = vText;
-            if (lv) lv.textContent = vText;
-        }
-    } catch(e) { console.log('[Version] fetch failed:', e); }
-}
-fetchVersion();
+// === رقم الإصدار ===
+const APP_VERSION = '1.3.5';
+(function showVersion() {
+    const vText = 'v' + APP_VERSION;
+    const hv = document.getElementById('headerVersion');
+    const lv = document.getElementById('loginVersion');
+    if (hv) hv.textContent = vText;
+    if (lv) lv.textContent = vText;
+    if (!hv && !lv) {
+        document.addEventListener('DOMContentLoaded', function() {
+            const hv2 = document.getElementById('headerVersion');
+            const lv2 = document.getElementById('loginVersion');
+            if (hv2) hv2.textContent = vText;
+            if (lv2) lv2.textContent = vText;
+        });
+    }
+})();
 
 document.addEventListener('DOMContentLoaded', async () => {
     console.log('[App] DOMContentLoaded - checking for saved user...');
