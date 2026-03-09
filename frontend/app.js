@@ -773,17 +773,17 @@ async function initializeUI() {
     document.getElementById('systemLogsBtn').style.display = window.userPermissions.canViewSystemLogs ? 'inline-block' : 'none';
     document.getElementById('clearInvoicesBtn').style.display = window.userPermissions.canDeleteInvoices ? 'inline-block' : 'none';
     document.getElementById('expensesBtn').style.display = window.userPermissions.canViewExpenses ? 'inline-block' : 'none';
-    document.getElementById('dcfBtn').style.display = window.userPermissions.canViewDcf ? 'inline-block' : 'none';
-    document.getElementById('advancedReportsBtn').style.display = window.userPermissions.canViewAdvancedReports ? 'inline-block' : 'none';
-    document.getElementById('suppliersBtn').style.display = window.userPermissions.canViewSuppliers ? 'inline-block' : 'none';
-    document.getElementById('couponsBtn').style.display = window.userPermissions.canViewCoupons ? 'inline-block' : 'none';
-    document.getElementById('tablesBtn').style.display = window.userPermissions.canViewTables ? 'inline-block' : 'none';
+    _showPermBtn('dcfBtn', window.userPermissions.canViewDcf, 'dcf');
+    _showPermBtn('advancedReportsBtn', window.userPermissions.canViewAdvancedReports, 'advanced_reports');
+    _showPermBtn('suppliersBtn', window.userPermissions.canViewSuppliers, 'suppliers');
+    _showPermBtn('couponsBtn', window.userPermissions.canViewCoupons, 'coupons');
+    _showPermBtn('tablesBtn', window.userPermissions.canViewTables, 'restaurant_tables');
     document.getElementById('returnsBtn').style.display = window.userPermissions.canViewReturns ? 'inline-block' : 'none';
-    document.getElementById('attendanceBtn').style.display = window.userPermissions.canViewAttendance ? 'inline-block' : 'none';
-    document.getElementById('xbrlBtn').style.display = window.userPermissions.canViewXbrl ? 'inline-block' : 'none';
+    _showPermBtn('attendanceBtn', window.userPermissions.canViewAttendance, 'attendance');
+    _showPermBtn('xbrlBtn', window.userPermissions.canViewXbrl, 'xbrl');
     document.getElementById('adminDashboardBtn').style.display = window.userPermissions.isAdmin ? 'inline-block' : 'none';
-    document.getElementById('transfersBtn').style.display = window.userPermissions.canViewTransfers ? 'inline-block' : 'none';
-    document.getElementById('subscriptionsBtn').style.display = window.userPermissions.canViewSubscriptions ? 'inline-block' : 'none';
+    _showPermBtn('transfersBtn', window.userPermissions.canViewTransfers, 'stock_transfers');
+    _showPermBtn('subscriptionsBtn', window.userPermissions.canViewSubscriptions, 'subscriptions');
     const _mpBtn = document.getElementById('managePlansBtn');
     if (_mpBtn) _mpBtn.style.display = window.userPermissions.canManageSubscriptions ? 'inline-block' : 'none';
     // Offline mode: hide multi-branch features
@@ -1122,17 +1122,17 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
             document.getElementById('systemLogsBtn').style.display = window.userPermissions.canViewSystemLogs ? 'inline-block' : 'none';
             document.getElementById('clearInvoicesBtn').style.display = window.userPermissions.canDeleteInvoices ? 'inline-block' : 'none';
             document.getElementById('expensesBtn').style.display = window.userPermissions.canViewExpenses ? 'inline-block' : 'none';
-            document.getElementById('dcfBtn').style.display = window.userPermissions.canViewDcf ? 'inline-block' : 'none';
-            document.getElementById('advancedReportsBtn').style.display = window.userPermissions.canViewAdvancedReports ? 'inline-block' : 'none';
-            document.getElementById('suppliersBtn').style.display = window.userPermissions.canViewSuppliers ? 'inline-block' : 'none';
-            document.getElementById('couponsBtn').style.display = window.userPermissions.canViewCoupons ? 'inline-block' : 'none';
-            document.getElementById('tablesBtn').style.display = window.userPermissions.canViewTables ? 'inline-block' : 'none';
+            _showPermBtn('dcfBtn', window.userPermissions.canViewDcf, 'dcf');
+            _showPermBtn('advancedReportsBtn', window.userPermissions.canViewAdvancedReports, 'advanced_reports');
+            _showPermBtn('suppliersBtn', window.userPermissions.canViewSuppliers, 'suppliers');
+            _showPermBtn('couponsBtn', window.userPermissions.canViewCoupons, 'coupons');
+            _showPermBtn('tablesBtn', window.userPermissions.canViewTables, 'restaurant_tables');
             document.getElementById('returnsBtn').style.display = window.userPermissions.canViewReturns ? 'inline-block' : 'none';
-            document.getElementById('attendanceBtn').style.display = window.userPermissions.canViewAttendance ? 'inline-block' : 'none';
-            document.getElementById('xbrlBtn').style.display = window.userPermissions.canViewXbrl ? 'inline-block' : 'none';
+            _showPermBtn('attendanceBtn', window.userPermissions.canViewAttendance, 'attendance');
+            _showPermBtn('xbrlBtn', window.userPermissions.canViewXbrl, 'xbrl');
             document.getElementById('adminDashboardBtn').style.display = window.userPermissions.isAdmin ? 'inline-block' : 'none';
-            document.getElementById('transfersBtn').style.display = window.userPermissions.canViewTransfers ? 'inline-block' : 'none';
-            document.getElementById('subscriptionsBtn').style.display = window.userPermissions.canViewSubscriptions ? 'inline-block' : 'none';
+            _showPermBtn('transfersBtn', window.userPermissions.canViewTransfers, 'stock_transfers');
+            _showPermBtn('subscriptionsBtn', window.userPermissions.canViewSubscriptions, 'subscriptions');
             const _mpBtn2 = document.getElementById('managePlansBtn');
             if (_mpBtn2) _mpBtn2.style.display = window.userPermissions.canManageSubscriptions ? 'inline-block' : 'none';
             // عرض خانة اختيار الطاولة في نقطة البيع
@@ -1273,6 +1273,14 @@ async function logout() {
 
 // Tabs
 // تعيين ميزة لكل تبويب (plugin features فقط)
+// Helper: show button only if permission AND feature flag both allow it
+function _showPermBtn(btnId, hasPerm, featureKey) {
+    const el = document.getElementById(btnId);
+    if (!el) return;
+    const featureOk = !featureKey || (typeof PosFeatures === 'undefined') || PosFeatures.isEnabled(featureKey);
+    el.style.display = (hasPerm && featureOk) ? 'inline-block' : 'none';
+}
+
 const _tabFeatureMap = {
     'suppliers': 'suppliers',
     'coupons': 'coupons',
