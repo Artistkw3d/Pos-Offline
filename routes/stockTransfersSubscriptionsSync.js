@@ -1529,6 +1529,90 @@ module.exports = function (app, helpers) {
     }
   });
 
+  // POST /api/sync/register-local-tenant
+  // Fallback: register tenant in local master.db when pull-from-server fails
+  app.post('/api/sync/register-local-tenant', (req, res) => {
+    try {
+      const { slug, name } = req.body || {};
+      if (!slug) return res.status(400).json({ success: false, error: 'slug required' });
+      const masterDb = getMasterDb();
+      // Check if tenant already exists
+      const existing = masterDb.prepare('SELECT id FROM tenants WHERE slug = ?').get(slug);
+      if (existing) {
+        // Just make sure it's active
+        masterDb.prepare('UPDATE tenants SET is_active = 1, mode = ? WHERE slug = ?').run('offline', slug);
+        console.log('[Sync] Tenant already exists, activated:', slug);
+      } else {
+        // Build db_path for the tenant
+        const dbDir = masterDb.pragma('database_list')[0]?.file || '';
+        const tenantDbDir = require('path').join(require('path').dirname(dbDir), 'tenants');
+        const dbPath = require('path').join(tenantDbDir, slug + '.db');
+        masterDb.prepare(`INSERT INTO tenants (name, slug, owner_name, db_path, is_active, mode, plan, expires_at)
+          VALUES (?, ?, 'admin', ?, 1, 'offline', 'basic', '2027-12-31')`).run(name || slug, slug, dbPath);
+        console.log('[Sync] Tenant registered locally:', slug);
+      }
+      return res.json({ success: true });
+    } catch (e) {
+      console.error('[Sync] Register tenant error:', e.message);
+      return res.status(500).json({ success: false, error: e.message });
+    }
+  });
+
+  // POST /api/sync/seed-local-user
+  // Seed a user into the local tenant DB so offline login works
+  app.post('/api/sync/seed-local-user', (req, res) => {
+    try {
+      const { user, password_hash } = req.body || {};
+      if (!user || !user.username) return res.status(400).json({ success: false, error: 'user data required' });
+
+      const db = getDb(req);
+      // Ensure users table exists
+      db.prepare(`CREATE TABLE IF NOT EXISTS users (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        username TEXT UNIQUE, password TEXT, full_name TEXT,
+        role TEXT DEFAULT 'cashier', branch_id INTEGER DEFAULT 1,
+        is_active INTEGER DEFAULT 1, created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        phone TEXT, email TEXT, notes TEXT, salary REAL DEFAULT 0,
+        can_give_discount INTEGER DEFAULT 0, max_discount REAL DEFAULT 0,
+        permissions TEXT DEFAULT '{}'
+      )`).run();
+
+      // Insert or update the user
+      const existing = db.prepare('SELECT id FROM users WHERE username = ?').get(user.username);
+      if (existing) {
+        if (password_hash) {
+          db.prepare('UPDATE users SET password = ?, full_name = ?, role = ?, branch_id = ?, is_active = 1 WHERE username = ?')
+            .run(password_hash, user.full_name || user.username, user.role || 'cashier', user.branch_id || 1, user.username);
+        }
+        console.log('[Sync] User updated locally:', user.username);
+      } else {
+        db.prepare(`INSERT INTO users (username, password, full_name, role, branch_id, is_active)
+          VALUES (?, ?, ?, ?, ?, 1)`)
+          .run(user.username, password_hash || '', user.full_name || user.username, user.role || 'cashier', user.branch_id || 1);
+        console.log('[Sync] User seeded locally:', user.username);
+      }
+
+      // Also ensure branches table has the user's branch
+      try {
+        db.prepare(`CREATE TABLE IF NOT EXISTS branches (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          name TEXT, address TEXT, phone TEXT,
+          is_active INTEGER DEFAULT 1, created_at TEXT DEFAULT CURRENT_TIMESTAMP
+        )`).run();
+        const branchExists = db.prepare('SELECT id FROM branches WHERE id = ?').get(user.branch_id || 1);
+        if (!branchExists) {
+          db.prepare('INSERT INTO branches (id, name, is_active) VALUES (?, ?, 1)')
+            .run(user.branch_id || 1, user.branch_name || 'Main Branch');
+        }
+      } catch (_) {}
+
+      return res.json({ success: true });
+    } catch (e) {
+      console.error('[Sync] Seed user error:', e.message);
+      return res.status(500).json({ success: false, error: e.message });
+    }
+  });
+
   // GET /api/version
   app.get('/api/version', (req, res) => {
     try {

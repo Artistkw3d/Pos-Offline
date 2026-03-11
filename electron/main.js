@@ -1,4 +1,4 @@
-const { app, BrowserWindow, Menu, ipcMain, dialog } = require('electron');
+const { app, BrowserWindow, Menu, ipcMain, dialog, session } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { spawn } = require('child_process');
@@ -9,6 +9,37 @@ let expressServer = null;
 const FLASK_PORT = 5000;
 const EXPRESS_PORT = 5050;
 let activePort = null;
+
+// === Storage reset helpers ===
+const resetFlagPath = () => path.join(app.getPath('userData'), '.reset-storage');
+
+function shouldResetStorage() {
+    return fs.existsSync(resetFlagPath());
+}
+
+async function clearAllStorage() {
+    console.log('[Reset] Clearing all Chromium storage data...');
+    try {
+        await session.defaultSession.clearStorageData({
+            storages: ['localstorage', 'indexdb', 'cookies', 'cachestorage', 'serviceworkers']
+        });
+        console.log('[Reset] clearStorageData done');
+    } catch (err) {
+        console.error('[Reset] clearStorageData failed:', err.message);
+    }
+    // Also delete Local Storage leveldb files directly (file:// protocol workaround)
+    try {
+        const lsDir = path.join(app.getPath('userData'), 'Local Storage');
+        if (fs.existsSync(lsDir)) {
+            fs.rmSync(lsDir, { recursive: true, force: true });
+            console.log('[Reset] Deleted Local Storage directory');
+        }
+    } catch (err) {
+        console.error('[Reset] Failed to delete Local Storage dir:', err.message);
+    }
+    // Remove the flag file
+    try { fs.unlinkSync(resetFlagPath()); } catch (e) {}
+}
 
 // === Flask sidecar (preferred backend) ===
 function startFlaskServer() {
@@ -181,7 +212,26 @@ function createWindow() {
             label: 'النظام',
             submenu: [
                 { label: 'تحديث', accelerator: 'F5', click: () => mainWindow.reload() },
-                ...(app.isPackaged ? [] : [{ label: 'أدوات المطور', accelerator: 'F12', click: () => mainWindow.webContents.toggleDevTools() }]),
+                { label: 'أدوات المطور', accelerator: 'F12', click: () => mainWindow.webContents.toggleDevTools() },
+                { type: 'separator' },
+                {
+                    label: 'إعادة تعيين البيانات',
+                    click: async () => {
+                        const choice = dialog.showMessageBoxSync(mainWindow, {
+                            type: 'warning',
+                            buttons: ['إلغاء', 'إعادة تعيين'],
+                            defaultId: 0,
+                            title: 'إعادة تعيين',
+                            message: 'سيتم مسح جميع البيانات المحلية وإعادة تشغيل التطبيق. هل أنت متأكد؟'
+                        });
+                        if (choice === 1) {
+                            // Clear localStorage via JS (only reliable way for file://)
+                            await mainWindow.webContents.executeJavaScript('localStorage.clear(); sessionStorage.clear();');
+                            await clearAllStorage();
+                            mainWindow.loadFile(path.join(__dirname, '..', 'frontend', 'index.html'));
+                        }
+                    }
+                },
                 { type: 'separator' },
                 { label: 'خروج', accelerator: 'Ctrl+Q', click: () => app.quit() }
             ]
@@ -241,6 +291,16 @@ ipcMain.handle('license-load', async () => {
     return null;
 });
 
+// === Clear storage and restart ===
+ipcMain.handle('clear-storage', async () => {
+    await clearAllStorage();
+    // Reload the window to get a fresh start
+    if (mainWindow) {
+        mainWindow.loadFile(path.join(__dirname, '..', 'frontend', 'index.html'));
+    }
+    return true;
+});
+
 // === Expose active server port to renderer ===
 ipcMain.handle('get-server-port', async () => {
     return activePort;
@@ -251,10 +311,68 @@ ipcMain.on('get-server-port-sync', (event) => {
     event.returnValue = activePort;
 });
 
+// Track if we need a storage reset via executeJavaScript
+let needsJsReset = false;
+
+// === Pre-ready storage reset (before Chromium locks the files) ===
+if (shouldResetStorage()) {
+    needsJsReset = true;
+    const userDataPath = app.getPath('userData');
+    const dirsToDelete = [
+        'Local Storage', 'Session Storage', 'IndexedDB', 'Cache', 'GPUCache',
+        'Service Worker', 'Code Cache', 'WebStorage', 'SharedStorage',
+        'blob_storage', 'databases', 'Shared Dictionary', 'DawnCache', 'Network'
+    ];
+    for (const dir of dirsToDelete) {
+        const fullPath = path.join(userDataPath, dir);
+        try {
+            if (fs.existsSync(fullPath)) {
+                fs.rmSync(fullPath, { recursive: true, force: true });
+                console.log('[Reset] Deleted:', dir);
+            }
+        } catch (e) {
+            console.warn('[Reset] Could not delete', dir, ':', e.message);
+        }
+    }
+    // Remove the flag file
+    try { fs.unlinkSync(resetFlagPath()); } catch (e) {}
+    console.log('[Reset] Pre-ready storage reset complete');
+}
+
 // === App lifecycle ===
 app.whenReady().then(async () => {
+
     const port = await startServer();
-    createWindow();
+
+    // If reset was requested, load a reset page first, then redirect to real app
+    if (needsJsReset) {
+        needsJsReset = false;
+        const resetHtml = path.join(__dirname, '..', 'frontend', 'reset.html');
+        // Create a temporary reset page
+        fs.writeFileSync(resetHtml, `<!DOCTYPE html><html><body><script>
+            const count = localStorage.length;
+            for (let i = count - 1; i >= 0; i--) localStorage.removeItem(localStorage.key(i));
+            sessionStorage.clear();
+            document.title = 'Cleared ' + count + ' keys, remaining: ' + localStorage.length;
+        </script><p>Resetting...</p></body></html>`);
+        createWindow();
+        // Load reset page first (same file:// origin)
+        mainWindow.loadFile(resetHtml);
+        await new Promise(resolve => {
+            mainWindow.webContents.once('did-finish-load', async () => {
+                const title = await mainWindow.webContents.executeJavaScript('document.title');
+                console.log('[Reset]', title);
+                // Now load the real app
+                const frontendPath = path.join(__dirname, '..', 'frontend', 'index.html');
+                mainWindow.loadFile(frontendPath);
+                // Clean up
+                try { fs.unlinkSync(resetHtml); } catch (_) {}
+                resolve();
+            });
+        });
+    } else {
+        createWindow();
+    }
 
     // Send the active port to the frontend once loaded
     if (mainWindow && port) {

@@ -8,12 +8,13 @@ const API_URL = (function() {
         const port = (window.electronAPI && window.electronAPI.serverPort) || window.__POS_SERVER_PORT || 5050;
         const localUrl = 'http://localhost:' + port;
         const mode = localStorage.getItem('pos_tenant_mode');
+        const initialSync = localStorage.getItem('pos_offline_initial_sync');
+        const savedUrl = localStorage.getItem('pos_server_url');
         // Offline stores: always use local Express server after initial sync
-        if (mode === 'offline' && localStorage.getItem('pos_offline_initial_sync')) {
+        if (mode === 'offline' && initialSync) {
             return localUrl;
         }
         // Online stores or first-time setup: use remote server
-        const savedUrl = localStorage.getItem('pos_server_url');
         if (savedUrl) return savedUrl;
         return localUrl;
     }
@@ -391,13 +392,12 @@ const originalFetch = window.fetch;
 window.fetch = function(url, options = {}) {
     if (typeof url === 'string' && url.includes('/api/')) {
         options.headers = options.headers || {};
+        const authToken = localStorage.getItem('pos_auth_token');
         if (options.headers instanceof Headers) {
             if (currentTenantSlug) options.headers.set('X-Tenant-ID', currentTenantSlug);
-            const authToken = localStorage.getItem('pos_auth_token');
             if (authToken) options.headers.set('Authorization', 'Bearer ' + authToken);
         } else {
             if (currentTenantSlug) options.headers['X-Tenant-ID'] = currentTenantSlug;
-            const authToken = localStorage.getItem('pos_auth_token');
             if (authToken) options.headers['Authorization'] = 'Bearer ' + authToken;
         }
     }
@@ -405,19 +405,20 @@ window.fetch = function(url, options = {}) {
         // Handle 401 - only redirect for critical API calls, not background tasks
         if (response.status === 401 && typeof url === 'string' && url.includes('/api/') && !url.includes('/api/login')) {
             // Don't redirect for background/non-critical calls
-            const skipRedirect = ['/api/attendance/', '/api/system-logs', '/api/sync/', '/api/shifts/'];
+            const skipRedirect = ['/api/attendance/', '/api/system-logs', '/api/sync/', '/api/shifts/',
+                                  '/api/settings', '/api/products', '/api/tables', '/api/customers',
+                                  '/api/features', '/api/negative-stock'];
             const isBackground = skipRedirect.some(p => url.includes(p));
-            if (!isBackground) {
+            if (!isBackground && currentUser) {
+                console.warn('[Fetch] 401 on critical route, logging out:', url);
                 localStorage.removeItem('pos_auth_token');
                 localStorage.removeItem('pos_current_user');
                 localStorage.removeItem('pos_super_admin');
-                if (currentUser || currentSuperAdmin) {
-                    currentUser = null;
-                    currentSuperAdmin = null;
-                    document.getElementById('loginOverlay').classList.remove('hidden');
-                    document.getElementById('mainContainer').style.display = 'none';
-                    document.getElementById('superAdminDashboard').style.display = 'none';
-                }
+                currentUser = null;
+                currentSuperAdmin = null;
+                document.getElementById('loginOverlay').classList.remove('hidden');
+                document.getElementById('mainContainer').style.display = 'none';
+                document.getElementById('superAdminDashboard').style.display = 'none';
             }
         }
         return response;
@@ -908,6 +909,8 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
         const rawUsername = document.getElementById('loginUsername').value;
         const password = document.getElementById('loginPassword').value;
 
+        // === DEBUG: Log login context ===
+
         // === كشف دخول المدير الأعلى: username+superadmin# ===
         const saMatch = rawUsername.match(/^(.+)\+superadmin#$/);
         if (saMatch) {
@@ -1003,7 +1006,7 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
             }
         }
 
-        const response = await fetch(`${API_URL}/api/login`, {
+        let response = await fetch(`${API_URL}/api/login`, {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({
@@ -1011,7 +1014,32 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
                 password: password
             })
         });
-        const data = await response.json();
+        let data = await response.json();
+
+        // === Fallback: if local server fails (offline mode), retry on remote server ===
+        if (!data.success && API_URL.includes('localhost') && REMOTE_SERVER_URL) {
+            console.warn('[Login] Local login failed, retrying on remote server:', REMOTE_SERVER_URL);
+            try {
+                const remoteResp = await originalFetch(`${REMOTE_SERVER_URL}/api/login`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Tenant-ID': selectedTenant
+                    },
+                    body: JSON.stringify({ username: rawUsername, password: password })
+                });
+                const remoteData = await remoteResp.json();
+                if (remoteData.success) {
+                    console.log('[Login] Remote login succeeded, resetting offline sync flag');
+                    // Remote worked - clear broken initial sync flag so it re-syncs properly
+                    localStorage.removeItem('pos_offline_initial_sync');
+                    response = remoteResp;
+                    data = remoteData;
+                }
+            } catch (remoteErr) {
+                console.error('[Login] Remote fallback also failed:', remoteErr.message);
+            }
+        }
         if (data.success) {
             currentUser = data.user;
 
@@ -1061,38 +1089,94 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
                     document.body.appendChild(syncMsg);
 
                     // Save flask_server_url to local Express DB so it knows where to pull from
+                    // Use originalFetch to avoid sending remote auth token to local server
                     const localPort = (window.electronAPI && window.electronAPI.serverPort) || window.__POS_SERVER_PORT || 5050;
                     const localUrl = 'http://localhost:' + localPort;
                     if (REMOTE_SERVER_URL) {
-                        await fetch(localUrl + '/api/settings', {
+                        await originalFetch(localUrl + '/api/settings', {
                             method: 'PUT',
                             headers: { 'Content-Type': 'application/json', 'X-Tenant-ID': selectedTenant },
                             body: JSON.stringify({ flask_server_url: REMOTE_SERVER_URL })
                         }).catch(() => {});
                     }
 
-                    if (window.Capacitor && window.Capacitor.isNativePlatform()) {
-                        if (typeof syncManager !== 'undefined' && syncManager.fullSync) {
-                            await syncManager.fullSync();
+                    let syncSuccess = false;
+
+                    // Step 1: Download data from remote server to IndexedDB (works for all platforms)
+                    if (typeof syncManager !== 'undefined' && syncManager.fullSync) {
+                        const syncResult = await syncManager.fullSync();
+                        syncSuccess = syncResult && syncResult.success;
+                        console.log('[Sync] fullSync result:', syncResult);
+                    }
+
+                    // Step 2 (Electron only): Register tenant + seed user in local Express SQLite
+                    if (!window.Capacitor || !window.Capacitor.isNativePlatform()) {
+                        const localHeaders = { 'Content-Type': 'application/json', 'X-Tenant-ID': selectedTenant };
+                        // 2a: Register tenant in local master.db
+                        try {
+                            const regResp = await originalFetch(localUrl + '/api/sync/register-local-tenant', {
+                                method: 'POST',
+                                headers: localHeaders,
+                                body: JSON.stringify({ slug: selectedTenant, name: data.user.branch_name || selectedTenant })
+                            });
+                            const regData = await regResp.json();
+                            console.log('[Sync] register-local-tenant:', regData);
+                        } catch (regErr) {
+                            console.warn('[Sync] register-local-tenant error:', regErr.message);
                         }
-                    } else {
-                        // Electron: call LOCAL Express endpoint to pull data from remote Flask
-                        const branch_id = data.user.branch_id || 1;
-                        const pullResp = await fetch(localUrl + '/api/sync/pull-from-server?branch_id=' + branch_id, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json', 'X-Tenant-ID': selectedTenant }
-                        });
-                        const pullData = await pullResp.json();
-                        if (pullData.success) {
-                            console.log('[Sync] Initial data pull completed:', pullData.counts);
-                        } else {
-                            console.error('[Sync] Initial data pull failed:', pullData.error);
+
+                        // 2b: Seed current user into local tenant DB so login works offline
+                        try {
+                            const seedResp = await originalFetch(localUrl + '/api/sync/seed-local-user', {
+                                method: 'POST',
+                                headers: localHeaders,
+                                body: JSON.stringify({
+                                    user: data.user,
+                                    password_hash: hashHex
+                                })
+                            });
+                            const seedData = await seedResp.json();
+                            console.log('[Sync] seed-local-user:', seedData);
+                        } catch (seedErr) {
+                            console.warn('[Sync] seed-local-user error:', seedErr.message);
+                        }
+
+                        // 2c: Try pull-from-server to populate full data (products, settings, etc.)
+                        try {
+                            const branch_id = data.user.branch_id || 1;
+                            const remoteToken = localStorage.getItem('pos_auth_token') || '';
+                            const pullHeaders = { ...localHeaders };
+                            if (remoteToken) pullHeaders['Authorization'] = 'Bearer ' + remoteToken;
+                            const pullResp = await originalFetch(localUrl + '/api/sync/pull-from-server?branch_id=' + branch_id, {
+                                method: 'POST',
+                                headers: pullHeaders
+                            });
+                            const pullData = await pullResp.json();
+                            if (pullData.success) {
+                                console.log('[Sync] Local SQLite populated:', pullData.counts);
+                            } else {
+                                console.warn('[Sync] pull-from-server failed:', pullData.error);
+                            }
+                        } catch (pullErr) {
+                            console.warn('[Sync] pull-from-server error:', pullErr.message);
                         }
                     }
-                    localStorage.setItem('pos_offline_initial_sync', '1');
-                    // Reload so API_URL switches to localhost for offline operation
-                    window.location.reload();
-                    return;
+                    if (syncSuccess) {
+                        localStorage.setItem('pos_offline_initial_sync', '1');
+                        // Clear remote auth token & user so login screen shows after reload.
+                        // User must re-login against local Express to get a local JWT token.
+                        localStorage.removeItem('pos_auth_token');
+                        localStorage.removeItem('pos_current_user');
+                        console.log('[Sync] Initial sync complete. Clearing remote token, forcing local re-login...');
+                        // Reload so API_URL switches to localhost for offline operation
+                        window.location.reload();
+                        return;
+                    } else {
+                        console.warn('[Sync] Initial sync failed - staying on remote server mode');
+                        const msgEl = document.getElementById('initialSyncMsg');
+                        if (msgEl) msgEl.remove();
+                        // Don't reload - continue with remote API_URL
+                    }
                 } catch (syncErr) {
                     console.error('[Sync] Initial download error:', syncErr);
                     const msgEl = document.getElementById('initialSyncMsg');

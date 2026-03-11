@@ -313,13 +313,23 @@ function checkRateLimit(ip, endpoint) {
 const PUBLIC_ROUTES = new Set([
   '/api/login', '/api/super-admin/login', '/api/version',
   '/api/tenant/check-status', '/api/license/verify',
-  '/api/sync/status', '/api/logout'
+  '/api/sync/status', '/api/logout',
+  '/api/sync/pull-from-server',
+  '/api/sync/register-local-tenant',
+  '/api/sync/seed-local-user'
 ]);
 
 function authMiddleware(req, res, next) {
   if (!req.path.startsWith('/api/')) return next();
   if (req.method === 'OPTIONS') return next();
   if (PUBLIC_ROUTES.has(req.path)) return next();
+  // Allow PUT /api/settings from localhost without auth (initial setup)
+  if (req.path === '/api/settings' && req.method === 'PUT') {
+    const ip = req.ip || req.connection.remoteAddress || '';
+    if (ip === '127.0.0.1' || ip === '::1' || ip === '::ffff:127.0.0.1') {
+      return next();
+    }
+  }
 
   // Rate limit login routes
   if (req.path === '/api/login' || req.path === '/api/super-admin/login') {
