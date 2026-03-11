@@ -2484,7 +2484,7 @@ function displayInvoiceView(inv) {
     const content = document.getElementById('invoiceViewContent');
     const isCancelled = inv.cancelled;
     content.innerHTML = `
-        <div style="padding: 20px; ${isCancelled ? 'opacity: 0.7;' : ''}">
+        <div style="padding: 20px; color: var(--t1); background: var(--card); ${isCancelled ? 'opacity: 0.7;' : ''}">
             ${isCancelled ? `
             <div style="background: #dc3545; color: white; padding: 12px 15px; border-radius: 8px; margin-bottom: 15px; text-align: center;">
                 <div style="font-size: 18px; font-weight: bold;">🚫 فاتورة ملغية</div>
@@ -2520,7 +2520,7 @@ function displayInvoiceView(inv) {
                 </tr></thead>
                 <tbody>
                     ${inv.items.map((item, i) => `
-                        <tr style="border-bottom:1px solid #ddd;">
+                        <tr style="border-bottom:1px solid var(--gold-b);">
                             <td style="padding:5px;">${i+1}</td>
                             <td style="padding:5px;">${escHTML(item.product_name)}</td>
                             <td style="padding:5px; text-align:center;">${item.quantity}</td>
@@ -2650,9 +2650,9 @@ function generateThermalInvoiceHTML(inv) {
 @page { size: 57mm 40mm; margin: 1mm; }
 @media print {
     .toolbar { display: none !important; }
-    .preview-wrapper { box-shadow: none !important; border: none !important; margin: 0 !important; }
-    body { background: #16161f !important; padding: 0 !important; }
-    .receipt { width: 55mm; font-size: 7px; padding: 1mm; }
+    .preview-wrapper { box-shadow: none !important; border: none !important; margin: 0 !important; background: #fff !important; }
+    body { background: #fff !important; padding: 0 !important; color: #000 !important; }
+    .receipt { width: 55mm; font-size: 7px; padding: 1mm; color: #000; }
     .receipt table th, .receipt table td { font-size: 6.5px; padding: 0.5mm 0; }
     .receipt .r-header { font-size: 9px; }
     .receipt .r-sub { font-size: 6px; }
@@ -2671,8 +2671,8 @@ function generateThermalInvoiceHTML(inv) {
     .btn-print:hover { background: #218838; }
     .btn-close { background: #dc3545; color: white; }
     .btn-close:hover { background: #c82333; }
-    .preview-wrapper { max-width: 280px; margin: 80px auto 20px; background: #16161f; border: 2px solid #ccc; border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.15); padding: 15px; }
-    .receipt { width: 100%; font-size: 13px; line-height: 1.5; }
+    .preview-wrapper { max-width: 280px; margin: 80px auto 20px; background: #fff; color: #000; border: 2px solid #ccc; border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.15); padding: 15px; }
+    .receipt { width: 100%; font-size: 13px; line-height: 1.5; color: #000; }
     .receipt .r-header { font-size: 18px; font-weight: bold; }
     .receipt .r-sub { font-size: 11px; }
     .receipt .r-total { font-size: 17px; font-weight: bold; }
@@ -2744,17 +2744,17 @@ function generateCompactInvoiceHTML(inv) {
 <style>
 @page{size:A4;margin:15mm;}
 *{margin:0;padding:0;box-sizing:border-box;}
-body{font-family:Arial;padding:20px;font-size:13px;}
+body{font-family:Arial;padding:20px;font-size:13px;background:#fff;color:#1a1a2e;}
 .header{text-align:center;margin-bottom:20px;padding-bottom:15px;border-bottom:2px solid #667eea;}
 .header img{max-width:150px;max-height:80px;margin-bottom:8px;}
 .header h1{font-size:24px;margin:8px 0;color:#2d3748;}
 .header p{font-size:15px;color:#667eea;margin:5px 0;}
 .info{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:15px 0;font-size:13px;}
-.info div{padding:8px;background:#1e1e2a;border-radius:6px;}
+.info div{padding:8px;background:#f8f9fa;border-radius:6px;color:#1a1a2e;}
 table{width:100%;border-collapse:collapse;margin:15px 0;}
 th,td{border:1px solid #ddd;padding:10px;text-align:right;font-size:13px;}
 th{background:#667eea;color:white;font-weight:bold;}
-tbody tr:nth-child(even){background:#1e1e2a;}
+tbody tr:nth-child(even){background:#f8f9fa;}
 .totals{margin-top:15px;font-size:14px;}
 .totals div{display:flex;justify-content:space-between;margin:8px 0;padding:5px 0;}
 .total-final{font-size:18px;font-weight:bold;border-top:3px solid #667eea;padding-top:10px;margin-top:10px;color:#667eea;}
@@ -8196,8 +8196,8 @@ async function printThermalReturn(id) {
 @media print {
     .toolbar { display: none !important; }
     .preview-wrapper { box-shadow: none !important; border: none !important; margin: 0 !important; }
-    body { background: #16161f !important; padding: 0 !important; }
-    .receipt { width: 55mm; font-size: 7px; padding: 1mm; }
+    body { background: #fff !important; padding: 0 !important; color: #000 !important; }
+    .receipt { width: 55mm; font-size: 7px; padding: 1mm; color: #000; }
     .receipt .r-header { font-size: 9px; }
     .receipt .r-sub { font-size: 7px; }
     .receipt .r-total { font-size: 9px; }
@@ -8214,8 +8214,8 @@ async function printThermalReturn(id) {
     .btn-print:hover { background: #218838; }
     .btn-close { background: #dc3545; color: white; }
     .btn-close:hover { background: #c82333; }
-    .preview-wrapper { max-width: 280px; margin: 80px auto 20px; background: #16161f; border: 2px solid #ccc; border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.15); padding: 15px; }
-    .receipt { width: 100%; font-size: 14px; line-height: 1.5; }
+    .preview-wrapper { max-width: 280px; margin: 80px auto 20px; background: #fff; border: 2px solid #ccc; border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.15); padding: 15px; color: #000; }
+    .receipt { width: 100%; font-size: 14px; line-height: 1.5; color: #000; }
     .receipt .r-header { font-size: 18px; font-weight: bold; }
     .receipt .r-sub { font-size: 14px; }
     .receipt .r-total { font-size: 17px; font-weight: bold; }
