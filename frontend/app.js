@@ -6662,7 +6662,7 @@ function playInvoiceSound() {
 
 // ===== استعادة المستخدم عند تحميل الصفحة =====
 // === رقم الإصدار ===
-const APP_VERSION = '1.4.1';
+const APP_VERSION = '1.4.4';
 (function showVersion() {
     const vText = 'v' + APP_VERSION;
     const hv = document.getElementById('headerVersion');
