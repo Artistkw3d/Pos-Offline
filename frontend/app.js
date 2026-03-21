@@ -14253,8 +14253,8 @@ async function testSyncServer() {
 
     if (working.length > 0) {
         // نجاح - في endpoint شغال
-        resultEl.style.background = '#f0fff4';
-        resultEl.style.color = '#22543d';
+        resultEl.style.background = 'rgba(78,203,113,0.08)';
+        resultEl.style.color = '#4ecb71';
         let html = `<strong>متصل بنجاح!</strong> السيرفر يعمل (${working.length}/${endpoints.length} endpoints)<br>`;
         // عرض عدد المنتجات والعملاء إذا متاح
         const productsEp = results.find(r => r.path === '/api/products' && r.success);
@@ -14267,17 +14267,17 @@ async function testSyncServer() {
         html += `<div style="font-size: 11px; margin-top: 6px; opacity: 0.7;">`;
         for (const r of results) {
             const icon = r.success ? '&#10004;' : (r.ok ? '&#9888;' : '&#10008;');
-            const color = r.success ? '#22543d' : (r.ok ? '#92400e' : '#e53e3e');
+            const color = r.success ? '#4ecb71' : (r.ok ? '#d4a853' : '#e53e3e');
             html += `<span style="color:${color};">${icon}</span> ${r.name} (${r.path}) → ${r.status || r.error}<br>`;
         }
         html += `</div>`;
         resultEl.innerHTML = html;
     } else if (responding.length > 0) {
         // السيرفر يستجيب لكن الـ endpoints ما تشتغل
-        resultEl.style.background = '#fffff0';
-        resultEl.style.color = '#92400e';
+        resultEl.style.background = 'rgba(212,168,83,0.08)';
+        resultEl.style.color = '#d4a853';
         let html = `<strong>السيرفر يستجيب لكن الـ API غير متاح</strong><br>`;
-        html += `<div style="font-size: 12px; margin-top: 8px; background: rgba(0,0,0,0.03); padding: 10px; border-radius: 6px; direction: ltr; text-align: left; font-family: monospace;">`;
+        html += `<div style="font-size: 12px; margin-top: 8px; background: rgba(255,255,255,0.05); padding: 10px; border-radius: 6px; direction: ltr; text-align: left; font-family: monospace;">`;
         for (const r of results) {
             const icon = r.ok ? '&#9888;' : '&#10008;';
             const color = r.ok ? '#d69e2e' : '#e53e3e';
@@ -14288,7 +14288,7 @@ async function testSyncServer() {
             html += `<span style="color:${color};">${icon}</span> ${r.path} → ${escHTML(detail)}<br>`;
         }
         html += `</div>`;
-        html += `<div style="font-size: 12px; margin-top: 8px; padding: 8px; background: #f7f7f7; border-radius: 6px;">`;
+        html += `<div style="font-size: 12px; margin-top: 8px; padding: 8px; background: rgba(255,255,255,0.05); border-radius: 6px;">`;
         html += `<strong>أسباب محتملة:</strong><br>`;
         html += `• السيرفر يشغل كود مختلف (مو نفس server.py)<br>`;
         html += `• الـ API على مسار فرعي (مثلاً <span style="direction:ltr;unicode-bidi:embed;">${escHTML(serverUrl)}/pos/api/...</span>)<br>`;
@@ -14322,16 +14322,16 @@ function updateSyncModeStatus() {
     const serverUrl = getSyncServerUrl();
 
     if (mode === 'server' && serverUrl) {
-        statusContainer.style.background = '#ebf8ff';
-        statusContainer.style.borderColor = '#63b3ed';
+        statusContainer.style.background = 'rgba(14,165,233,0.08)';
+        statusContainer.style.borderColor = 'rgba(14,165,233,0.3)';
         statusEl.innerHTML = `<strong>الوضع الحالي:</strong> تزامن مع سيرفر<br><span style="font-size: 12px; direction: ltr; unicode-bidi: embed;">${escHTML(serverUrl)}</span>`;
     } else if (mode === 'server') {
-        statusContainer.style.background = '#fffff0';
-        statusContainer.style.borderColor = '#ecc94b';
+        statusContainer.style.background = 'rgba(212,168,83,0.08)';
+        statusContainer.style.borderColor = 'rgba(212,168,83,0.3)';
         statusEl.innerHTML = '<strong>الوضع الحالي:</strong> سيرفر (لم يتم تحديد العنوان بعد)';
     } else {
-        statusContainer.style.background = '#e6fffa';
-        statusContainer.style.borderColor = '#81e6d9';
+        statusContainer.style.background = 'rgba(78,203,113,0.06)';
+        statusContainer.style.borderColor = 'rgba(78,203,113,0.2)';
         statusEl.innerHTML = '<strong>الوضع الحالي:</strong> محلي بالكامل';
     }
 }
@@ -14346,16 +14346,16 @@ async function syncNowFromSettings() {
     const serverUrl = getSyncServerUrl();
     if (mode !== 'server' || !serverUrl) {
         resultEl.style.display = 'block';
-        resultEl.style.background = '#fffff0';
-        resultEl.style.border = '1px solid #ecc94b';
+        resultEl.style.background = 'rgba(212,168,83,0.08)';
+        resultEl.style.border = '1px solid rgba(212,168,83,0.3)';
         resultEl.innerHTML = '⚠️ يرجى حفظ إعدادات السيرفر أولاً';
         return;
     }
 
     if (btn) btn.disabled = true;
     resultEl.style.display = 'block';
-    resultEl.style.background = '#ebf8ff';
-    resultEl.style.border = '1px solid #63b3ed';
+    resultEl.style.background = 'rgba(14,165,233,0.08)';
+    resultEl.style.border = '1px solid rgba(14,165,233,0.3)';
     resultEl.innerHTML = '⏳ جاري المزامنة الشاملة مع السيرفر...';
 
     try {
@@ -14366,8 +14366,8 @@ async function syncNowFromSettings() {
         const r = await syncManager.sync();
 
         if (r.success) {
-            resultEl.style.background = '#f0fff4';
-            resultEl.style.border = '1px solid #68d391';
+            resultEl.style.background = 'rgba(78,203,113,0.08)';
+            resultEl.style.border = '1px solid rgba(78,203,113,0.3)';
             let details = '<span style="font-size: 12px;">';
             if (r.invoices_uploaded || r.customers_uploaded)
                 details += `📤 رفع: ${r.invoices_uploaded || 0} فاتورة، ${r.customers_uploaded || 0} عميل<br>`;
@@ -14376,14 +14376,14 @@ async function syncNowFromSettings() {
             details += '</span>';
             resultEl.innerHTML = `✅ <strong>تمت المزامنة بنجاح!</strong><br>${details}`;
         } else {
-            resultEl.style.background = '#fff5f5';
-            resultEl.style.border = '1px solid #fc8181';
+            resultEl.style.background = 'rgba(232,93,93,0.08)';
+            resultEl.style.border = '1px solid rgba(232,93,93,0.3)';
             const errMsg = r.error || r.reason || r.errors?.join(', ') || 'خطأ غير معروف';
             resultEl.innerHTML = `❌ <strong>فشلت المزامنة</strong><br><span style="font-size: 12px;">${escHTML(errMsg)}</span>`;
         }
     } catch (e) {
-        resultEl.style.background = '#fff5f5';
-        resultEl.style.border = '1px solid #fc8181';
+        resultEl.style.background = 'rgba(232,93,93,0.08)';
+        resultEl.style.border = '1px solid rgba(232,93,93,0.3)';
         resultEl.innerHTML = `❌ <strong>خطأ في المزامنة</strong><br><span style="font-size: 12px;">${escHTML(e.message)}</span>`;
     } finally {
         if (btn) btn.disabled = false;
