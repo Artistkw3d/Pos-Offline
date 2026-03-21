@@ -509,8 +509,8 @@ function startServer(options = {}) {
   });
 
   // Start server
-  const server = app.listen(port, '0.0.0.0', () => {
-    console.log(`🚀 POS Server running on http://0.0.0.0:${port}`);
+  const server = app.listen(port, '127.0.0.1', () => {
+    console.log(`🚀 POS Server running on http://127.0.0.1:${port}`);
     console.log(`📍 Multi-Tenancy enabled`);
     console.log(`💾 Database: ${DB_PATH}`);
   });
