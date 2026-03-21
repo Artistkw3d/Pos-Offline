@@ -7,7 +7,7 @@ let mainWindow;
 let flaskProcess = null;
 let expressServer = null;
 const FLASK_PORT = 5000;
-const EXPRESS_PORT = 5050;
+const EXPRESS_PORT = 5055;
 let activePort = null;
 
 // === Storage reset helpers ===
@@ -154,21 +154,24 @@ function startExpressServer() {
         fs.copyFileSync(srcDb, dbPath);
     }
 
-    try {
-        const { startServer } = require('./server');
-        expressServer = startServer({
-            port: EXPRESS_PORT,
-            dbDir: dbDir,
-            frontendDir: frontendDir,
-            backupsDir: backupsDir
-        });
-        activePort = EXPRESS_PORT;
-        console.log(`[Express] Fallback server started on port ${EXPRESS_PORT}`);
-        return true;
-    } catch (err) {
-        console.error('[Express] Failed to start:', err.message);
-        return false;
+    const portsToTry = [EXPRESS_PORT, EXPRESS_PORT + 1, EXPRESS_PORT + 2, EXPRESS_PORT + 3];
+    for (const port of portsToTry) {
+        try {
+            const { startServer } = require('./server');
+            expressServer = startServer({
+                port: port,
+                dbDir: dbDir,
+                frontendDir: frontendDir,
+                backupsDir: backupsDir
+            });
+            activePort = port;
+            console.log(`[Express] Fallback server started on port ${port}`);
+            return true;
+        } catch (err) {
+            console.error(`[Express] Port ${port} failed: ${err.message}`);
+        }
     }
+    return false;
 }
 
 // === Start server (Flask first, Express fallback) ===
