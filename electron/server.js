@@ -508,19 +508,34 @@ function startServer(options = {}) {
     }
   });
 
-  // Start server
-  const server = app.listen(port, '127.0.0.1', () => {
-    console.log(`🚀 POS Server running on http://127.0.0.1:${port}`);
-    console.log(`📍 Multi-Tenancy enabled`);
-    console.log(`💾 Database: ${DB_PATH}`);
-  });
+  // Start server - returns a Promise that resolves with { server, port }
+  function listen(tryPort) {
+    return new Promise((resolve, reject) => {
+      const server = app.listen(tryPort, '127.0.0.1', () => {
+        const actualPort = server.address().port;
+        console.log(`🚀 POS Server running on http://127.0.0.1:${actualPort}`);
+        console.log(`📍 Multi-Tenancy enabled`);
+        console.log(`💾 Database: ${DB_PATH}`);
+        resolve({ server, port: actualPort });
+      });
+      server.on('error', (err) => {
+        reject(err);
+      });
+    });
+  }
 
-  return server;
+  // If port is 0, OS assigns a free port automatically
+  return listen(port);
 }
 
 // Allow running directly: node electron/server.js
 if (require.main === module) {
-  startServer();
+  startServer().then(({ port }) => {
+    console.log(`Server ready on port ${port}`);
+  }).catch(err => {
+    console.error('Failed to start:', err.message);
+    process.exit(1);
+  });
 }
 
 module.exports = { startServer };

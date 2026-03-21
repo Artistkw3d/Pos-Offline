@@ -7,8 +7,29 @@ let mainWindow;
 let flaskProcess = null;
 let expressServer = null;
 const FLASK_PORT = 5000;
-const EXPRESS_PORT = 5055;
 let activePort = null;
+
+// === Port persistence ===
+const portConfigPath = () => path.join(app.getPath('userData'), 'port-config.json');
+
+function getSavedPort() {
+    try {
+        if (fs.existsSync(portConfigPath())) {
+            const data = JSON.parse(fs.readFileSync(portConfigPath(), 'utf8'));
+            return data.port || 0;
+        }
+    } catch (e) {}
+    return 0;
+}
+
+function savePort(port) {
+    try {
+        fs.writeFileSync(portConfigPath(), JSON.stringify({ port }), 'utf8');
+        console.log(`[Port] Saved port ${port} to config`);
+    } catch (e) {
+        console.error('[Port] Failed to save:', e.message);
+    }
+}
 
 // === Storage reset helpers ===
 const resetFlagPath = () => path.join(app.getPath('userData'), '.reset-storage');
@@ -138,8 +159,8 @@ function startFlaskServer() {
     });
 }
 
-// === Express fallback (deprecated - will be removed in future) ===
-function startExpressServer() {
+// === Express fallback ===
+async function startExpressServer() {
     const dbDir = path.join(app.getPath('userData'), 'database');
     const frontendDir = path.join(__dirname, '..', 'frontend');
     const backupsDir = path.join(dbDir, 'backups');
@@ -154,18 +175,24 @@ function startExpressServer() {
         fs.copyFileSync(srcDb, dbPath);
     }
 
-    const portsToTry = [EXPRESS_PORT, EXPRESS_PORT + 1, EXPRESS_PORT + 2, EXPRESS_PORT + 3];
+    const { startServer } = require('./server');
+    const savedPort = getSavedPort();
+
+    // Try saved port first, then port 0 (auto-assign)
+    const portsToTry = savedPort ? [savedPort, 0] : [0];
+
     for (const port of portsToTry) {
         try {
-            const { startServer } = require('./server');
-            expressServer = startServer({
+            const result = await startServer({
                 port: port,
                 dbDir: dbDir,
                 frontendDir: frontendDir,
                 backupsDir: backupsDir
             });
-            activePort = port;
-            console.log(`[Express] Fallback server started on port ${port}`);
+            expressServer = result.server;
+            activePort = result.port;
+            savePort(activePort);
+            console.log(`[Express] Server started on port ${activePort}`);
             return true;
         } catch (err) {
             console.error(`[Express] Port ${port} failed: ${err.message}`);
@@ -181,7 +208,7 @@ async function startServer() {
 
     if (!flaskOk) {
         console.log('[Server] Flask unavailable, falling back to Express...');
-        const expressOk = startExpressServer();
+        const expressOk = await startExpressServer();
         if (!expressOk) {
             dialog.showErrorBox(
                 'Server Error',
