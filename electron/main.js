@@ -175,44 +175,52 @@ async function startExpressServer() {
         fs.copyFileSync(srcDb, dbPath);
     }
 
-    const { startServer } = require('./server');
-    const savedPort = getSavedPort();
+    let lastError = '';
+    try {
+        const { startServer: startExpressApp } = require('./server');
+        const savedPort = getSavedPort();
 
-    // Try saved port first, then port 0 (auto-assign)
-    const portsToTry = savedPort ? [savedPort, 0] : [0];
+        // Try saved port first, then port 0 (auto-assign)
+        const portsToTry = savedPort ? [savedPort, 0] : [0];
 
-    for (const port of portsToTry) {
-        try {
-            const result = await startServer({
-                port: port,
-                dbDir: dbDir,
-                frontendDir: frontendDir,
-                backupsDir: backupsDir
-            });
-            expressServer = result.server;
-            activePort = result.port;
-            savePort(activePort);
-            console.log(`[Express] Server started on port ${activePort}`);
-            return true;
-        } catch (err) {
-            console.error(`[Express] Port ${port} failed: ${err.message}`);
+        for (const port of portsToTry) {
+            try {
+                const result = await startExpressApp({
+                    port: port,
+                    dbDir: dbDir,
+                    frontendDir: frontendDir,
+                    backupsDir: backupsDir
+                });
+                expressServer = result.server;
+                activePort = result.port;
+                savePort(activePort);
+                console.log(`[Express] Server started on port ${activePort}`);
+                return { ok: true };
+            } catch (err) {
+                lastError = err.message;
+                console.error(`[Express] Port ${port} failed: ${err.message}`);
+            }
         }
+    } catch (err) {
+        lastError = err.message;
+        console.error(`[Express] Module load failed: ${err.message}`);
     }
-    return false;
+    return { ok: false, error: lastError };
 }
 
-// === Start server (Flask first, Express fallback) ===
-async function startServer() {
+// === Initialize backend (Flask first, Express fallback) ===
+async function initBackend() {
     console.log('[Server] Attempting Flask sidecar...');
     const flaskOk = await startFlaskServer();
 
     if (!flaskOk) {
         console.log('[Server] Flask unavailable, falling back to Express...');
-        const expressOk = await startExpressServer();
-        if (!expressOk) {
+        const result = await startExpressServer();
+        if (!result.ok) {
             dialog.showErrorBox(
                 'Server Error',
                 'Could not start either Flask or Express server.\n' +
+                'Error: ' + (result.error || 'Unknown') + '\n\n' +
                 'Make sure Python 3 with Flask is installed, or Node.js dependencies are available.'
             );
         }
@@ -372,7 +380,7 @@ if (shouldResetStorage()) {
 // === App lifecycle ===
 app.whenReady().then(async () => {
 
-    const port = await startServer();
+    const port = await initBackend();
 
     // If reset was requested, load a reset page first, then redirect to real app
     if (needsJsReset) {
