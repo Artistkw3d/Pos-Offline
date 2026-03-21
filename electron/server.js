@@ -372,8 +372,8 @@ function authMiddleware(req, res, next) {
 
 // ===== Server Setup =====
 
-function startServer(options = {}) {
-  const port = options.port || parseInt(process.env.PORT || '5000', 10);
+async function startServer(options = {}) {
+  const port = options.port !== undefined ? options.port : parseInt(process.env.PORT || '5000', 10);
 
   // Override paths if provided
   if (options.dbDir) {
@@ -524,8 +524,16 @@ function startServer(options = {}) {
     });
   }
 
-  // If port is 0, OS assigns a free port automatically
-  return listen(port);
+  // Try requested port, fallback to OS auto-assign (port 0)
+  try {
+    return await listen(port);
+  } catch (err) {
+    if (port !== 0) {
+      console.log(`[Server] Port ${port} failed (${err.message}), trying auto-assign...`);
+      return await listen(0);
+    }
+    throw err;
+  }
 }
 
 // Allow running directly: node electron/server.js

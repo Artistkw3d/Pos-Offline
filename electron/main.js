@@ -175,37 +175,25 @@ async function startExpressServer() {
         fs.copyFileSync(srcDb, dbPath);
     }
 
-    let lastError = '';
     try {
         const { startServer: startExpressApp } = require('./server');
         const savedPort = getSavedPort();
 
-        // Try saved port first, then port 0 (auto-assign)
-        const portsToTry = savedPort ? [savedPort, 0] : [0];
-
-        for (const port of portsToTry) {
-            try {
-                const result = await startExpressApp({
-                    port: port,
-                    dbDir: dbDir,
-                    frontendDir: frontendDir,
-                    backupsDir: backupsDir
-                });
-                expressServer = result.server;
-                activePort = result.port;
-                savePort(activePort);
-                console.log(`[Express] Server started on port ${activePort}`);
-                return { ok: true };
-            } catch (err) {
-                lastError = err.message;
-                console.error(`[Express] Port ${port} failed: ${err.message}`);
-            }
-        }
+        const result = await startExpressApp({
+            port: savedPort,
+            dbDir: dbDir,
+            frontendDir: frontendDir,
+            backupsDir: backupsDir
+        });
+        expressServer = result.server;
+        activePort = result.port;
+        savePort(activePort);
+        console.log(`[Express] Server started on port ${activePort}`);
+        return { ok: true };
     } catch (err) {
-        lastError = err.message;
-        console.error(`[Express] Module load failed: ${err.message}`);
+        console.error(`[Express] Failed: ${err.message}`);
+        return { ok: false, error: err.message };
     }
-    return { ok: false, error: lastError };
 }
 
 // === Initialize backend (Flask first, Express fallback) ===
