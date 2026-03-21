@@ -1986,14 +1986,14 @@ function clearSaleForm() {
     if (pmList) {
         pmList.innerHTML = `
             <div class="payment-entry" data-index="0" style="display: flex; gap: 5px; align-items: center; margin-bottom: 8px;">
-                <select class="pm-method" onchange="togglePaymentTxn(this)" style="flex: 1; padding: 8px; border: 2px solid #e0e0e0; border-radius: 6px;">
+                <select class="pm-method" onchange="togglePaymentTxn(this)" style="flex: 1; padding: 8px; border: 2px solid rgba(212,168,83,0.12); border-radius: 6px; background: var(--raised); color: var(--t1);">
                     <option value="cash">💵 نقداً</option>
                     <option value="knet">💳 كي نت</option>
                     <option value="visa">💳 فيزا</option>
                     <option value="other">💰 أخرى</option>
                 </select>
-                <input type="number" class="pm-amount" placeholder="المبلغ" step="0.001" min="0" style="width: 100px; padding: 8px; border: 2px solid #e0e0e0; border-radius: 6px;">
-                <input type="text" class="pm-txn" placeholder="رقم العملية" style="display: none; width: 110px; padding: 8px; border: 2px solid #e0e0e0; border-radius: 6px;">
+                <input type="number" class="pm-amount" placeholder="المبلغ" step="0.001" min="0" style="width: 100px; padding: 8px; border: 2px solid rgba(212,168,83,0.12); border-radius: 6px; background: var(--raised); color: var(--t1);">
+                <input type="text" class="pm-txn" placeholder="رقم العملية" style="display: none; width: 110px; padding: 8px; border: 2px solid rgba(212,168,83,0.12); border-radius: 6px; background: var(--raised); color: var(--t1);">
             </div>
         `;
     }
@@ -2101,14 +2101,14 @@ function addPaymentMethod() {
     div.dataset.index = index;
     div.style.cssText = 'display: flex; gap: 5px; align-items: center; margin-bottom: 8px;';
     div.innerHTML = `
-        <select class="pm-method" onchange="togglePaymentTxn(this)" style="flex: 1; padding: 8px; border: 2px solid #e0e0e0; border-radius: 6px;">
+        <select class="pm-method" onchange="togglePaymentTxn(this)" style="flex: 1; padding: 8px; border: 2px solid rgba(212,168,83,0.12); border-radius: 6px; background: var(--raised); color: var(--t1);">
             <option value="cash">💵 نقداً</option>
             <option value="knet">💳 كي نت</option>
             <option value="visa">💳 فيزا</option>
             <option value="other">💰 أخرى</option>
         </select>
-        <input type="number" class="pm-amount" placeholder="المبلغ" step="0.001" min="0" style="width: 100px; padding: 8px; border: 2px solid #e0e0e0; border-radius: 6px;">
-        <input type="text" class="pm-txn" placeholder="رقم العملية" style="display: none; width: 110px; padding: 8px; border: 2px solid #e0e0e0; border-radius: 6px;">
+        <input type="number" class="pm-amount" placeholder="المبلغ" step="0.001" min="0" style="width: 100px; padding: 8px; border: 2px solid rgba(212,168,83,0.12); border-radius: 6px; background: var(--raised); color: var(--t1);">
+        <input type="text" class="pm-txn" placeholder="رقم العملية" style="display: none; width: 110px; padding: 8px; border: 2px solid rgba(212,168,83,0.12); border-radius: 6px; background: var(--raised); color: var(--t1);">
         <button onclick="this.parentElement.remove()" type="button" style="background: #dc3545; color: white; border: none; padding: 6px 10px; border-radius: 6px; cursor: pointer;">✖</button>
     `;
     list.appendChild(div);
@@ -3814,12 +3814,12 @@ function loadSubscriptionInfo() {
     if (statusEl) {
         if (!isActive || isExpired) {
             statusEl.textContent = '❌ منتهي الصلاحية';
-            statusEl.style.background = '#fed7d7';
-            statusEl.style.color = '#c53030';
+            statusEl.style.background = 'rgba(232,93,93,0.1)';
+            statusEl.style.color = '#fc8181';
         } else {
             statusEl.textContent = '✅ فعال';
-            statusEl.style.background = '#c6f6d5';
-            statusEl.style.color = '#276749';
+            statusEl.style.background = 'rgba(78,203,113,0.1)';
+            statusEl.style.color = '#4ecb71';
         }
     }
 }
@@ -4441,7 +4441,7 @@ async function displayInventory() {
                             </thead>
                             <tbody>
                                 ${item.variants.map(v => `
-                                <tr style="border-bottom: 1px solid #c6f6d5;">
+                                <tr style="border-bottom: 1px solid rgba(212,168,83,0.15);">
                                     <td style="padding: 8px; text-align: center; font-weight: bold;">${escHTML(v.variant_name)}</td>
                                     <td style="padding: 8px; text-align: center; color: #38a169; font-weight: bold;">${v.price.toFixed(3)} د.ك</td>
                                     <td style="padding: 8px; text-align: center; color: #e53e3e;">${(v.cost || 0).toFixed(3)} د.ك</td>
@@ -4479,10 +4479,10 @@ function addVariantRow(data = {}) {
     row.id = `variantRow_${variantRowCounter}`;
     row.style.cssText = 'display: grid; grid-template-columns: 2fr 1fr 1fr 1fr auto; gap: 8px; align-items: center; margin-bottom: 8px; background: #16161f; padding: 10px; border-radius: 8px; border: 1px solid rgba(78,203,113,0.2);';
     row.innerHTML = `
-        <input type="text" placeholder="الاسم (مثل: صغير، وسط، كبير، 500مل)" value="${escHTML(data.variant_name || '')}" class="variant-name" style="padding: 8px; border: 1px solid #ddd; border-radius: 6px; text-align: right;">
-        <input type="number" placeholder="السعر" step="0.001" value="${escHTML(data.price || '')}" class="variant-price" style="padding: 8px; border: 1px solid #ddd; border-radius: 6px; text-align: right;">
-        <input type="number" placeholder="التكلفة" step="0.001" value="${escHTML(data.cost || '')}" class="variant-cost" style="padding: 8px; border: 1px solid #ddd; border-radius: 6px; text-align: right;">
-        <input type="text" placeholder="باركود" value="${escHTML(data.barcode || '')}" class="variant-barcode" style="padding: 8px; border: 1px solid #ddd; border-radius: 6px; text-align: right;">
+        <input type="text" placeholder="الاسم (مثل: صغير، وسط، كبير، 500مل)" value="${escHTML(data.variant_name || '')}" class="variant-name" style="padding: 8px; border: 1px solid rgba(212,168,83,0.12); border-radius: 6px; background: var(--raised); color: var(--t1); text-align: right;">
+        <input type="number" placeholder="السعر" step="0.001" value="${escHTML(data.price || '')}" class="variant-price" style="padding: 8px; border: 1px solid rgba(212,168,83,0.12); border-radius: 6px; background: var(--raised); color: var(--t1); text-align: right;">
+        <input type="number" placeholder="التكلفة" step="0.001" value="${escHTML(data.cost || '')}" class="variant-cost" style="padding: 8px; border: 1px solid rgba(212,168,83,0.12); border-radius: 6px; background: var(--raised); color: var(--t1); text-align: right;">
+        <input type="text" placeholder="باركود" value="${escHTML(data.barcode || '')}" class="variant-barcode" style="padding: 8px; border: 1px solid rgba(212,168,83,0.12); border-radius: 6px; background: var(--raised); color: var(--t1); text-align: right;">
         <button type="button" onclick="removeVariantRow('variantRow_${variantRowCounter}')" style="background: #dc3545; color: white; border: none; border-radius: 6px; padding: 8px 12px; cursor: pointer;">🗑️</button>
     `;
     container.appendChild(row);
@@ -4809,7 +4809,7 @@ async function loadCurrentDistributions(inventoryId) {
                         <td>🏢 ${branchName}</td>
                         <td>${variantLabel}</td>
                         <td><strong>${s.stock}</strong></td>
-                        <td style="max-width:250px;">${s.notes ? `<div style="font-size:11px; line-height:1.6; max-height:80px; overflow-y:auto; white-space:pre-line; background:#1e1e2a; padding:5px 8px; border-radius:6px; border:1px solid #e0e0e0;">${escHTML(s.notes)}</div>` : '<span style="color:#999;">-</span>'}</td>
+                        <td style="max-width:250px;">${s.notes ? `<div style="font-size:11px; line-height:1.6; max-height:80px; overflow-y:auto; white-space:pre-line; background:#1e1e2a; padding:5px 8px; border-radius:6px; border:1px solid rgba(212,168,83,0.12);">${escHTML(s.notes)}</div>` : '<span style="color:#999;">-</span>'}</td>
                         <td>
                             <button onclick="editDistribution(${s.id}, ${s.stock})" class="btn-sm">✏️ تعديل</button>
                             <button onclick="deleteDistribution(${s.id})" class="btn-sm btn-danger">🗑️ حذف</button>
@@ -5768,13 +5768,13 @@ function addSalaryRow() {
     const container = document.getElementById('salaryRowsContainer');
     const row = document.createElement('div');
     row.id = `salaryRow_${salaryRowCounter}`;
-    row.style.cssText = 'display: flex; gap: 8px; align-items: center; margin-bottom: 8px; background: #16161f; padding: 10px; border-radius: 8px; border: 1px solid #e2e8f0;';
+    row.style.cssText = 'display: flex; gap: 8px; align-items: center; margin-bottom: 8px; background: #16161f; padding: 10px; border-radius: 8px; border: 1px solid rgba(212,168,83,0.12);';
     row.innerHTML = `
         <div style="flex: 1;">
-            <input type="text" placeholder="اسم الموظف" class="salary-emp-name" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 6px; text-align: right;">
+            <input type="text" placeholder="اسم الموظف" class="salary-emp-name" style="width: 100%; padding: 8px; border: 1px solid rgba(212,168,83,0.12); border-radius: 6px; background: var(--raised); color: var(--t1); text-align: right;">
         </div>
         <div style="flex: 1;">
-            <input type="number" placeholder="الراتب الشهري" step="0.001" class="salary-emp-amount" oninput="calcSalaryTotal()" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 6px; text-align: right;">
+            <input type="number" placeholder="الراتب الشهري" step="0.001" class="salary-emp-amount" oninput="calcSalaryTotal()" style="width: 100%; padding: 8px; border: 1px solid rgba(212,168,83,0.12); border-radius: 6px; background: var(--raised); color: var(--t1); text-align: right;">
         </div>
         <button type="button" onclick="removeSalaryRow('salaryRow_${salaryRowCounter}')" style="background: #dc3545; color: white; border: none; border-radius: 6px; padding: 8px 12px; cursor: pointer;">🗑️</button>
     `;
@@ -6169,7 +6169,7 @@ function displayProfitLossReport(report) {
                 <div style="font-size: 28px; font-weight: bold;">${report.net_profit.toFixed(3)}</div>
                 <div style="opacity: 0.9; font-size: 12px;">د.ك</div>
             </div>
-            <div style="background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%); color: #2d3748; padding: 20px; border-radius: 12px; box-shadow: 0 4px 15px rgba(168,237,234,0.3);">
+            <div style="background: linear-gradient(135deg, #1a4a48 0%, #4a2040 100%); color: #f0ece4; padding: 20px; border-radius: 12px; box-shadow: 0 4px 15px rgba(168,237,234,0.1);">
                 <div style="opacity: 0.8; font-size: 14px; margin-bottom: 5px;">هامش الربح</div>
                 <div style="font-size: 28px; font-weight: bold;">${report.profit_margin.toFixed(2)}%</div>
             </div>
@@ -7009,7 +7009,7 @@ function addCostRow(name = '', value = 0) {
     const rowDiv = document.createElement('div');
     rowDiv.className = 'cost-row';
     rowDiv.id = `costRow${costRowCounter}`;
-    rowDiv.style.cssText = 'display: grid; grid-template-columns: 1fr 1fr auto; gap: 10px; margin-bottom: 10px; padding: 12px; background: #16161f; border-radius: 8px; border: 1px solid #e2e8f0;';
+    rowDiv.style.cssText = 'display: grid; grid-template-columns: 1fr 1fr auto; gap: 10px; margin-bottom: 10px; padding: 12px; background: #16161f; border-radius: 8px; border: 1px solid rgba(212,168,83,0.12);';
     
     rowDiv.innerHTML = `
         <div class="form-group" style="margin: 0;">
@@ -7017,7 +7017,7 @@ function addCostRow(name = '', value = 0) {
                    class="cost-name"
                    placeholder="اسم التكلفة (مثال: الباكج)"
                    value="${escHTML(name)}"
-                   style="padding: 10px; border: 2px solid #cbd5e0; border-radius: 6px; width: 100%; font-size: 14px;">
+                   style="padding: 10px; border: 2px solid rgba(212,168,83,0.12); border-radius: 6px; width: 100%; font-size: 14px; background: var(--raised); color: var(--t1);">
         </div>
         <div class="form-group" style="margin: 0;">
             <input type="number"
@@ -7026,7 +7026,7 @@ function addCostRow(name = '', value = 0) {
                    value="${escHTML(value)}"
                    step="0.001"
                    oninput="calculateTotalCost()"
-                   style="padding: 10px; border: 2px solid #cbd5e0; border-radius: 6px; width: 100%; font-size: 14px;">
+                   style="padding: 10px; border: 2px solid rgba(212,168,83,0.12); border-radius: 6px; width: 100%; font-size: 14px; background: var(--raised); color: var(--t1);">
         </div>
         <button type="button" 
                 onclick="removeCostRow('costRow${costRowCounter}')" 
@@ -7146,7 +7146,7 @@ function addInventoryCostRow(name = '', value = 0) {
     const rowDiv = document.createElement('div');
     rowDiv.className = 'inventory-cost-row';
     rowDiv.id = `inventoryCostRow${inventoryCostCounter}`;
-    rowDiv.style.cssText = 'display: grid; grid-template-columns: 1fr 1fr auto; gap: 10px; margin-bottom: 10px; padding: 12px; background: #16161f; border-radius: 8px; border: 1px solid #e2e8f0;';
+    rowDiv.style.cssText = 'display: grid; grid-template-columns: 1fr 1fr auto; gap: 10px; margin-bottom: 10px; padding: 12px; background: #16161f; border-radius: 8px; border: 1px solid rgba(212,168,83,0.12);';
     
     rowDiv.innerHTML = `
         <div class="form-group" style="margin: 0;">
@@ -7154,7 +7154,7 @@ function addInventoryCostRow(name = '', value = 0) {
                    class="inventory-cost-name"
                    placeholder="اسم التكلفة (مثال: الباكج)"
                    value="${escHTML(name)}"
-                   style="padding: 10px; border: 2px solid #cbd5e0; border-radius: 6px; width: 100%; font-size: 14px;">
+                   style="padding: 10px; border: 2px solid rgba(212,168,83,0.12); border-radius: 6px; width: 100%; font-size: 14px; background: var(--raised); color: var(--t1);">
         </div>
         <div class="form-group" style="margin: 0;">
             <input type="number"
@@ -7163,7 +7163,7 @@ function addInventoryCostRow(name = '', value = 0) {
                    value="${escHTML(value)}"
                    step="0.001"
                    oninput="calculateInventoryTotalCost()"
-                   style="padding: 10px; border: 2px solid #cbd5e0; border-radius: 6px; width: 100%; font-size: 14px;">
+                   style="padding: 10px; border: 2px solid rgba(212,168,83,0.12); border-radius: 6px; width: 100%; font-size: 14px; background: var(--raised); color: var(--t1);">
         </div>
         <button type="button" 
                 onclick="removeInventoryCostRow('inventoryCostRow${inventoryCostCounter}')" 
@@ -7354,7 +7354,7 @@ function displayCustomersTable(customers) {
                 <td>${escHTML(c.phone)}</td>
                 <td>
                     <span style="font-weight: bold; color: #0ea5e9; font-size: 16px;">${points}</span>
-                    <div style="font-size: 10px; color: #64748b;">= ${pointsValueKd} د.ك</div>
+                    <div style="font-size: 10px; color: var(--t2);">= ${pointsValueKd} د.ك</div>
                 </td>
                 <td>${(c.total_spent || 0).toFixed(3)} د.ك</td>
                 <td>${lastVisit}</td>
@@ -8394,7 +8394,7 @@ let currentSupplierId = null;
 async function loadSuppliers() {
     if (!_realOnlineStatus) {
         const container = document.getElementById('suppliersContainer');
-        if (container) container.innerHTML = '<div style="text-align:center; padding:40px; color:#92400e;"><div style="font-size:48px; margin-bottom:10px;">📴</div><p>غير متصل - لا يمكن تحميل الموردين</p></div>';
+        if (container) container.innerHTML = '<div style="text-align:center; padding:40px; color:#d4a853;"><div style="font-size:48px; margin-bottom:10px;">📴</div><p>غير متصل - لا يمكن تحميل الموردين</p></div>';
         return;
     }
     try {
@@ -8736,7 +8736,7 @@ let appliedCouponId = null;
 async function loadCoupons() {
     if (!_realOnlineStatus) {
         const container = document.getElementById('couponsContainer');
-        if (container) container.innerHTML = '<div style="text-align:center; padding:40px; color:#92400e;"><div style="font-size:48px; margin-bottom:10px;">📴</div><p>غير متصل - لا يمكن تحميل الكوبونات</p></div>';
+        if (container) container.innerHTML = '<div style="text-align:center; padding:40px; color:#d4a853;"><div style="font-size:48px; margin-bottom:10px;">📴</div><p>غير متصل - لا يمكن تحميل الكوبونات</p></div>';
         return;
     }
     try {
@@ -8814,7 +8814,7 @@ function displayCouponsTable(coupons) {
             statusBadge = '<span style="background:#38a169; color:white; padding:4px 10px; border-radius:20px; font-size:12px;">فعال</span>';
         }
 
-        html += `<tr style="border-bottom:1px solid #e2e8f0;">
+        html += `<tr style="border-bottom:1px solid rgba(212,168,83,0.15);">
             <td style="padding:12px; font-weight:bold; color:#667eea; font-family:monospace; font-size:16px;">${escHTML(c.code)}</td>
             <td style="padding:12px; text-align:center;">${c.discount_type === 'percent' ? '📊 نسبة' : '💵 مبلغ'}</td>
             <td style="padding:12px; text-align:center; font-weight:bold;">${c.discount_type === 'percent' ? c.discount_value + '%' : c.discount_value.toFixed(3) + ' د.ك'}</td>
@@ -8936,15 +8936,15 @@ async function applyCouponCode() {
 
     if (!code) {
         resultDiv.style.display = 'block';
-        resultDiv.style.background = '#fee2e2';
-        resultDiv.style.color = '#991b1b';
+        resultDiv.style.background = 'rgba(232,93,93,0.08)';
+        resultDiv.style.color = '#fc8181';
         resultDiv.innerHTML = '⚠️ الرجاء إدخال كود الكوبون';
         return;
     }
 
     if (!_realOnlineStatus) {
         resultDiv.style.display = 'block';
-        resultDiv.style.background = '#fef3c7';
+        resultDiv.style.background = 'rgba(212,168,83,0.08)';
         resultDiv.style.color = '#92400e';
         resultDiv.innerHTML = '📴 لا يمكن التحقق من الكوبون بدون إنترنت';
         return;
@@ -8986,8 +8986,8 @@ async function applyCouponCode() {
     } catch (error) {
         console.error('Error:', error);
         resultDiv.style.display = 'block';
-        resultDiv.style.background = '#fee2e2';
-        resultDiv.style.color = '#991b1b';
+        resultDiv.style.background = 'rgba(232,93,93,0.08)';
+        resultDiv.style.color = '#fc8181';
         resultDiv.innerHTML = '❌ فشل التحقق من الكوبون';
     }
 }
@@ -9223,9 +9223,9 @@ function displayTablesFloorPlan() {
         tableEl.dataset.id = table.id;
 
         let bgColor, borderColor;
-        if (isOccupied) { bgColor = 'linear-gradient(135deg, #fecaca, #fca5a5)'; borderColor = '#ef4444'; }
-        else if (isReserved) { bgColor = 'linear-gradient(135deg, #fef3c7, #fde68a)'; borderColor = '#f59e0b'; }
-        else { bgColor = 'linear-gradient(135deg, #d1fae5, #a7f3d0)'; borderColor = '#10b981'; }
+        if (isOccupied) { bgColor = 'linear-gradient(135deg, rgba(239,68,68,0.15), rgba(239,68,68,0.25))'; borderColor = '#ef4444'; }
+        else if (isReserved) { bgColor = 'linear-gradient(135deg, rgba(245,158,11,0.15), rgba(245,158,11,0.25))'; borderColor = '#f59e0b'; }
+        else { bgColor = 'linear-gradient(135deg, rgba(16,185,129,0.15), rgba(16,185,129,0.25))'; borderColor = '#10b981'; }
 
         tableEl.style.cssText = `
             position: absolute;
@@ -9270,16 +9270,16 @@ function displayTablesFloorPlan() {
 
         tableEl.innerHTML = `
             <div style="font-size: 24px; margin-bottom: 6px;">${statusIcon}</div>
-            <div style="font-weight: bold; font-size: 14px; color: #1e293b;">${escHTML(table.name)}</div>
-            <div style="font-size: 11px; color: #64748b; margin-top: 2px;">🪑 ${table.seats} مقاعد</div>
+            <div style="font-weight: bold; font-size: 14px; color: var(--t1);">${escHTML(table.name)}</div>
+            <div style="font-size: 11px; color: var(--t2); margin-top: 2px;">🪑 ${table.seats} مقاعد</div>
             <div style="font-size: 11px; color: ${statusColor}; margin-top: 4px; font-weight: bold;">
                 ${statusText}
             </div>
             ${isOccupied && table.invoice_number ? `
-                <div style="background: rgba(255,255,255,0.8); border: 1px solid #e5e7eb; border-radius: 8px; padding: 5px 8px; margin-top: 6px; font-size: 10px; width: 100%;">
-                    <div style="color: #3b82f6; font-weight: bold;">📄 ${escHTML(table.invoice_number)}</div>
-                    ${table.invoice_customer ? `<div style="color: #64748b;">👤 ${escHTML(table.invoice_customer)}</div>` : ''}
-                    ${table.invoice_total ? `<div style="color: #059669; font-weight: bold;">${parseFloat(table.invoice_total).toFixed(3)} د.ك</div>` : ''}
+                <div style="background: rgba(255,255,255,0.05); border: 1px solid rgba(212,168,83,0.15); border-radius: 8px; padding: 5px 8px; margin-top: 6px; font-size: 10px; width: 100%;">
+                    <div style="color: #60a5fa; font-weight: bold;">📄 ${escHTML(table.invoice_number)}</div>
+                    ${table.invoice_customer ? `<div style="color: var(--t2);">👤 ${escHTML(table.invoice_customer)}</div>` : ''}
+                    ${table.invoice_total ? `<div style="color: #4ecb71; font-weight: bold;">${parseFloat(table.invoice_total).toFixed(3)} د.ك</div>` : ''}
                 </div>
             ` : ''}
             <div style="display: flex; gap: 4px; margin-top: 8px; flex-wrap: wrap; justify-content: center;">
@@ -9540,7 +9540,7 @@ async function viewTableInvoice(tableId) {
                         </tr></thead>
                         <tbody>
                             ${(inv.items || []).map(item => `
-                                <tr style="border-bottom: 1px solid #e5e7eb;">
+                                <tr style="border-bottom: 1px solid rgba(212,168,83,0.15);">
                                     <td style="padding: 5px;">${escHTML(item.product_name)}</td>
                                     <td style="padding: 5px; text-align: center;">${item.quantity}</td>
                                     <td style="padding: 5px;">${parseFloat(item.price).toFixed(3)}</td>
@@ -9863,7 +9863,7 @@ async function loadSuperAdminDashboard() {
         `;
 
         // جدول المستأجرين
-        const thStyle = 'padding: 12px; text-align: right; border-bottom: 2px solid #e2e8f0; white-space: nowrap;';
+        const thStyle = 'padding: 12px; text-align: right; border-bottom: 2px solid rgba(212,168,83,0.2); white-space: nowrap;';
         let tableHTML = `
             <div style="overflow-x: auto;">
             <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
@@ -9892,11 +9892,11 @@ async function loadSuperAdminDashboard() {
                 // Source badge (local / remote / both)
                 let sourceBadge = '';
                 if (t.source === 'remote') {
-                    sourceBadge = '<span style="background: rgba(245,158,11,0.1); color: #92400e; padding: 2px 6px; border-radius: 4px; font-size: 10px; margin-right: 5px;" title="سيرفر فقط - البيانات غير متوفرة محلياً">☁️ سيرفر</span>';
+                    sourceBadge = '<span style="background: rgba(245,158,11,0.1); color: #e67e22; padding: 2px 6px; border-radius: 4px; font-size: 10px; margin-right: 5px;" title="سيرفر فقط - البيانات غير متوفرة محلياً">☁️ سيرفر</span>';
                 } else if (t.source === 'local') {
-                    sourceBadge = '<span style="background: #dbeafe; color: #1e40af; padding: 2px 6px; border-radius: 4px; font-size: 10px; margin-right: 5px;" title="محلي فقط - غير موجود بالسيرفر">💻 محلي</span>';
+                    sourceBadge = '<span style="background: rgba(59,130,246,0.1); color: #60a5fa; padding: 2px 6px; border-radius: 4px; font-size: 10px; margin-right: 5px;" title="محلي فقط - غير موجود بالسيرفر">💻 محلي</span>';
                 } else if (t.source === 'both') {
-                    sourceBadge = '<span style="background: #d1fae5; color: #065f46; padding: 2px 6px; border-radius: 4px; font-size: 10px; margin-right: 5px;" title="متزامن - موجود محلياً وبالسيرفر">🔗 متزامن</span>';
+                    sourceBadge = '<span style="background: rgba(16,185,129,0.1); color: #34d399; padding: 2px 6px; border-radius: 4px; font-size: 10px; margin-right: 5px;" title="متزامن - موجود محلياً وبالسيرفر">🔗 متزامن</span>';
                 }
                 // حالة الاشتراك
                 let subStatus = '';
@@ -9920,7 +9920,7 @@ async function loadSuperAdminDashboard() {
                     <tr style="border-bottom: 1px solid rgba(212,168,83,0.1);">
                         <td style="padding: 10px;">${i + 1}</td>
                         <td style="padding: 10px; font-weight: bold;">${escHTML(t.name)} ${sourceBadge}</td>
-                        <td style="padding: 10px; direction: ltr; color: #64748b;">${escHTML(t.slug)}</td>
+                        <td style="padding: 10px; direction: ltr; color: var(--t2);">${escHTML(t.slug)}</td>
                         <td style="padding: 10px;">${escHTML(t.owner_name)}</td>
                         <td style="padding: 10px;"><span style="background: ${t.plan === 'enterprise' ? 'rgba(245,158,11,0.15)' : t.plan === 'premium' ? 'rgba(91,141,239,0.15)' : 'rgba(154,150,166,0.15)'}; padding: 3px 8px; border-radius: 6px; font-size: 11px; color: var(--t1);">${planNames[t.plan] || t.plan}</span></td>
                         <td style="padding: 10px; text-align: center;">${t.is_active ? '<span style="color: #10b981; font-weight: bold;">✅ نشط</span>' : '<span style="color: #ef4444;">❌ معطل</span>'}</td>
@@ -10353,15 +10353,15 @@ async function openSubscriptionModal(tenantId) {
                 <div style="background: ${isExpired ? 'rgba(232,93,93,0.08)' : daysLeft <= 7 ? 'rgba(245,158,11,0.08)' : 'rgba(78,203,113,0.08)'}; padding: 15px; border-radius: 10px; border: 2px solid ${isExpired ? 'rgba(232,93,93,0.3)' : daysLeft <= 7 ? 'rgba(245,158,11,0.3)' : 'rgba(78,203,113,0.3)'};">
                     <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; text-align: center;">
                         <div>
-                            <div style="font-size: 12px; color: #64748b;">المتجر</div>
+                            <div style="font-size: 12px; color: var(--t2);">المتجر</div>
                             <div style="font-weight: bold;">${escHTML(t.name)}</div>
                         </div>
                         <div>
-                            <div style="font-size: 12px; color: #64748b;">ينتهي في</div>
+                            <div style="font-size: 12px; color: var(--t2);">ينتهي في</div>
                             <div style="font-weight: bold; color: ${isExpired ? '#ef4444' : '#059669'};">${t.expires_at.substring(0,10)}</div>
                         </div>
                         <div>
-                            <div style="font-size: 12px; color: #64748b;">الأيام المتبقية</div>
+                            <div style="font-size: 12px; color: var(--t2);">الأيام المتبقية</div>
                             <div style="font-weight: bold; font-size: 20px; color: ${isExpired ? '#ef4444' : daysLeft <= 7 ? '#f59e0b' : '#059669'};">${isExpired ? 'منتهي ⛔' : daysLeft + ' يوم'}</div>
                         </div>
                     </div>
@@ -10369,7 +10369,7 @@ async function openSubscriptionModal(tenantId) {
             `;
         } else {
             infoHTML = `
-                <div style="background: #1e1e2a; padding: 15px; border-radius: 10px; text-align: center; color: #64748b;">
+                <div style="background: #1e1e2a; padding: 15px; border-radius: 10px; text-align: center; color: var(--t2);">
                     <strong>${t.name}</strong> - لم يتم تحديد فترة اشتراك بعد
                 </div>
             `;
@@ -10528,7 +10528,7 @@ async function loadBackupsList() {
             html += `
                 <div style="padding: 15px; border-bottom: 1px solid rgba(212,168,83,0.15); display: flex; justify-content: space-between; align-items: center;">
                     <div>
-                        <div style="font-weight: bold; color: #2d3748;">${b.filename}</div>
+                        <div style="font-weight: bold; color: var(--t1);">${b.filename}</div>
                         <div style="font-size: 13px; color: #718096;">${dateStr} - ${timeStr} | ${formatFileSize(b.size)}</div>
                     </div>
                     <div style="display: flex; gap: 8px;">
@@ -10740,7 +10740,7 @@ async function loadGDriveStatus() {
             await loadGDriveFiles();
         } else {
             badge.textContent = 'غير متصل';
-            badge.style.background = '#fee2e2';
+            badge.style.background = 'rgba(232,93,93,0.08)';
             badge.style.color = '#ef4444';
             setupSection.style.display = 'block';
             connectedSection.style.display = 'none';
@@ -10913,7 +10913,7 @@ async function loadGDriveFiles() {
             html += `
                 <div style="padding: 15px; border-bottom: 1px solid rgba(212,168,83,0.15); display: flex; justify-content: space-between; align-items: center;">
                     <div>
-                        <div style="font-weight: bold; color: #2d3748; font-size: 13px;">${escHTML(f.name)}</div>
+                        <div style="font-weight: bold; color: var(--t1); font-size: 13px;">${escHTML(f.name)}</div>
                         <div style="font-size: 12px; color: #718096;">${dateStr} - ${timeStr} | ${formatFileSize(f.size)}</div>
                     </div>
                     <div style="display: flex; gap: 5px;">
@@ -11277,7 +11277,7 @@ function renderXBRLIncomeTable() {
     let html = '';
     rows.forEach(r => {
         if (r.sep) {
-            html += '<tr><td colspan="5" style="border-bottom: 2px solid #e2e8f0; padding: 2px;"></td></tr>';
+            html += '<tr><td colspan="5" style="border-bottom: 2px solid rgba(212,168,83,0.2); padding: 2px;"></td></tr>';
             return;
         }
         const bg = r.highlight ? 'background: #1e1e2a;' : '';
@@ -11400,30 +11400,30 @@ function addXBRLPartner(data) {
     const container = document.getElementById('xbrl_partners_container');
     const div = document.createElement('div');
     div.id = `xbrl_partner_${idx}`;
-    div.style.cssText = 'background: #fef9ee; border: 2px solid #e67e2244; border-radius: 10px; padding: 15px; margin-bottom: 12px; position: relative;';
+    div.style.cssText = 'background: rgba(230,126,34,0.06); border: 2px solid rgba(230,126,34,0.2); border-radius: 10px; padding: 15px; margin-bottom: 12px; position: relative;';
     div.innerHTML = `
         <button type="button" onclick="removeXBRLPartner(${idx})" style="position: absolute; top: 8px; left: 8px; background: #dc3545; color: white; border: none; border-radius: 50%; width: 26px; height: 26px; cursor: pointer; font-size: 14px;">✕</button>
         <div style="font-weight: bold; color: #e67e22; margin-bottom: 10px;">👤 شريك ${idx}</div>
         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px;">
             <div class="form-group">
                 <label style="font-size: 12px;">اسم الشريك:</label>
-                <input type="text" class="xbrl-partner-name" value="${escHTML((data && data.name) || '')}" style="padding: 8px; border: 1px solid #cbd5e0; border-radius: 6px; width: 100%;">
+                <input type="text" class="xbrl-partner-name" value="${escHTML((data && data.name) || '')}" style="padding: 8px; border: 1px solid rgba(212,168,83,0.12); border-radius: 6px; width: 100%; background: var(--raised); color: var(--t1);">
             </div>
             <div class="form-group">
                 <label style="font-size: 12px;">نسبة الملكية %:</label>
-                <input type="number" class="xbrl-partner-share" step="0.01" value="${(data && data.share_percent) || 0}" onchange="recalcXBRLPartners()" style="padding: 8px; border: 1px solid #cbd5e0; border-radius: 6px; width: 100%;">
+                <input type="number" class="xbrl-partner-share" step="0.01" value="${(data && data.share_percent) || 0}" onchange="recalcXBRLPartners()" style="padding: 8px; border: 1px solid rgba(212,168,83,0.12); border-radius: 6px; width: 100%; background: var(--raised); color: var(--t1);">
             </div>
             <div class="form-group">
                 <label style="font-size: 12px;">رأس المال الافتتاحي:</label>
-                <input type="number" class="xbrl-partner-capital-opening" step="0.01" value="${(data && data.capital_opening) || 0}" onchange="recalcXBRLPartners()" style="padding: 8px; border: 1px solid #cbd5e0; border-radius: 6px; width: 100%;">
+                <input type="number" class="xbrl-partner-capital-opening" step="0.01" value="${(data && data.capital_opening) || 0}" onchange="recalcXBRLPartners()" style="padding: 8px; border: 1px solid rgba(212,168,83,0.12); border-radius: 6px; width: 100%; background: var(--raised); color: var(--t1);">
             </div>
             <div class="form-group">
                 <label style="font-size: 12px;">التوزيعات (مسحوبات):</label>
-                <input type="number" class="xbrl-partner-distributions" step="0.01" value="${(data && data.distributions) || 0}" onchange="recalcXBRLPartners()" style="padding: 8px; border: 1px solid #cbd5e0; border-radius: 6px; width: 100%;">
+                <input type="number" class="xbrl-partner-distributions" step="0.01" value="${(data && data.distributions) || 0}" onchange="recalcXBRLPartners()" style="padding: 8px; border: 1px solid rgba(212,168,83,0.12); border-radius: 6px; width: 100%; background: var(--raised); color: var(--t1);">
             </div>
             <div class="form-group">
                 <label style="font-size: 12px;">تغير رأس المال:</label>
-                <input type="number" class="xbrl-partner-capital-change" step="0.01" value="${(data && data.capital_change) || 0}" onchange="recalcXBRLPartners()" style="padding: 8px; border: 1px solid #cbd5e0; border-radius: 6px; width: 100%;">
+                <input type="number" class="xbrl-partner-capital-change" step="0.01" value="${(data && data.capital_change) || 0}" onchange="recalcXBRLPartners()" style="padding: 8px; border: 1px solid rgba(212,168,83,0.12); border-radius: 6px; width: 100%; background: var(--raised); color: var(--t1);">
             </div>
             <div class="form-group">
                 <label style="font-size: 12px;">نصيب الربح <span style="color: #48bb78;">✓ تلقائي</span>:</label>
@@ -11677,12 +11677,12 @@ async function generateXBRLReport() {
             <h4 style="color: #e67e22; margin: 15px 0 8px;">👥 تفصيل حقوق الشركاء</h4>
             <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
                 <tr style="background: rgba(245,158,11,0.1);">
-                    <th style="padding: 8px 10px; text-align: right; color: #92400e;">الشريك</th>
-                    <th style="padding: 8px 10px; text-align: center; color: #92400e;">النسبة</th>
-                    <th style="padding: 8px 10px; text-align: center; color: #92400e;">رأس المال</th>
-                    <th style="padding: 8px 10px; text-align: center; color: #92400e;">نصيب الربح</th>
-                    <th style="padding: 8px 10px; text-align: center; color: #92400e;">التوزيعات</th>
-                    <th style="padding: 8px 10px; text-align: center; color: #92400e;">الرصيد الختامي</th>
+                    <th style="padding: 8px 10px; text-align: right; color: #e67e22;">الشريك</th>
+                    <th style="padding: 8px 10px; text-align: center; color: #e67e22;">النسبة</th>
+                    <th style="padding: 8px 10px; text-align: center; color: #e67e22;">رأس المال</th>
+                    <th style="padding: 8px 10px; text-align: center; color: #e67e22;">نصيب الربح</th>
+                    <th style="padding: 8px 10px; text-align: center; color: #e67e22;">التوزيعات</th>
+                    <th style="padding: 8px 10px; text-align: center; color: #e67e22;">الرصيد الختامي</th>
                 </tr>
                 ${s.partners.map(p => `
                 <tr style="border-bottom: 1px solid rgba(212,168,83,0.15);">
@@ -11836,12 +11836,12 @@ async function loadShiftsList() {
             <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
                 <thead>
                     <tr style="background: #1e1e2a;">
-                        <th style="padding: 10px; text-align: right; border-bottom: 2px solid #e2e8f0;">الاسم</th>
-                        <th style="padding: 10px; text-align: center; border-bottom: 2px solid #e2e8f0;">من</th>
-                        <th style="padding: 10px; text-align: center; border-bottom: 2px solid #e2e8f0;">إلى</th>
-                        <th style="padding: 10px; text-align: center; border-bottom: 2px solid #e2e8f0;">الحالة</th>
-                        <th style="padding: 10px; text-align: center; border-bottom: 2px solid #e2e8f0;">قفل تلقائي</th>
-                        <th style="padding: 10px; text-align: center; border-bottom: 2px solid #e2e8f0;">إجراءات</th>
+                        <th style="padding: 10px; text-align: right; border-bottom: 2px solid rgba(212,168,83,0.2);">الاسم</th>
+                        <th style="padding: 10px; text-align: center; border-bottom: 2px solid rgba(212,168,83,0.2);">من</th>
+                        <th style="padding: 10px; text-align: center; border-bottom: 2px solid rgba(212,168,83,0.2);">إلى</th>
+                        <th style="padding: 10px; text-align: center; border-bottom: 2px solid rgba(212,168,83,0.2);">الحالة</th>
+                        <th style="padding: 10px; text-align: center; border-bottom: 2px solid rgba(212,168,83,0.2);">قفل تلقائي</th>
+                        <th style="padding: 10px; text-align: center; border-bottom: 2px solid rgba(212,168,83,0.2);">إجراءات</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -11851,7 +11851,7 @@ async function loadShiftsList() {
                             <td style="padding: 10px; text-align: center;">${escHTML(s.start_time) || '-'}</td>
                             <td style="padding: 10px; text-align: center;">${escHTML(s.end_time) || '-'}</td>
                             <td style="padding: 10px; text-align: center;">
-                                <span style="padding: 3px 10px; border-radius: 12px; font-size: 12px; background: ${s.is_active ? '#c6f6d5' : '#fed7d7'}; color: ${s.is_active ? '#22543d' : '#9b2c2c'};">
+                                <span style="padding: 3px 10px; border-radius: 12px; font-size: 12px; background: ${s.is_active ? 'rgba(78,203,113,0.1)' : 'rgba(232,93,93,0.1)'}; color: ${s.is_active ? '#4ecb71' : '#fc8181'};">
                                     ${s.is_active ? 'نشط' : 'معطل'}
                                 </span>
                             </td>
@@ -12050,11 +12050,11 @@ function renderEditInvoiceItems(items) {
                     <tr style="border-bottom: 1px solid rgba(212,168,83,0.15);" data-index="${i}">
                         <td style="padding: 8px;">${escHTML(item.product_name)}${item.variant_name ? ` (${escHTML(item.variant_name)})` : ''}</td>
                         <td style="padding: 8px; text-align: center;">
-                            <input type="number" value="${item.quantity}" min="1" style="width: 60px; text-align: center; border: 1px solid #e2e8f0; border-radius: 4px; padding: 4px;"
+                            <input type="number" value="${item.quantity}" min="1" style="width: 60px; text-align: center; border: 1px solid rgba(212,168,83,0.12); border-radius: 4px; padding: 4px; background: var(--raised); color: var(--t1);"
                                 onchange="updateEditItemQty(${i}, this.value)">
                         </td>
                         <td style="padding: 8px; text-align: center;">
-                            <input type="number" value="${item.price}" step="0.001" min="0" style="width: 80px; text-align: center; border: 1px solid #e2e8f0; border-radius: 4px; padding: 4px;"
+                            <input type="number" value="${item.price}" step="0.001" min="0" style="width: 80px; text-align: center; border: 1px solid rgba(212,168,83,0.12); border-radius: 4px; padding: 4px; background: var(--raised); color: var(--t1);"
                                 onchange="updateEditItemPrice(${i}, this.value)">
                         </td>
                         <td style="padding: 8px; text-align: center; font-weight: bold;" id="editItemTotal_${i}">${(item.quantity * item.price).toFixed(3)}</td>
@@ -12327,7 +12327,7 @@ const _transferStatusColors = {
 async function loadStockTransfers() {
     if (!_realOnlineStatus) {
         const c = document.getElementById('transfersTableContainer');
-        if (c) c.innerHTML = '<div style="text-align:center; padding:40px; color:#92400e;"><div style="font-size:48px; margin-bottom:10px;">📴</div><p>غير متصل - لا يمكن تحميل طلبات النقل</p></div>';
+        if (c) c.innerHTML = '<div style="text-align:center; padding:40px; color:#d4a853;"><div style="font-size:48px; margin-bottom:10px;">📴</div><p>غير متصل - لا يمكن تحميل طلبات النقل</p></div>';
         return;
     }
     try {
@@ -12533,10 +12533,10 @@ function renderTransferItems() {
     }
 
     tbody.innerHTML = _transferItems.map((item, idx) => `
-        <tr style="border-bottom:1px solid #eee;">
+        <tr style="border-bottom:1px solid rgba(212,168,83,0.15);">
             <td style="padding:8px;">${escHTML(item.product_name)}</td>
             <td style="padding:8px; text-align:center;">
-                <input type="number" min="1" value="${item.quantity}" onchange="updateTransferItemQty(${idx}, this.value)" style="width:80px; padding:6px; text-align:center; border:1px solid #ddd; border-radius:6px;">
+                <input type="number" min="1" value="${item.quantity}" onchange="updateTransferItemQty(${idx}, this.value)" style="width:80px; padding:6px; text-align:center; border:1px solid rgba(212,168,83,0.12); border-radius:6px; background: var(--raised); color: var(--t1);">
             </td>
             <td style="padding:8px; text-align:center;">
                 <button onclick="removeTransferItem(${idx})" style="background:#e74c3c; color:#fff; border:none; padding:4px 10px; border-radius:6px; cursor:pointer; font-size:12px;">حذف</button>
@@ -12675,7 +12675,7 @@ async function viewTransferDetails(transferId) {
                 </tr></thead><tbody>`;
 
         (t.items || []).forEach(item => {
-            html += `<tr style="border-bottom:1px solid #eee;">
+            html += `<tr style="border-bottom:1px solid rgba(212,168,83,0.15);">
                 <td style="padding:8px;">${escHTML(item.product_name)}${item.variant_name ? ' - <span style="color:#667eea;">' + escHTML(item.variant_name) + '</span>' : ''}</td>
                 <td style="padding:8px; text-align:center;">${item.quantity_requested}</td>
                 <td style="padding:8px; text-align:center;">${item.quantity_approved || '-'}</td>
@@ -12887,7 +12887,7 @@ const _subStatusColors = { 'active': '#28a745', 'expired': '#ffc107', 'cancelled
 async function loadSubscriptions() {
     if (!_realOnlineStatus) {
         const c = document.getElementById('subscriptionsTableContainer');
-        if (c) c.innerHTML = '<div style="text-align:center; padding:40px; color:#92400e;"><div style="font-size:48px; margin-bottom:10px;">📴</div><p>غير متصل - لا يمكن تحميل الاشتراكات</p></div>';
+        if (c) c.innerHTML = '<div style="text-align:center; padding:40px; color:#d4a853;"><div style="font-size:48px; margin-bottom:10px;">📴</div><p>غير متصل - لا يمكن تحميل الاشتراكات</p></div>';
         return;
     }
     try {
@@ -13128,7 +13128,7 @@ function renderPlanItems() {
         return;
     }
     container.innerHTML = _planItems.map((it, i) => `
-        <div style="display:flex; justify-content:space-between; align-items:center; padding:6px 10px; margin:3px 0; background:#1e1e2a; border-radius:6px; border:1px solid #e0e0e0;">
+        <div style="display:flex; justify-content:space-between; align-items:center; padding:6px 10px; margin:3px 0; background:#1e1e2a; border-radius:6px; border:1px solid rgba(212,168,83,0.12);">
             <span>📦 ${escHTML(it.product_name)}${it.variant_name ? ' - ' + escHTML(it.variant_name) : ''} <strong style="color:#667eea;">x${it.quantity}</strong></span>
             <button onclick="removePlanItem(${i})" style="background:none; border:none; color:#dc3545; cursor:pointer; font-size:16px;">✖</button>
         </div>
@@ -13169,7 +13169,7 @@ async function loadPlansList() {
                             </div>
                         </div>
                         ${items.length > 0 ? `
-                        <div style="margin-top:8px; padding-top:8px; border-top:1px solid #e0e0e0;">
+                        <div style="margin-top:8px; padding-top:8px; border-top:1px solid rgba(212,168,83,0.12);">
                             <strong style="font-size:13px;">📦 المنتجات (${items.length}):</strong>
                             <div style="display:flex; flex-wrap:wrap; gap:6px; margin-top:6px;">
                                 ${items.map(it => `
@@ -13624,7 +13624,7 @@ function _openRedeemModal(sub) {
                             <td style="color:#667eea;">${redeemed}</td>
                             <td style="font-weight:bold; color:${remaining > 0 ? '#28a745' : '#dc3545'};">${remaining}</td>
                             <td>
-                                ${remaining > 0 ? `<input type="number" id="redeemQty_${i}" min="0" max="${remaining}" value="0" style="width:70px; padding:5px; border:2px solid #e0e0e0; border-radius:6px; text-align:center;"
+                                ${remaining > 0 ? `<input type="number" id="redeemQty_${i}" min="0" max="${remaining}" value="0" style="width:70px; padding:5px; border:2px solid rgba(212,168,83,0.12); border-radius:6px; text-align:center;"
                                     data-product-id="${it.product_id}" data-variant-id="${it.variant_id || ''}" data-product-name="${escHTML(it.product_name)}" data-variant-name="${it.variant_name ? escHTML(it.variant_name) : ''}" data-max="${remaining}">` :
                                     '<span style="color:#dc3545;">اكتمل</span>'}
                             </td>

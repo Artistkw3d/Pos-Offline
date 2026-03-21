@@ -1732,7 +1732,7 @@
                                 <div style="background: rgba(245,158,11,0.1); padding: 10px; border-radius: 6px; margin-top: 8px; direction: ltr; font-family: monospace; font-size: 14px; word-break: break-all; cursor: pointer;" onclick="navigator.clipboard.writeText(this.textContent).then(()=>alert('تم النسخ!'))" title="اضغط للنسخ">
                                     <span id="gdriveRedirectUriDisplay"></span>
                                 </div>
-                                <small style="color: #92400e; margin-top: 5px; display: block;">اضغط على الرابط لنسخه - ثم أضفه في Google Cloud Console قبل الموافقة</small>
+                                <small style="color: #d4a853; margin-top: 5px; display: block;">اضغط على الرابط لنسخه - ثم أضفه في Google Cloud Console قبل الموافقة</small>
                             </div>
                         </div>
 
@@ -1766,7 +1766,7 @@
         <div class="tab-content" id="admindashboardTab" style="display: none;">
             <div style="padding: 20px;">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; flex-wrap: wrap; gap: 10px;">
-                    <h2 style="margin: 0; color: #1a202c;">شاشة الأدمن - مراقبة الشركة</h2>
+                    <h2 style="margin: 0; color: var(--t1);">شاشة الأدمن - مراقبة الشركة</h2>
                     <div style="display: flex; gap: 8px; flex-wrap: wrap;">
                         <button onclick="loadAdminDashboard()" class="btn" style="background: #d4a853; color: #09090f; padding: 10px 20px; border-radius: 8px; color: white; border: none; cursor: pointer;">تحديث البيانات</button>
                     </div>
@@ -2593,20 +2593,20 @@
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px;">
                     <div class="form-group">
                         <label>الفرع المصدر (يُصرف منه):</label>
-                        <select id="transferFromBranch" required style="width:100%; padding:10px; border:2px solid #e2e8f0; border-radius:8px;">
+                        <select id="transferFromBranch" required style="width:100%; padding:10px; border:2px solid rgba(212,168,83,0.12); border-radius:8px; background: var(--raised); color: var(--t1);">
                             <option value="">اختر الفرع</option>
                         </select>
                     </div>
                     <div class="form-group">
                         <label>الفرع الطالب (يستلم):</label>
-                        <select id="transferToBranch" required style="width:100%; padding:10px; border:2px solid #e2e8f0; border-radius:8px;">
+                        <select id="transferToBranch" required style="width:100%; padding:10px; border:2px solid rgba(212,168,83,0.12); border-radius:8px; background: var(--raised); color: var(--t1);">
                             <option value="">اختر الفرع</option>
                         </select>
                     </div>
                 </div>
                 <div class="form-group" style="margin-bottom: 15px;">
                     <label>ملاحظات:</label>
-                    <input type="text" id="transferNotes" placeholder="سبب الطلب أو ملاحظات..." style="width:100%; padding:10px; border:2px solid #e2e8f0; border-radius:8px;">
+                    <input type="text" id="transferNotes" placeholder="سبب الطلب أو ملاحظات..." style="width:100%; padding:10px; border:2px solid rgba(212,168,83,0.12); border-radius:8px; background: var(--raised); color: var(--t1);">
                 </div>
                 <!-- اختيار وإضافة المنتجات -->
                 <div style="margin-bottom: 15px;">
@@ -2629,9 +2629,9 @@
                     <table style="width:100%; border-collapse:collapse; font-size:13px;">
                         <thead>
                             <tr style="background:#1e1e2a;">
-                                <th style="padding:8px; text-align:right; border-bottom:2px solid #e2e8f0;">الصنف</th>
-                                <th style="padding:8px; text-align:center; border-bottom:2px solid #e2e8f0; width:120px;">الكمية</th>
-                                <th style="padding:8px; text-align:center; border-bottom:2px solid #e2e8f0; width:60px;">حذف</th>
+                                <th style="padding:8px; text-align:right; border-bottom:2px solid rgba(212,168,83,0.2);">الصنف</th>
+                                <th style="padding:8px; text-align:center; border-bottom:2px solid rgba(212,168,83,0.2); width:120px;">الكمية</th>
+                                <th style="padding:8px; text-align:center; border-bottom:2px solid rgba(212,168,83,0.2); width:60px;">حذف</th>
                             </tr>
                         </thead>
                         <tbody id="transferItemsBody"></tbody>
@@ -2706,8 +2706,8 @@
                                 <input type="file" id="planImageUpload" accept="image/*" onchange="handlePlanImageUpload(event)" style="display:none;">
                                 <button type="button" onclick="showPlanTemplates()" class="btn" style="padding:6px 14px; background:#b8892e; color:white; border:none; border-radius:6px; cursor:pointer; margin-right:5px;">🎨 تصميم جاهز</button>
                             </div>
-                            <div id="planImagePreview" style="width:160px; height:100px; border:2px dashed #ccc; border-radius:8px; display:flex; align-items:center; justify-content:center; overflow:hidden; background:#fafafa;">
-                                <span style="color:#aaa; font-size:12px;">معاينة الصورة</span>
+                            <div id="planImagePreview" style="width:160px; height:100px; border:2px dashed rgba(212,168,83,0.2); border-radius:8px; display:flex; align-items:center; justify-content:center; overflow:hidden; background:var(--raised);">
+                                <span style="color:var(--t2); font-size:12px;">معاينة الصورة</span>
                             </div>
                         </div>
                         <div id="planTemplatesGrid" style="display:none; margin-top:10px;"></div>
