@@ -19,37 +19,37 @@
 
     <!-- License Expired Overlay -->
     <div id="licenseExpiredOverlay" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.92); z-index:100000; justify-content:center; align-items:center; flex-direction:column;">
-        <div style="text-align:center; color:#f0ece4; padding:40px; max-width:500px;">
+        <div style="text-align:center; color: var(--t1); padding:40px; max-width:500px;">
             <div style="font-size:80px; margin-bottom:20px;">⚠️</div>
             <h1 id="licenseExpiredTitle" style="font-size:26px; margin-bottom:15px; color:#ff6b6b;">انتهت صلاحية الترخيص</h1>
             <p id="licenseExpiredMessage" style="font-size:16px; margin-bottom:25px; color:#ccc; line-height:1.6;"></p>
-            <button onclick="attemptLicenseRenewal()" style="padding:14px 40px; font-size:16px; border-radius:8px; border:none; background:#d4a853; color:#f0ece4; cursor:pointer; margin-bottom:12px;">تجديد الترخيص</button>
+            <button onclick="attemptLicenseRenewal()" style="padding:14px 40px; font-size:16px; border-radius:8px; border:none; background:#d4a853; color: var(--t1); cursor:pointer; margin-bottom:12px;">تجديد الترخيص</button>
             <p id="licenseRenewStatus" style="font-size:13px; color:#999; min-height:20px; margin-top:10px;"></p>
         </div>
     </div>
 
     <!-- Sync Summary Modal -->
     <div id="syncSummaryModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); z-index:99997; justify-content:center; align-items:center;" onclick="if(event.target===this)this.style.display='none'">
-        <div style="background:#16161f; color:#f0ece4; border-radius:12px; padding:24px; max-width:500px; width:90%; max-height:80vh; overflow-y:auto; direction:rtl;">
+        <div style="background: var(--card); color: var(--t1); border-radius:12px; padding:24px; max-width:500px; width:90%; max-height:80vh; overflow-y:auto; direction:rtl;">
             <h2 style="text-align:center; margin-bottom:16px; font-size:20px;">ملخص المزامنة</h2>
             <div id="syncSummaryUpload" style="margin-bottom:12px;"></div>
             <div id="syncSummaryDownload" style="margin-bottom:12px;"></div>
             <div id="syncSummaryNegativeStock" style="display:none; background:#451a1a; border:1px solid #dc2626; border-radius:8px; padding:10px; margin-bottom:12px;"></div>
             <div id="syncSummaryErrors" style="display:none; background:#451a1a; border:1px solid #dc2626; border-radius:8px; padding:10px; margin-bottom:12px;"></div>
             <div style="text-align:center; margin-top:16px;">
-                <button onclick="document.getElementById('syncSummaryModal').style.display='none'" style="padding:10px 32px; border:none; border-radius:8px; background:#d4a853; color:#f0ece4; font-size:15px; cursor:pointer;">إغلاق</button>
+                <button onclick="document.getElementById('syncSummaryModal').style.display='none'" style="padding:10px 32px; border:none; border-radius:8px; background:#d4a853; color: var(--t1); font-size:15px; cursor:pointer;">إغلاق</button>
             </div>
         </div>
     </div>
 
     <!-- Negative Stock Warning Modal -->
     <div id="negativeStockModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); z-index:99996; justify-content:center; align-items:center;" onclick="if(event.target===this)this.style.display='none'">
-        <div style="background:#16161f; color:#f0ece4; border-radius:12px; padding:24px; max-width:500px; width:90%; max-height:80vh; overflow-y:auto; direction:rtl;">
+        <div style="background: var(--card); color: var(--t1); border-radius:12px; padding:24px; max-width:500px; width:90%; max-height:80vh; overflow-y:auto; direction:rtl;">
             <h2 style="text-align:center; margin-bottom:16px; font-size:20px; color:#f87171;">تحذير: مخزون سلبي</h2>
             <p style="text-align:center; font-size:13px; color:#e0dce8; margin-bottom:14px;">المنتجات التالية لديها مخزون أقل من صفر. يرجى مراجعة المخزون وتعديله.</p>
             <div id="negativeStockList" style="background:#451a1a; border:1px solid #dc2626; border-radius:8px; padding:12px; font-size:13px; line-height:1.8; margin-bottom:16px;"></div>
             <div style="text-align:center;">
-                <button onclick="document.getElementById('negativeStockModal').style.display='none'" style="padding:10px 32px; border:none; border-radius:8px; background:#d4a853; color:#f0ece4; font-size:15px; cursor:pointer; margin-left:8px;">إغلاق</button>
+                <button onclick="document.getElementById('negativeStockModal').style.display='none'" style="padding:10px 32px; border:none; border-radius:8px; background:#d4a853; color: var(--t1); font-size:15px; cursor:pointer; margin-left:8px;">إغلاق</button>
                 <button id="negativeStockDismiss" onclick="window._negStockDismissed=true; document.getElementById('negativeStockModal').style.display='none'" style="padding:10px 20px; border:1px solid #475569; border-radius:8px; background:transparent; color:#e0dce8; font-size:13px; cursor:pointer;">عدم الإظهار في هذه الجلسة</button>
             </div>
         </div>
@@ -57,12 +57,12 @@
 
     <!-- Shift Lock Overlay -->
     <div id="shiftLockOverlay" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.85); z-index:99999; justify-content:center; align-items:center; flex-direction:column;">
-        <div style="text-align:center; color:#f0ece4; padding:40px;">
+        <div style="text-align:center; color: var(--t1); padding:40px;">
             <div style="font-size:80px; margin-bottom:20px;">🔒</div>
             <h1 style="font-size:28px; margin-bottom:15px; color:#ff6b6b;">انتهى وقت الشفت</h1>
             <p id="shiftLockMessage" style="font-size:18px; margin-bottom:10px; color:#ccc;"></p>
             <p style="font-size:14px; color:#999; margin-bottom:30px;">تم قفل النظام تلقائياً. يرجى التواصل مع المدير أو تسجيل الخروج.</p>
-            <button onclick="logoutFromShiftLock()" style="padding:12px 40px; font-size:16px; border-radius:8px; border:none; background:#e74c3c; color:#f0ece4; cursor:pointer;">تسجيل خروج</button>
+            <button onclick="logoutFromShiftLock()" style="padding:12px 40px; font-size:16px; border-radius:8px; border:none; background:#e74c3c; color: var(--t1); cursor:pointer;">تسجيل خروج</button>
         </div>
     </div>
 
@@ -133,7 +133,7 @@
 
     <!-- Super Admin Dashboard -->
     <div id="superAdminDashboard" style="display: none;">
-        <div style="background: linear-gradient(135deg, #0f0f18, #16161f); color: white; padding: 15px 25px; display: flex; justify-content: space-between; align-items: center;">
+        <div style="background: linear-gradient(135deg, var(--panel), var(--card)); color: white; padding: 15px 25px; display: flex; justify-content: space-between; align-items: center;">
             <div style="display: flex; align-items: center; gap: 12px;">
                 <span style="font-size: 24px;">🔐</span>
                 <h2 style="margin: 0; font-size: 18px;">لوحة تحكم المدير الأعلى</h2>
@@ -158,7 +158,7 @@
             </div>
 
             <!-- جدول المستأجرين -->
-            <div id="tenantsTableContainer" style="background: #16161f; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); overflow: hidden;"></div>
+            <div id="tenantsTableContainer" style="background: var(--card); border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); overflow: hidden;"></div>
         </div>
     </div>
 
@@ -415,7 +415,7 @@
                                 onfocus="searchCustomerInPOS(this.value)">
                             <button onclick="showAddCustomerFromPOS()" title="إضافة عميل جديد"
                                 style="position: absolute; left: 6px; top: 6px; background: #28a745; color: white; border: none; width: 30px; height: 30px; border-radius: 6px; cursor: pointer; font-size: 16px; display: flex; align-items: center; justify-content: center;">+</button>
-                            <div id="customerSearchResults" style="display: none; position: absolute; top: 100%; left: 0; right: 0; background: #16161f; border: 2px solid rgba(212,168,83,0.3); border-top: none; border-radius: 0 0 8px 8px; max-height: 200px; overflow-y: auto; z-index: 50; box-shadow: 0 4px 12px rgba(0,0,0,0.15);"></div>
+                            <div id="customerSearchResults" style="display: none; position: absolute; top: 100%; left: 0; right: 0; background: var(--card); border: 2px solid rgba(212,168,83,0.3); border-top: none; border-radius: 0 0 8px 8px; max-height: 200px; overflow-y: auto; z-index: 50; box-shadow: 0 4px 12px rgba(0,0,0,0.15);"></div>
                         </div>
 
                         <input type="hidden" id="selectedCustomerId">
@@ -462,7 +462,7 @@
                         <div style="font-weight: bold; color: var(--gold); margin-bottom: 8px;">🎟️ كوبون خصم</div>
                         <div style="display: flex; gap: 5px;">
                             <input type="text" id="couponCodeInput" placeholder="أدخل كود الكوبون" style="flex: 1; padding: 8px; border: 2px solid rgba(212,168,83,0.12); border-radius: 6px; text-transform: uppercase;">
-                            <button onclick="applyCouponCode()" class="btn-sm" style="background: #eab308; color: #f0ece4; padding: 8px 14px; white-space: nowrap;">تطبيق</button>
+                            <button onclick="applyCouponCode()" class="btn-sm" style="background: #eab308; color: var(--t1); padding: 8px 14px; white-space: nowrap;">تطبيق</button>
                         </div>
                         <div id="couponResult" style="display: none; margin-top: 8px; padding: 8px; border-radius: 6px;"></div>
                     </div>
@@ -627,7 +627,7 @@
                     <button onclick="showAddCustomer()" class="add-btn">➕ إضافة عميل</button>
                 </div>
                 
-                <div style="background: #16161f; padding: 20px; border-radius: 12px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                <div style="background: var(--card); padding: 20px; border-radius: 12px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
                     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
                         <div class="form-group">
                             <label>البحث:</label>
@@ -770,7 +770,7 @@
                     </p>
                 </div>
                 
-                <div style="background: #16161f; padding: 25px; border-radius: 12px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                <div style="background: var(--card); padding: 25px; border-radius: 12px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
                     <h3 style="margin-bottom: 20px; color: #d4a853;">📊 البيانات الأساسية</h3>
                     
                     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px; margin-bottom: 20px;">
@@ -814,27 +814,27 @@
                     
                     <!-- التفاصيل -->
                     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; margin-bottom: 20px;">
-                        <div style="background: #16161f; padding: 20px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                        <div style="background: var(--card); padding: 20px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
                             <h4 style="color: #d4a853; margin-bottom: 15px;">📅 التدفقات المخصومة</h4>
-                            <div style="font-size: 28px; font-weight: bold; color: #f0ece4;" id="dcfPVCashFlows">0</div>
+                            <div style="font-size: 28px; font-weight: bold; color: var(--t1);" id="dcfPVCashFlows">0</div>
                             <div style="font-size: 12px; color: var(--t2); margin-top: 5px;">القيمة الحالية للتدفقات (السنوات 1-N)</div>
                         </div>
                         
-                        <div style="background: #16161f; padding: 20px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                        <div style="background: var(--card); padding: 20px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
                             <h4 style="color: #d4a853; margin-bottom: 15px;">♾️ القيمة المتبقية</h4>
-                            <div style="font-size: 28px; font-weight: bold; color: #f0ece4;" id="dcfTerminalValue">0</div>
+                            <div style="font-size: 28px; font-weight: bold; color: var(--t1);" id="dcfTerminalValue">0</div>
                             <div style="font-size: 12px; color: var(--t2); margin-top: 5px;">القيمة الحالية للتدفقات الدائمة</div>
                         </div>
                     </div>
                     
                     <!-- جدول التفاصيل -->
-                    <div style="background: #16161f; padding: 25px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                    <div style="background: var(--card); padding: 25px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
                         <h4 style="color: #d4a853; margin-bottom: 20px;">📋 تفاصيل التدفقات السنوية</h4>
                         <div id="dcfTable" style="overflow-x: auto;"></div>
                     </div>
                     
                     <!-- الرسم البياني -->
-                    <div style="background: #16161f; padding: 25px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); margin-top: 20px;">
+                    <div style="background: var(--card); padding: 25px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); margin-top: 20px;">
                         <h4 style="color: #d4a853; margin-bottom: 20px;">📊 تصور التدفقات النقدية</h4>
                         <canvas id="dcfChart" style="max-height: 300px;"></canvas>
                     </div>
@@ -857,7 +857,7 @@
                 </div>
 
                 <!-- === القسم 1: بيانات الشركة === -->
-                <div style="background: #16161f; padding: 25px; border-radius: 12px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                <div style="background: var(--card); padding: 25px; border-radius: 12px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
                     <h3 style="margin-bottom: 20px; color: #1a365d; border-bottom: 2px solid #2b6cb0; padding-bottom: 10px;">🏢 بيانات الشركة (Entity Information)</h3>
                     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 15px;">
                         <div class="form-group">
@@ -953,7 +953,7 @@
                 </div>
 
                 <!-- === القسم 2: فترة التقرير وجلب البيانات === -->
-                <div style="background: #16161f; padding: 25px; border-radius: 12px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                <div style="background: var(--card); padding: 25px; border-radius: 12px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
                     <h3 style="margin-bottom: 20px; color: #1a365d; border-bottom: 2px solid #2b6cb0; padding-bottom: 10px;">📅 فترة التقرير</h3>
                     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; align-items: end;">
                         <div class="form-group">
@@ -972,7 +972,7 @@
 
                 <!-- === القسم 3: قائمة الدخل === -->
                 <div id="xbrl_income_section" style="display: none;">
-                    <div style="background: #16161f; padding: 25px; border-radius: 12px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                    <div style="background: var(--card); padding: 25px; border-radius: 12px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
                         <h3 style="margin-bottom: 20px; color: #1a365d; border-bottom: 2px solid #2b6cb0; padding-bottom: 10px;">📊 قائمة الدخل الشامل (Statement of Comprehensive Income)</h3>
                         <p style="color: var(--t2); font-size: 13px; margin-bottom: 15px;">البيانات المستخرجة من النظام تلقائياً + يمكنك إضافة تعديلات يدوية</p>
 
@@ -992,7 +992,7 @@
                     </div>
 
                     <!-- === القسم 4: قائمة المركز المالي === -->
-                    <div style="background: #16161f; padding: 25px; border-radius: 12px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                    <div style="background: var(--card); padding: 25px; border-radius: 12px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
                         <h3 style="margin-bottom: 20px; color: #1a365d; border-bottom: 2px solid #2b6cb0; padding-bottom: 10px;">🏦 قائمة المركز المالي (Statement of Financial Position)</h3>
                         <p style="color: var(--t2); font-size: 13px; margin-bottom: 15px;">أدخل الأرصدة من الدفاتر + بيانات المخزون التلقائية</p>
 
@@ -1110,12 +1110,12 @@
                     </div>
 
                     <!-- === قائمة التدفقات النقدية - Cash Flow Statement (IAS 7) === -->
-                    <div style="background: #16161f; padding: 25px; border-radius: 12px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                    <div style="background: var(--card); padding: 25px; border-radius: 12px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
                         <h3 style="margin-bottom: 20px; color: #1a365d; border-bottom: 2px solid #2b6cb0; padding-bottom: 10px;">💰 قائمة التدفقات النقدية (Statement of Cash Flows - IAS 7)</h3>
                         <p style="color: var(--t2); font-size: 13px; margin-bottom: 15px;">الطريقة المباشرة - أدخل المبالغ الفعلية المحصلة والمدفوعة. البيانات المحسوبة من النظام تظهر كقيم افتراضية.</p>
 
                         <!-- رصيد النقد في بداية الفترة -->
-                        <div style="background: #1e1e2a; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+                        <div style="background: var(--raised); padding: 15px; border-radius: 8px; margin-bottom: 20px;">
                             <div class="form-group" style="max-width: 300px;">
                                 <label style="font-weight: bold; color: #1a365d;">رصيد النقد في بداية الفترة:</label>
                                 <input type="number" id="xbrl_cash_beginning" step="0.01" value="0" onchange="recalcXBRLCashFlow()" style="padding: 10px; border: 2px solid #2b6cb0; border-radius: 6px; width: 100%;">
@@ -1222,7 +1222,7 @@
                     </div>
 
                     <!-- === قائمة التغيرات في حقوق الملكية - Statement of Changes in Equity (IAS 1) === -->
-                    <div style="background: #16161f; padding: 25px; border-radius: 12px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                    <div style="background: var(--card); padding: 25px; border-radius: 12px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
                         <h3 style="margin-bottom: 20px; color: #1a365d; border-bottom: 2px solid #2b6cb0; padding-bottom: 10px;">📈 قائمة التغيرات في حقوق الملكية (Statement of Changes in Equity - IAS 1)</h3>
                         <p style="color: var(--t2); font-size: 13px; margin-bottom: 15px;">أدخل الأرصدة الافتتاحية والتغيرات خلال الفترة. صافي الربح يُحسب تلقائياً من قائمة الدخل.</p>
 
@@ -1273,17 +1273,17 @@
 
                         <h4 style="color: #1a365d; margin: 15px 0 10px;">الأرصدة الختامية (نهاية الفترة)</h4>
                         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 15px;">
-                            <div style="background: #1e1e2a; padding: 12px 15px; border-radius: 8px; text-align: center;">
+                            <div style="background: var(--raised); padding: 12px 15px; border-radius: 8px; text-align: center;">
                                 <div style="color: var(--t2); font-size: 12px;">رأس المال</div>
-                                <div id="xbrl_eq_closing_capital" style="font-size: 18px; font-weight: bold; color: #f0ece4;">0.00</div>
+                                <div id="xbrl_eq_closing_capital" style="font-size: 18px; font-weight: bold; color: var(--t1);">0.00</div>
                             </div>
-                            <div style="background: #1e1e2a; padding: 12px 15px; border-radius: 8px; text-align: center;">
+                            <div style="background: var(--raised); padding: 12px 15px; border-radius: 8px; text-align: center;">
                                 <div style="color: var(--t2); font-size: 12px;">أرباح مبقاة</div>
-                                <div id="xbrl_eq_closing_retained" style="font-size: 18px; font-weight: bold; color: #f0ece4;">0.00</div>
+                                <div id="xbrl_eq_closing_retained" style="font-size: 18px; font-weight: bold; color: var(--t1);">0.00</div>
                             </div>
-                            <div style="background: #1e1e2a; padding: 12px 15px; border-radius: 8px; text-align: center;">
+                            <div style="background: var(--raised); padding: 12px 15px; border-radius: 8px; text-align: center;">
                                 <div style="color: var(--t2); font-size: 12px;">بنود أخرى</div>
-                                <div id="xbrl_eq_closing_other" style="font-size: 18px; font-weight: bold; color: #f0ece4;">0.00</div>
+                                <div id="xbrl_eq_closing_other" style="font-size: 18px; font-weight: bold; color: var(--t1);">0.00</div>
                             </div>
                         </div>
                         <div style="background: #38a169; padding: 15px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; color: white;">
@@ -1293,7 +1293,7 @@
                     </div>
 
                     <!-- === القسم 5: تعديلات يدوية على قائمة الدخل === -->
-                    <div style="background: #16161f; padding: 25px; border-radius: 12px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                    <div style="background: var(--card); padding: 25px; border-radius: 12px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
                         <h3 style="margin-bottom: 20px; color: #1a365d; border-bottom: 2px solid #2b6cb0; padding-bottom: 10px;">✏️ تعديلات يدوية على قائمة الدخل</h3>
                         <p style="color: var(--t2); font-size: 13px; margin-bottom: 15px;">أضف بنود غير مسجلة في النظام مثل الاستهلاك وتكاليف التمويل والزكاة</p>
                         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px;">
@@ -1334,38 +1334,38 @@
                         </div>
 
                         <!-- ملخص قائمة الدخل -->
-                        <div style="background: #16161f; padding: 25px; border-radius: 12px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                        <div style="background: var(--card); padding: 25px; border-radius: 12px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
                             <h4 style="color: #1a365d; margin-bottom: 15px;">📊 ملخص قائمة الدخل</h4>
                             <div id="xbrl_income_summary"></div>
                         </div>
 
                         <!-- ملخص المركز المالي -->
-                        <div style="background: #16161f; padding: 25px; border-radius: 12px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                        <div style="background: var(--card); padding: 25px; border-radius: 12px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
                             <h4 style="color: #1a365d; margin-bottom: 15px;">🏦 ملخص المركز المالي</h4>
                             <div id="xbrl_balance_summary"></div>
                         </div>
 
                         <!-- ملخص التدفقات النقدية -->
-                        <div style="background: #16161f; padding: 25px; border-radius: 12px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                        <div style="background: var(--card); padding: 25px; border-radius: 12px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
                             <h4 style="color: #1a365d; margin-bottom: 15px;">💰 ملخص التدفقات النقدية</h4>
                             <div id="xbrl_cashflow_summary"></div>
                         </div>
 
                         <!-- ملخص التغيرات في حقوق الملكية -->
-                        <div style="background: #16161f; padding: 25px; border-radius: 12px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                        <div style="background: var(--card); padding: 25px; border-radius: 12px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
                             <h4 style="color: #1a365d; margin-bottom: 15px;">📈 ملخص التغيرات في حقوق الملكية</h4>
                             <div id="xbrl_equity_summary"></div>
                         </div>
 
                         <!-- عرض XML -->
-                        <div style="background: #16161f; padding: 25px; border-radius: 12px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                        <div style="background: var(--card); padding: 25px; border-radius: 12px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
                             <h4 style="color: #1a365d; margin-bottom: 15px;">📝 كود Inline XBRL (iXBRL/HTML)</h4>
                             <pre id="xbrl_xml_preview" dir="ltr" style="background: #1a202c; color: #68d391; padding: 20px; border-radius: 8px; font-size: 12px; overflow-x: auto; max-height: 400px; line-height: 1.6; white-space: pre-wrap;"></pre>
                         </div>
                     </div>
 
                     <!-- === القسم 8: التقارير المحفوظة === -->
-                    <div style="background: #16161f; padding: 25px; border-radius: 12px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                    <div style="background: var(--card); padding: 25px; border-radius: 12px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
                         <h3 style="margin-bottom: 20px; color: #1a365d; border-bottom: 2px solid #2b6cb0; padding-bottom: 10px;">📁 التقارير المحفوظة</h3>
                         <div id="xbrl_saved_reports"></div>
                     </div>
@@ -1481,19 +1481,19 @@
                         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
                             <div>
                                 <div style="font-size: 12px; color: var(--t2); margin-bottom: 4px;">المتجر</div>
-                                <div id="subInfoSlug" style="font-weight: bold; color: #f0ece4; font-size: 15px;">—</div>
+                                <div id="subInfoSlug" style="font-weight: bold; color: var(--t1); font-size: 15px;">—</div>
                             </div>
                             <div>
                                 <div style="font-size: 12px; color: var(--t2); margin-bottom: 4px;">نوع الاشتراك</div>
-                                <div id="subInfoPlan" style="font-weight: bold; color: #f0ece4; font-size: 15px;">—</div>
+                                <div id="subInfoPlan" style="font-weight: bold; color: var(--t1); font-size: 15px;">—</div>
                             </div>
                             <div>
                                 <div style="font-size: 12px; color: var(--t2); margin-bottom: 4px;">وضع التشغيل</div>
-                                <div id="subInfoMode" style="font-weight: bold; color: #f0ece4; font-size: 15px;">—</div>
+                                <div id="subInfoMode" style="font-weight: bold; color: var(--t1); font-size: 15px;">—</div>
                             </div>
                             <div>
                                 <div style="font-size: 12px; color: var(--t2); margin-bottom: 4px;">تاريخ الانتهاء</div>
-                                <div id="subInfoExpiry" style="font-weight: bold; color: #f0ece4; font-size: 15px;">—</div>
+                                <div id="subInfoExpiry" style="font-weight: bold; color: var(--t1); font-size: 15px;">—</div>
                             </div>
                         </div>
                         <div style="margin-top: 15px; padding-top: 15px; border-top: 2px solid #e9d8fd; text-align: center;">
@@ -1505,7 +1505,7 @@
                 <!-- إعدادات وضع التزامن -->
                 <div style="max-width: 600px; margin-top: 30px;">
                     <h3 style="color: #0ea5e9; margin-bottom: 15px;">🔄 إعدادات التزامن</h3>
-                    <div style="background: #1e1e2a; padding: 20px; border-radius: 12px; border: 2px solid rgba(212,168,83,0.3);">
+                    <div style="background: var(--raised); padding: 20px; border-radius: 12px; border: 2px solid rgba(212,168,83,0.3);">
                         <div class="form-group">
                             <label>وضع التشغيل:</label>
                             <select id="syncModeSelect" onchange="onSyncModeChange()" style="padding: 10px; border: 1px solid rgba(212,168,83,0.12); border-radius: 6px; width: 100%; background: var(--raised); color: var(--t1);">
@@ -1559,7 +1559,7 @@
 
                         <!-- حالة الوضع الحالي -->
                         <div id="syncModeStatus" style="margin-top: 15px; padding: 12px; border-radius: 8px; background: rgba(78,203,113,0.06); border: 1px solid rgba(78,203,113,0.2);">
-                            <span id="syncModeStatusText" style="font-size: 13px; color: #f0ece4;">الوضع الحالي: محلي بالكامل</span>
+                            <span id="syncModeStatusText" style="font-size: 13px; color: var(--t1);">الوضع الحالي: محلي بالكامل</span>
                         </div>
                     </div>
                 </div>
@@ -1638,7 +1638,7 @@
                     <h3 style="margin: 0 0 15px; color: #856404;">🔄 استعادة نسخة احتياطية</h3>
                     <p style="color: #856404; margin-bottom: 15px;">رفع ملف نسخة احتياطية (.db) لاستعادة البيانات. سيتم إنشاء نسخة احتياطية تلقائية قبل الاستعادة.</p>
                     <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
-                        <input type="file" id="restoreFileInput" accept=".db" style="flex: 1; min-width: 200px; padding: 10px; border: 2px dashed #ffc107; border-radius: 8px; background: #16161f;">
+                        <input type="file" id="restoreFileInput" accept=".db" style="flex: 1; min-width: 200px; padding: 10px; border: 2px dashed #ffc107; border-radius: 8px; background: var(--card);">
                         <button onclick="restoreBackup()" class="btn" style="background: #e67e00; padding: 12px 25px;">🔄 استعادة</button>
                     </div>
                 </div>
@@ -1647,7 +1647,7 @@
                     <!-- النسخ المحلية -->
                     <div style="min-width: 0;">
                         <h3 style="color: var(--t2); margin-bottom: 15px;">📁 النسخ الاحتياطية المحلية</h3>
-                        <div id="backupsList" style="background: #16161f; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); overflow: hidden;">
+                        <div id="backupsList" style="background: var(--card); border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); overflow: hidden;">
                             <div style="padding: 30px; text-align: center; color: #e0dce8;">جاري التحميل...</div>
                         </div>
                     </div>
@@ -1655,14 +1655,14 @@
                     <!-- النسخ في Google Drive -->
                     <div style="min-width: 0;">
                         <h3 style="color: var(--t2); margin-bottom: 15px;">☁️ النسخ في Google Drive</h3>
-                        <div id="gdriveFilesList" style="background: #16161f; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); overflow: hidden;">
+                        <div id="gdriveFilesList" style="background: var(--card); border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); overflow: hidden;">
                             <div style="padding: 30px; text-align: center; color: #e0dce8;">غير متصل بـ Google Drive</div>
                         </div>
                     </div>
                 </div>
 
                 <!-- إعدادات الجدولة -->
-                <div style="background: #16161f; padding: 25px; border-radius: 16px; margin-top: 25px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                <div style="background: var(--card); padding: 25px; border-radius: 16px; margin-top: 25px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
                     <h3 style="color: #d4a853; margin: 0 0 20px;">⏰ النسخ الاحتياطي التلقائي</h3>
                     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px;">
                         <div class="form-group">
@@ -1692,7 +1692,7 @@
                 </div>
 
                 <!-- ربط Google Drive -->
-                <div style="background: #16161f; padding: 25px; border-radius: 16px; margin-top: 25px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                <div style="background: var(--card); padding: 25px; border-radius: 16px; margin-top: 25px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
                     <h3 style="color: #4285f4; margin: 0 0 20px;">
                         <span style="display: inline-flex; align-items: center; gap: 8px;">
                             ☁️ ربط Google Drive
@@ -1773,7 +1773,7 @@
                 </div>
 
                 <!-- قسم المزامنة - للأدمن فقط -->
-                <div id="syncSection" style="background: linear-gradient(135deg, #0f0f18, #16161f); border-radius: 16px; padding: 25px; margin-bottom: 25px; color: white;">
+                <div id="syncSection" style="background: linear-gradient(135deg, var(--panel), var(--card)); border-radius: 16px; padding: 25px; margin-bottom: 25px; color: white;">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 10px;">
                         <div>
                             <h3 style="margin: 0 0 5px; font-size: 18px;">مركز المزامنة</h3>
@@ -1839,17 +1839,17 @@
                 <div id="adminDashOverallStats" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 30px;"></div>
 
                 <!-- ملخص الفواتير لكل فرع -->
-                <div style="background: #16161f; border-radius: 16px; box-shadow: 0 2px 12px rgba(0,0,0,0.08); padding: 25px; margin-bottom: 25px;">
-                    <h3 style="margin: 0 0 20px; color: #f0ece4; font-size: 18px;">الفواتير حسب الفروع</h3>
+                <div style="background: var(--card); border-radius: 16px; box-shadow: 0 2px 12px rgba(0,0,0,0.08); padding: 25px; margin-bottom: 25px;">
+                    <h3 style="margin: 0 0 20px; color: var(--t1); font-size: 18px;">الفواتير حسب الفروع</h3>
                     <div id="adminDashInvoicesTable" style="overflow-x: auto;">
                         <div style="padding: 30px; text-align: center; color: #e0dce8;">جاري التحميل...</div>
                     </div>
                 </div>
 
                 <!-- ملخص المخزون لكل فرع -->
-                <div style="background: #16161f; border-radius: 16px; box-shadow: 0 2px 12px rgba(0,0,0,0.08); padding: 25px;">
+                <div style="background: var(--card); border-radius: 16px; box-shadow: 0 2px 12px rgba(0,0,0,0.08); padding: 25px;">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-                        <h3 style="margin: 0; color: #f0ece4; font-size: 18px;">المخزون حسب الفروع</h3>
+                        <h3 style="margin: 0; color: var(--t1); font-size: 18px;">المخزون حسب الفروع</h3>
                         <input type="text" id="adminDashStockSearch" placeholder="ابحث عن منتج..." oninput="filterAdminDashStock()" style="padding: 8px 15px; border: 2px solid var(--gold-b); border-radius: 8px; font-size: 14px; width: 250px;">
                     </div>
                     <div id="adminDashStockTable" style="overflow-x: auto;">
@@ -1858,8 +1858,8 @@
                 </div>
 
                 <!-- أداء الشفتات -->
-                <div style="background: #16161f; border-radius: 16px; box-shadow: 0 2px 12px rgba(0,0,0,0.08); padding: 25px; margin-top: 25px;">
-                    <h3 style="margin: 0 0 20px; color: #f0ece4; font-size: 18px;">أداء الشفتات</h3>
+                <div style="background: var(--card); border-radius: 16px; box-shadow: 0 2px 12px rgba(0,0,0,0.08); padding: 25px; margin-top: 25px;">
+                    <h3 style="margin: 0 0 20px; color: var(--t1); font-size: 18px;">أداء الشفتات</h3>
                     <div id="adminDashShiftPerformance" style="overflow-x: auto;">
                         <div style="padding: 30px; text-align: center; color: #e0dce8;">جاري التحميل...</div>
                     </div>
@@ -1875,7 +1875,7 @@
                     <button onclick="showAddExpense()" class="add-btn">➕ إضافة تكلفة</button>
                 </div>
                 
-                <div style="background: #16161f; padding: 20px; border-radius: 12px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                <div style="background: var(--card); padding: 20px; border-radius: 12px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
                     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
                         <div class="form-group">
                             <label>من تاريخ:</label>
@@ -1906,7 +1906,7 @@
             <div style="padding: 20px;">
                 <h2>📈 التقارير المتقدمة</h2>
                 
-                <div style="background: #16161f; padding: 20px; border-radius: 12px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                <div style="background: var(--card); padding: 20px; border-radius: 12px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
                     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
                         <div class="form-group">
                             <label>من تاريخ:</label>
@@ -2061,16 +2061,16 @@
                             <!-- التكاليف تضاف هنا -->
                         </div>
                         
-                        <div style="background: #16161f; padding: 15px; border-radius: 8px; margin-top: 15px; border: 2px solid rgba(212,168,83,0.3);">
+                        <div style="background: var(--card); padding: 15px; border-radius: 8px; margin-top: 15px; border: 2px solid rgba(212,168,83,0.3);">
                             <div style="display: flex; justify-content: space-between; align-items: center;">
-                                <span style="font-weight: bold; color: #f0ece4; font-size: 16px;">💵 إجمالي التكلفة:</span>
+                                <span style="font-weight: bold; color: var(--t1); font-size: 16px;">💵 إجمالي التكلفة:</span>
                                 <span id="inventoryTotalCostDisplay" style="font-size: 24px; font-weight: bold; color: #d4a853;">0.000 د.ك</span>
                             </div>
                         </div>
                         
                         <div style="background: rgba(245,158,11,0.1); padding: 12px; border-radius: 8px; margin-top: 15px; border-right: 4px solid rgba(245,158,11,0.5);">
                             <strong>📊 هامش الربح:</strong>
-                            <div style="margin-top: 5px; font-size: 18px; font-weight: bold; color: #f0ece4;" id="inventoryProfitDisplay">
+                            <div style="margin-top: 5px; font-size: 18px; font-weight: bold; color: var(--t1);" id="inventoryProfitDisplay">
                                 --
                             </div>
                         </div>
@@ -2621,14 +2621,14 @@
                             <label style="font-size:11px; color:var(--t2);">الكمية</label>
                             <input type="number" id="transferProductQty" value="1" min="1" style="width:100%; padding:10px; border:2px solid rgba(212,168,83,0.2); border-radius:8px; text-align:center; background:var(--card); color:var(--t1);">
                         </div>
-                        <button type="button" onclick="addTransferItemFromSelect()" style="padding:10px 18px; background:#d4a853; color:#f0ece4; border:none; border-radius:8px; cursor:pointer; font-size:14px; white-space:nowrap;">➕ أضف</button>
+                        <button type="button" onclick="addTransferItemFromSelect()" style="padding:10px 18px; background:#d4a853; color: var(--t1); border:none; border-radius:8px; cursor:pointer; font-size:14px; white-space:nowrap;">➕ أضف</button>
                     </div>
                 </div>
                 <!-- عناصر الطلب -->
                 <div id="transferItemsContainer" style="margin-bottom: 15px;">
                     <table style="width:100%; border-collapse:collapse; font-size:13px;">
                         <thead>
-                            <tr style="background:#1e1e2a;">
+                            <tr style="background: var(--raised);">
                                 <th style="padding:8px; text-align:right; border-bottom:2px solid rgba(212,168,83,0.2);">الصنف</th>
                                 <th style="padding:8px; text-align:center; border-bottom:2px solid rgba(212,168,83,0.2); width:120px;">الكمية</th>
                                 <th style="padding:8px; text-align:center; border-bottom:2px solid rgba(212,168,83,0.2); width:60px;">حذف</th>
@@ -2637,7 +2637,7 @@
                         <tbody id="transferItemsBody"></tbody>
                     </table>
                 </div>
-                <button onclick="submitTransferRequest()" class="btn" style="width:100%; padding:12px; background:#d4a853; font-size:16px; border:none; color:#f0ece4; border-radius:8px; cursor:pointer;">📤 إرسال الطلب</button>
+                <button onclick="submitTransferRequest()" class="btn" style="width:100%; padding:12px; background:#d4a853; font-size:16px; border:none; color: var(--t1); border-radius:8px; cursor:pointer;">📤 إرسال الطلب</button>
             </div>
         </div>
     </div>
@@ -3371,7 +3371,7 @@
                 <button class="close-btn" onclick="closeVariantSelect()">✖️</button>
             </div>
             <div class="modal-body">
-                <div id="variantSelectProductName" style="text-align: center; font-weight: bold; font-size: 18px; margin-bottom: 15px; color: #f0ece4;"></div>
+                <div id="variantSelectProductName" style="text-align: center; font-weight: bold; font-size: 18px; margin-bottom: 15px; color: var(--t1);"></div>
                 <div id="variantSelectOptions" style="display: flex; flex-direction: column; gap: 10px;"></div>
             </div>
         </div>
