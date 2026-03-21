@@ -388,3 +388,56 @@ When modifying the frontend:
 3. `frontend/style.css` — Styling
 4. `frontend/sw.js` — Update service worker version if caching changes
 5. **My-Pos repo**: Copy the same `frontend/` changes
+
+## Theming Guide (Dark/Light Mode)
+
+The system supports dark mode (default) and light mode. Theme is toggled via `body.light-mode` class. CSS variables are defined in `:root` (dark) and `body.light-mode` (light) in `frontend/style.css`.
+
+### CSS Variables — ALWAYS use these, NEVER hardcode hex colors
+
+| Variable | Dark Mode | Light Mode | Use For |
+|----------|-----------|------------|---------|
+| `var(--bg)` | `#09090f` | `#f4f1ec` | Page background |
+| `var(--panel)` | `#0f0f18` | `#ffffff` | Sidebar, panels |
+| `var(--card)` | `#16161f` | `#ffffff` | Cards, sections, containers |
+| `var(--raised)` | `#1e1e2a` | `#f0ece4` | Raised elements, inputs, table headers |
+| `var(--gold)` | `#d4a853` | `#b8892e` | Primary accent |
+| `var(--gold2)` | `#f0d48a` | `#d4a853` | Secondary accent |
+| `var(--gold-bg)` | `rgba(212,168,83,0.08)` | `rgba(184,137,46,0.08)` | Gold tinted backgrounds |
+| `var(--gold-b)` | `rgba(212,168,83,0.12)` | `rgba(184,137,46,0.18)` | Borders |
+| `var(--t1)` | `#f0ece4` | `#1a1a2e` | Primary text |
+| `var(--t2)` | `#e0dce8` | `#3a3a4e` | Secondary text |
+| `var(--t3)` | `#9a96a6` | `#7a7a8e` | Muted text |
+| `var(--green)` | `#4ecb71` | `#28a745` | Success |
+| `var(--red)` | `#e85d5d` | `#dc3545` | Error/danger |
+| `var(--blue)` | `#5b8def` | `#2563eb` | Info |
+
+### Banned Hardcoded Colors (use CSS variables instead)
+- `#16161f` → `var(--card)`
+- `#1e1e2a` → `var(--raised)`
+- `#1a1a22` → `var(--card)`
+- `#0f0f18` → `var(--panel)`
+- `#09090f` → `var(--bg)`
+- `#f0ece4` (text) → `var(--t1)`
+- `#e0dce8` (text) → `var(--t2)`
+
+### Status Colors (work in both themes)
+- Success: `background: rgba(78,203,113,0.08); color: var(--green);`
+- Error: `background: rgba(232,93,93,0.08); color: var(--red);`
+- Warning: `background: var(--gold-bg); color: var(--gold);`
+- Info: `background: rgba(59,130,246,0.08); color: var(--blue);`
+
+### Common Patterns
+```html
+<!-- Card/Section -->
+<div style="background: var(--card); padding: 25px; border-radius: 12px;">
+
+<!-- Form input in JS -->
+<input style="background: var(--raised); color: var(--t1); border: 1px solid var(--gold-b);">
+
+<!-- Table header -->
+<tr style="background: var(--raised);">
+```
+
+### Print Stylesheets
+OK to use hardcoded light colors (#f0f0f0, #fff, etc.) since print is always on white paper.
